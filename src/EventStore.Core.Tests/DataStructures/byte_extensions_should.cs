@@ -1,4 +1,4 @@
-﻿using EventStore.Core.DataStructures.ProbabilisticFilter.MemoryMappedFileBloomFilter;
+﻿using EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters;
 using NUnit.Framework;
 
 namespace EventStore.Core.Tests.DataStructures {
