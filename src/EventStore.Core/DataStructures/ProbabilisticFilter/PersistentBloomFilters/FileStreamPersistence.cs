@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using EventStore.Common.Utils;
 using Serilog;
 
@@ -149,6 +150,13 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilt
 			localCacheLine.Clear();
 
 			var pageNumber = 0;
+			var flushedPages = 0;
+			var pauses = 0;
+
+			//qq configurable?
+			var flushBatchSize = 512;
+			var flushBatchDelay = 100; // enough to get out of the way of any other writes
+			var activelyFlushing = Stopwatch.StartNew();
 
 			for (var remaining = _dirtyPageBitmap.AsSpan();
 				remaining.Length > 0;
@@ -165,7 +173,14 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilt
 					for (var bitOffset = 0; bitOffset < 8; bitOffset++) {
 						if (@byte.IsBitSet(bitOffset)) {
 							WritePage(pageNumber, fileStream);
-							//qq configurable? sleep to control the speed
+							flushedPages++;
+
+							if (flushedPages % flushBatchSize == 0) {
+								activelyFlushing.Stop();
+								pauses++;
+								Thread.Sleep(flushBatchDelay);
+								activelyFlushing.Start();
+							}
 						}
 
 						pageNumber++;
@@ -175,8 +190,23 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilt
 				}
 			}
 
+
 			Done:
 			fileStream.FlushToDisk();
+
+			activelyFlushing.Stop();
+
+			var flushedBytes = flushedPages * DataAccessor.PageSize;
+			var flushedMegaBytes = flushedBytes / 1000 / 1000;
+			var activeFlushRateMBperS = flushedMegaBytes / activelyFlushing.Elapsed.TotalSeconds;
+
+			Log.Information(
+				"Flushed {pages:N0} pages. {bytes:N0} bytes. " +
+				"Delay {delay} per batch. Total delay {totalDelay}. " +
+				"Actively flushing: {activeFlushTime} {activeFlushRate}MB/s. ",
+				flushedPages, flushedBytes,
+				flushBatchDelay, flushBatchDelay * pauses,
+				activelyFlushing.Elapsed, activeFlushRateMBperS);
 		}
 
 		private void WritePage(int pageNumber, FileStream fileStream) {
