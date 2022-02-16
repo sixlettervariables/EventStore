@@ -197,14 +197,14 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilt
 			activelyFlushing.Stop();
 
 			var flushedBytes = flushedPages * DataAccessor.PageSize;
-			var flushedMegaBytes = flushedBytes / 1000 / 1000;
+			var flushedMegaBytes = (float)flushedBytes / 1000 / 1000;
 			var activeFlushRateMBperS = flushedMegaBytes / activelyFlushing.Elapsed.TotalSeconds;
 
 			Log.Information(
-				"Flushed {pages:N0} pages. {bytes:N0} bytes. " +
+				"Flushed {pages:N0} pages out of {totalPages}. {bytes:N0} bytes. " +
 				"Delay {delay} per batch. Total delay {totalDelay}. " +
-				"Actively flushing: {activeFlushTime} {activeFlushRate}MB/s. ",
-				flushedPages, flushedBytes,
+				"Actively flushing: {activeFlushTime} {activeFlushRate:N2}MB/s. ",
+				flushedPages, DataAccessor.NumPages, flushedBytes,
 				flushBatchDelay, flushBatchDelay * pauses,
 				activelyFlushing.Elapsed, activeFlushRateMBperS);
 		}
