@@ -111,16 +111,16 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		}
 
 		// converts page number into byte position of the page in the file
-		public (long PositionInFile, int PageSize) GetPagePositionInFile(int pageNumber) {
+		public (long PositionInFile, int PageSize) GetPagePositionInFile(long pageNumber) {
 			if (pageNumber >= NumPages)
 				throw new ArgumentOutOfRangeException(nameof(pageNumber), pageNumber, "");
 
 			// first cache line is reserved for the header
 			var positionInFile = CacheLineSize + (pageNumber * PageSize);
 
-			var pageSize = Math.Min(PageSize, (int)(FileSize - positionInFile));
+			var pageSize = Math.Min(PageSize, FileSize - positionInFile);
 
-			return (positionInFile, pageSize);
+			return (positionInFile, (int)pageSize);
 		}
 
 		// determines which page a bytePosition in the file is for.
@@ -144,7 +144,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		}
 
 		private Span<byte> ReadCacheLineFor(long bytePositionInFile) {
-			bytePositionInFile = bytePositionInFile / CacheLineSize * CacheLineSize;
+			bytePositionInFile = bytePositionInFile.RoundDownToMultipleOf(CacheLineSize);
 			return ReadBytes(bytePositionInFile, CacheLineSize);
 		}
 
@@ -164,17 +164,20 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			ref var byteValue = ref ReadByte(bytePositionInFile);
 			byte oldByte = byteValue;
 			byteValue = byteValue.SetBit(bitPosition % 8);
-			var cacheLine = ReadCacheLineFor(bytePositionInFile);
 
-			// it would be possible to delegate the hash calculation call to the persistence
-			// strategy. memmap would calculate it synchronously, filestream could defer
-			// it until flush (and wouldn't even need to set it in the memory area, only
-			// in the file. not worth the effort at the moment, however.
-			BloomFilterIntegrity.WriteHash(cacheLine);
+			if (byteValue != oldByte) {
+				var cacheLine = ReadCacheLineFor(bytePositionInFile);
 
-			if (byteValue != oldByte && _onPageDirty is not null) {
-				var pageNumber = GetPageNumber(bytePositionInFile);
-				_onPageDirty(pageNumber);
+				// it would be possible to delegate the hash calculation call to the persistence
+				// strategy. memmap would calculate it synchronously, filestream could defer
+				// it until flush (and wouldn't even need to set it in the memory area, only
+				// in the file. not worth the effort at the moment, however.
+				BloomFilterIntegrity.WriteHash(cacheLine);
+
+				if (_onPageDirty is not null) {
+					var pageNumber = GetPageNumber(bytePositionInFile);
+					_onPageDirty(pageNumber);
+				}
 			}
 		}
 

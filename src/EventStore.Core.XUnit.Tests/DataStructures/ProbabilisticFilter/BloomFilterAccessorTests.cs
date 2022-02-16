@@ -85,6 +85,13 @@ namespace EventStore.Core.XUnit.Tests.DataStructures.ProbabilisticFilter {
 		}
 
 		[Fact]
+		public void CalculatesPagePositionInFileLarge() {
+			var sut = GenSut(4_000_000_000);
+			Assert.Equal((64, 8 * 1024), sut.GetPagePositionInFile(0));
+			Assert.Equal((4_266_664_000, 2752), sut.GetPagePositionInFile(520_833));
+		}
+
+		[Fact]
 		public void CalculatesPageNumber() {
 			var sut = GenSut(10_000);
 			Assert.Equal(0, sut.GetPageNumber(64));
@@ -106,6 +113,22 @@ namespace EventStore.Core.XUnit.Tests.DataStructures.ProbabilisticFilter {
 			Assert.True(sut.IsBitSet(0));
 			Assert.False(sut.IsBitSet(1));
 			Assert.Equal(0, dirtyPage);
+		}
+
+		[Fact]
+		public void CanSetAndTestBitsLargeFile() {
+			var dirtyPage = -1L;
+			var sut = GenSut(4_000_000_000, pageNumber => dirtyPage = pageNumber);
+			using var mem = new AlignedMemory(sut.FileSize, 64);
+			sut.Pointer = mem.Pointer;
+
+			sut.SetBit(0);
+			Assert.True(sut.IsBitSet(0));
+			Assert.Equal(0, dirtyPage);
+
+			sut.SetBit(4_000_000_000L * 8);
+			Assert.True(sut.IsBitSet(4_000_000_000L * 8));
+			Assert.Equal(520_833, dirtyPage);
 		}
 
 		[Fact]
