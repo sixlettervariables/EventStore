@@ -429,9 +429,9 @@ namespace EventStore.Core.Index {
 				// todo: if there is a bloom filter with a different size we could still use it
 				var bloomFilter = new PersistentBloomFilter(
 					new FileStreamPersistence(
-						size: GenBloomFilterSizeBytes(_count),
 						path: BloomFilterFilename,
-						create: false));
+						create: false,
+						size: GenBloomFilterSizeBytes(_count)));
 
 				return bloomFilter;
 			} catch (FileNotFoundException) {

@@ -60,6 +60,8 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 
 			// add room for filter bits, rounded down to nearest cacheline
 			FileSize = GetBytePositionInFile(LogicalFilterSizeBits).RoundDownToMultipleOf(cacheLineSize);
+			// with an extra cacheline so we have at least as much logical filter space as asked for
+			// can't change this to a call to .RoundUpToMultipleOf without breaking the existing filters.
 			FileSize += cacheLineSize;
 
 			// header is not part of the pages
@@ -88,12 +90,9 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		public byte* Pointer {
 			get => _pointer;
 			set {
-				if ((long)value % CacheLineSize != 0) {
-					//qq consider whether to keep this.. throw? log error?
-					// do at least test out how the error message comes out
-					_log.Error("Pointer {pointer} was not aligned to a cacheline {cacheLineSize}", (long)value, CacheLineSize);
-					throw new InvalidOperationException($"Pointer {(long)value} was not aligned to a cacheline {CacheLineSize}");
-				}
+				if ((long)value % CacheLineSize != 0)
+					throw new InvalidOperationException($"Pointer {(long)value} is not aligned to a cacheline ({CacheLineSize})");
+
 				_pointer = value;
 			}
 		}
@@ -113,6 +112,9 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 
 		// converts page number into byte position of the page in the file
 		public (long PositionInFile, int PageSize) GetPagePositionInFile(int pageNumber) {
+			if (pageNumber >= NumPages)
+				throw new ArgumentOutOfRangeException(nameof(pageNumber), pageNumber, "");
+
 			// first cache line is reserved for the header
 			var positionInFile = CacheLineSize + (pageNumber * PageSize);
 
@@ -127,7 +129,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			return (bytePositionInFile - CacheLineSize) / PageSize;
 		}
 
-		public void EnsureBounds(long bytePosition, int length) {
+		private void EnsureBounds(long bytePosition, int length) {
 			if (bytePosition > FileSize - length) {
 				throw new ArgumentOutOfRangeException(
 					nameof(bytePosition),
@@ -136,12 +138,12 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			}
 		}
 
-		public ref byte ReadByte(long bytePositionInFile) {
+		private ref byte ReadByte(long bytePositionInFile) {
 			EnsureBounds(bytePositionInFile, length: 1);
 			return ref *(Pointer + bytePositionInFile);
 		}
 
-		public Span<byte> ReadCacheLineFor(long bytePositionInFile) {
+		private Span<byte> ReadCacheLineFor(long bytePositionInFile) {
 			bytePositionInFile = bytePositionInFile / CacheLineSize * CacheLineSize;
 			return ReadBytes(bytePositionInFile, CacheLineSize);
 		}

@@ -35,8 +35,8 @@ namespace EventStore.Core.Index {
 			return new PersistentBloomFilter(
 				new FileStreamPersistence(
 					path: GenBloomFilterFilename(filename),
-					size: GenBloomFilterSizeBytes(indexEntryCount),
-					create: true));
+					create: true,
+					size: GenBloomFilterSizeBytes(indexEntryCount)));
 		}
 
 		public static PTable FromMemtable(IMemTable table, string filename, int initialReaders, int maxReaders,

@@ -15,8 +15,6 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 
 
 	// testing
-	// - new classes unit tests
-	// - prolly integration tests with both strategies
 	// - check if we unalign the memory it goes slower
 	// compatibility with the previous filter files
 	// perf test
