@@ -6,7 +6,7 @@ using System.Threading;
 using EventStore.Common.Utils;
 using Serilog;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	//qqq step through the 4 cases considering whether it is ok in the wrong-size case.
 	// - fsync create
 	// - fsync existing

@@ -9,7 +9,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using EventStore.Common.Utils;
 using EventStore.Core.DataStructures;
-using EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters;
+using EventStore.Core.DataStructures.ProbabilisticFilter;
 
 namespace EventStore.Core.Index {
 	public unsafe partial class PTable {

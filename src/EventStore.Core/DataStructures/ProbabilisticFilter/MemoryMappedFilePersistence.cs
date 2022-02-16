@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using EventStore.Common.Utils;
 using Serilog;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	public unsafe class MemoryMappedFilePersistence : IPersistenceStrategy {
 		public static readonly ILogger Log = Serilog.Log.ForContext<MemoryMappedFilePersistence>();
 		private readonly long _size;

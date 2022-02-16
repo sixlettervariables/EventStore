@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters;
+using EventStore.Core.DataStructures.ProbabilisticFilter;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.TransactionLog.Checkpoint;
 using Serilog;

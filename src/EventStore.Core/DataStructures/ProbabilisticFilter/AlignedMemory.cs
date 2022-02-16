@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	// net6 can do aligned allocations directly
 	// but we need to overallocate and do our own alignment.
 	public sealed unsafe class AlignedMemory : IDisposable {

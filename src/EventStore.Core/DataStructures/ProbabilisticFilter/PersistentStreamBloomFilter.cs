@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using EventStore.Common.Utils;
 using EventStore.Core.Index.Hashes;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	// this class exists to deal with the fact that v3 stores strings in the bloom filter
 	// but v2 stores hashes (to make it faster to rebuild from the standard index)
 	//

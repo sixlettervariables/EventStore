@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters;
+using EventStore.Core.DataStructures.ProbabilisticFilter;
 using NUnit.Framework;
 
 namespace EventStore.Core.Tests.DataStructures {

@@ -1,4 +1,4 @@
-﻿namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+﻿namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	public static class RoundingExtensions {
 		public static long RoundDownToMultipleOf(this long x, int multiple) {
 			return x / multiple * multiple;

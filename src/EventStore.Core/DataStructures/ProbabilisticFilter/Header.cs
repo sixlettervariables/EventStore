@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	[StructLayout(LayoutKind.Explicit, Size = Size, Pack = 1)]
 	public struct Header {
 		internal const byte CurrentVersion = 1;

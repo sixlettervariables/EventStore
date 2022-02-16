@@ -4,7 +4,7 @@ using EventStore.Common.Utils;
 using EventStore.Core.Index.Hashes;
 using Serilog;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	// This class is responsible for maintaining and validating a 4 byte hash at the end
 	// of the cache line.
 	public class BloomFilterIntegrity {

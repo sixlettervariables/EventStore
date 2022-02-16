@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using EventStore.Common.Utils;
 using Serilog;
 
-namespace EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters {
+namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	// encapsulates access to a persistent bloom filter through a byte* and specified sizes.
 	// this does the necessary pointer arithmetic and bounds checking.
 	// no synchronisation in here.

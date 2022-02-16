@@ -10,7 +10,7 @@ using EventStore.Core.Exceptions;
 using EventStore.Core.TransactionLog.Unbuffered;
 using ILogger = Serilog.ILogger;
 using Range = EventStore.Core.Data.Range;
-using EventStore.Core.DataStructures.ProbabilisticFilter.PersistentBloomFilters;
+using EventStore.Core.DataStructures.ProbabilisticFilter;
 using System.Runtime.InteropServices;
 
 namespace EventStore.Core.Index {
