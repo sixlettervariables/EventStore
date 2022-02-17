@@ -64,11 +64,9 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			// can't change this to a call to .RoundUpToMultipleOf without breaking the existing filters.
 			FileSize += cacheLineSize;
 
-			// header is not part of the pages
 			// last page may be a partial page
-			var dataSize = FileSize - CacheLineSize;
-			NumPages = dataSize / PageSize;
-			if (dataSize % PageSize != 0)
+			NumPages = FileSize / PageSize;
+			if (FileSize % PageSize != 0)
 				NumPages++;
 		}
 
@@ -111,22 +109,27 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		}
 
 		// converts page number into byte position of the page in the file
+		// the pages are aligned with the beginning of the file so that they are aligned on disk
+		// the first page is therefore slightly smaller to account for the header cache line.
 		public (long PositionInFile, int PageSize) GetPagePositionInFile(long pageNumber) {
 			if (pageNumber >= NumPages)
 				throw new ArgumentOutOfRangeException(nameof(pageNumber), pageNumber, "");
 
-			// first cache line is reserved for the header
-			var positionInFile = CacheLineSize + (pageNumber * PageSize);
+			var positionInFile = pageNumber * PageSize;
 
 			var pageSize = Math.Min(PageSize, FileSize - positionInFile);
+
+			if (pageNumber == 0) {
+				pageSize -= 64;
+				positionInFile += 64;
+			}
 
 			return (positionInFile, (int)pageSize);
 		}
 
 		// determines which page a bytePosition in the file is for.
 		public long GetPageNumber(long bytePositionInFile) {
-			// pages start after the header
-			return (bytePositionInFile - CacheLineSize) / PageSize;
+			return bytePositionInFile / PageSize;
 		}
 
 		private void EnsureBounds(long bytePosition, int length) {

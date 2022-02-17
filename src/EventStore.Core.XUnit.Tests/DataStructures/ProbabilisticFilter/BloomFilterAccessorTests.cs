@@ -49,18 +49,18 @@ namespace EventStore.Core.XUnit.Tests.DataStructures.ProbabilisticFilter {
 			Assert.Equal(expected / 64, sut.NumCacheLines);
 		}
 
-		[Theory]
-		// we have a 8192 / 64 = 128 cachelines per page
-		// and we have one cacheline per 60 bytes of logical filter
-		// so we have one page for every 60 * 128 = 7680 bytes of logical filter
-		// plus one more page since it hits the boundary (unnecessary but change would be breaking)
-		[InlineData(30 * 7680, 30 + 1, "")]
-		[InlineData(30 * 7680 - 1, 30, "one less byte would need one less page")]
-		[InlineData(30 * 7680 + 7679, 30 + 1, "7679 more bytes would still fit")]
-		[InlineData(30 * 7680 + 7680, 30 + 1 + 1, "but 7680 requires another page")]
-		public void CalculatesNumPages(int size, int expected, string detail) {
-			var sut = GenSut(size);
-			Assert.Equal(expected, sut.NumPages);
+		// we don't mind how many pages there are (within reason) as long as there are enough
+		[Fact]
+		public void CanGetPageForLastBit() {
+			for (int size = 10_000; size < 40_000; size++) {
+				var sut = GenSut(size);
+				var lastBit = size * 8 - 1;
+				var lastByte = sut.GetBytePositionInFile(lastBit);
+				var pageOfLastBit = sut.GetPageNumber(lastByte);
+				Assert.True(lastByte < sut.FileSize);
+				Assert.True(pageOfLastBit < sut.NumPages);
+				Assert.True(pageOfLastBit >= sut.NumPages - 2);
+			}
 		}
 
 		[Fact]
@@ -78,25 +78,27 @@ namespace EventStore.Core.XUnit.Tests.DataStructures.ProbabilisticFilter {
 		[Fact]
 		public void CalculatesPagePositionInFile() {
 			var sut = GenSut(10_000);
-			Assert.Equal((64, 8 * 1024), sut.GetPagePositionInFile(0));
-			Assert.Equal((64 + 8 * 1024, 2496), sut.GetPagePositionInFile(1));
-			Assert.Equal(sut.FileSize, 8 * 1024 + 64 + 2496);
+			var expectedFirstPageSize = 8 * 1024 - 64;
+			var expectedLastPageSize = 2560;
+			Assert.Equal((64, expectedFirstPageSize), sut.GetPagePositionInFile(0));
+			Assert.Equal((8 * 1024, expectedLastPageSize), sut.GetPagePositionInFile(1));
+			Assert.Equal(sut.FileSize, 64 + expectedFirstPageSize + expectedLastPageSize);
 			Assert.Throws<ArgumentOutOfRangeException>(() => sut.GetPagePositionInFile(2));
 		}
 
 		[Fact]
 		public void CalculatesPagePositionInFileLarge() {
 			var sut = GenSut(4_000_000_000);
-			Assert.Equal((64, 8 * 1024), sut.GetPagePositionInFile(0));
-			Assert.Equal((4_266_664_000, 2752), sut.GetPagePositionInFile(520_833));
+			Assert.Equal((64, 8 * 1024 - 64), sut.GetPagePositionInFile(0));
+			Assert.Equal((4_266_663_936, 2816), sut.GetPagePositionInFile(520_833));
 		}
 
 		[Fact]
 		public void CalculatesPageNumber() {
 			var sut = GenSut(10_000);
-			Assert.Equal(0, sut.GetPageNumber(64));
-			Assert.Equal(0, sut.GetPageNumber(64 + 8 * 1024 - 1));
-			Assert.Equal(1, sut.GetPageNumber(64 + 8 * 1024));
+			Assert.Equal(0, sut.GetPageNumber(0));
+			Assert.Equal(0, sut.GetPageNumber(8 * 1024 - 1));
+			Assert.Equal(1, sut.GetPageNumber(8 * 1024));
 			Assert.Equal(1, sut.GetPageNumber(sut.FileSize));
 		}
 
