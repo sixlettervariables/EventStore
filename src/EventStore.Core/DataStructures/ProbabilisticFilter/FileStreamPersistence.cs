@@ -236,14 +236,23 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		}
 
 		public void WriteHeader(Header header) {
+			Log.Information("Writing header and expanding file...");
 			using var fileStream = new FileStream(
 				_path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
 			var span = MemoryMarshal.CreateReadOnlySpan(ref header, 1);
 			var headerBytes = MemoryMarshal.Cast<Header, byte>(span);
+
+			// this doesn't technically guarantee that the file is zeroed, but we expect file systems
+			// that could reasonably be running eventstore to do this for us because giving us other
+			// peoples data would be a security problem. if some filesystem does not to this the filter
+			// will be recognised as corrupt the next time it is opened.
 			fileStream.SetLength(DataAccessor.FileSize);
 			fileStream.Seek(offset: 0, SeekOrigin.Begin);
 			fileStream.Write(headerBytes);
+			fileStream.Seek(-1, SeekOrigin.End);
+			fileStream.WriteByte(0);
 			fileStream.FlushToDisk();
+			Log.Information("Wrote header and expanded file");
 		}
 
 		private void ThrowIfDisposed() {
