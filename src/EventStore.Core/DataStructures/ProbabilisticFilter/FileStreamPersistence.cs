@@ -7,13 +7,6 @@ using EventStore.Common.Utils;
 using Serilog;
 
 namespace EventStore.Core.DataStructures.ProbabilisticFilter {
-	//qqq step through the 4 cases considering whether it is ok in the wrong-size case.
-	// - fsync create
-	// - fsync existing
-	// - msync create
-	// - msync existing
-
-
 	// testing
 	// - check if we unalign the memory it goes slower
 	// compatibility with the previous filter files
@@ -95,7 +88,6 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 				bufferSize: 65_536,
 				options: FileOptions.SequentialScan);
 
-			//qq reliable check?
 			if (bulkFileStream.Length != DataAccessor.FileSize)
 				throw new SizeMismatchException(
 					$"The expected file size ({DataAccessor.FileSize:N0}) does not match " +
@@ -213,6 +205,8 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			fileStream.Write(DataAccessor.ReadBytes(fileOffset, pageSize));
 		}
 
+		// todo later: maybe could be a common implementation across the strategies that reads
+		// from the DataAccessor
 		public Header ReadHeader() {
 			try {
 				using var fileStream = new FileStream(
@@ -246,6 +240,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 				_path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
 			var span = MemoryMarshal.CreateReadOnlySpan(ref header, 1);
 			var headerBytes = MemoryMarshal.Cast<Header, byte>(span);
+			fileStream.SetLength(DataAccessor.FileSize);
 			fileStream.Seek(offset: 0, SeekOrigin.Begin);
 			fileStream.Write(headerBytes);
 			fileStream.FlushToDisk();

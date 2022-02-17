@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	[StructLayout(LayoutKind.Explicit, Size = Size, Pack = 1)]
 	public struct Header {
-		internal const byte CurrentVersion = 1;
-		internal const int Size = 16;
+		public const byte CurrentVersion = 1;
+		public const int Size = 16;
 
 		[FieldOffset(0)] private byte _version;
 		[FieldOffset(4)] private int _corruptionRebuildCount;

@@ -11,30 +11,33 @@ namespace EventStore.Core.Tests.DataStructures {
 		FileStream,
 	}
 
-	[TestFixture(PersistenceStrategy.MemoryMapped)]
-	[TestFixture(PersistenceStrategy.FileStream)]
+	[TestFixture(PersistenceStrategy.MemoryMapped, PersistenceStrategy.MemoryMapped)]
+	[TestFixture(PersistenceStrategy.MemoryMapped, PersistenceStrategy.FileStream)]
+	[TestFixture(PersistenceStrategy.FileStream, PersistenceStrategy.MemoryMapped)]
+	[TestFixture(PersistenceStrategy.FileStream, PersistenceStrategy.FileStream)]
 	public class persistent_stream_bloom_filter : SpecificationWithDirectoryPerTestFixture {
-		private readonly PersistenceStrategy _persistenceStrategy;
+		private readonly PersistenceStrategy _forCreate;
+		private readonly PersistenceStrategy _forOpen;
 
-		public persistent_stream_bloom_filter(PersistenceStrategy persistenceStrategy) {
-			_persistenceStrategy = persistenceStrategy;
+		public persistent_stream_bloom_filter(PersistenceStrategy forCreate, PersistenceStrategy forOpen) {
+			_forCreate = forCreate;
+			_forOpen = forOpen;
 		}
 
-		PersistentStreamBloomFilter GenSut(string path, bool create, long size, ILongHasher<string> hasher) {
-			switch (_persistenceStrategy) {
-				case PersistenceStrategy.MemoryMapped:
-					return new PersistentStreamBloomFilter(
+		PersistentStreamBloomFilter GenSut(string path, bool create, long size, ILongHasher<string> hasher) =>
+			(create ? _forCreate : _forOpen) switch {
+				PersistenceStrategy.MemoryMapped =>
+					new PersistentStreamBloomFilter(
 						new MemoryMappedFilePersistence(size, path, create),
-						hasher: hasher);
+						hasher: hasher),
 
-				case PersistenceStrategy.FileStream:
-					return new PersistentStreamBloomFilter(
+				PersistenceStrategy.FileStream =>
+					new PersistentStreamBloomFilter(
 						new FileStreamPersistence(size, path, create),
-						hasher: hasher);
-				default:
-					throw new ArgumentOutOfRangeException();
-			}
-		}
+						hasher: hasher),
+
+				_ => throw new ArgumentOutOfRangeException(),
+		};
 
 		private static string GenerateCharset() {
 			var charset = "";
@@ -73,14 +76,16 @@ namespace EventStore.Core.Tests.DataStructures {
 			return strings.ToArray();
 		}
 
-		[TestFixture(PersistenceStrategy.MemoryMapped)]
-		[TestFixture(PersistenceStrategy.FileStream)]
+		[TestFixture(PersistenceStrategy.MemoryMapped, PersistenceStrategy.MemoryMapped)]
+		[TestFixture(PersistenceStrategy.MemoryMapped, PersistenceStrategy.FileStream)]
+		[TestFixture(PersistenceStrategy.FileStream, PersistenceStrategy.MemoryMapped)]
+		[TestFixture(PersistenceStrategy.FileStream, PersistenceStrategy.FileStream)]
 		private class with_fixed_size_filter : persistent_stream_bloom_filter {
 			private PersistentStreamBloomFilter _filter;
 			private string _path;
 
-			public with_fixed_size_filter(PersistenceStrategy persistenceStrategy)
-				: base(persistenceStrategy) {
+			public with_fixed_size_filter(PersistenceStrategy forCreate, PersistenceStrategy forOpen)
+				: base(forCreate, forOpen) {
 			}
 
 			[SetUp]
@@ -102,6 +107,17 @@ namespace EventStore.Core.Tests.DataStructures {
 				_filter.Dispose();
 				using var newFilter = GenSut(_path, create: false, BloomFilterAccessor.MinSizeKB * 1000, hasher: null);
 				Assert.IsTrue(newFilter.MightContain("hello"));
+			}
+
+			[Test]
+			public void can_detect_incorrect_size() {
+				_filter.Add("hello");
+				_filter.Flush();
+				_filter.Dispose();
+
+				Assert.Throws<SizeMismatchException>(() => {
+					using var newFilter = GenSut(_path, create: false, BloomFilterAccessor.MinSizeKB * 1000 + 1, hasher: null);
+				});
 			}
 
 			[Test]

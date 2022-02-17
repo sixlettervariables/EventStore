@@ -83,6 +83,8 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			_fileStream.FlushToDisk();
 		}
 
+		// todo later: maybe could be a common implementation across the strategies that reads
+		// from the DataAccessor
 		public Header ReadHeader() {
 			try {
 				//read the version first

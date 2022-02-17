@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Threading;
-using EventStore.Core.DataStructures.ProbabilisticFilter;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.LogAbstraction.Common;
 using EventStore.Core.TransactionLog.Checkpoint;
