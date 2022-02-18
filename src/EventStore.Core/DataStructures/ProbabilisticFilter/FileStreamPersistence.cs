@@ -36,6 +36,12 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 		public BloomFilterAccessor DataAccessor { get; private set; }
 		public bool Create { get; }
 
+		// ms to wait after each batch flush. allows breathing room for other writes to continue.
+		public int FlushBatchDelay { get; private set; }
+
+		// max number of pages to flush to disk in each batch
+		public long FlushBatchSize { get; private set; }
+
 		public void Init() {
 			DataAccessor = new BloomFilterAccessor(
 				logicalFilterSize: _logicalFilterSize,
@@ -44,6 +50,23 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 				pageSize: BloomFilterIntegrity.PageSize,
 				onPageDirty: OnPageDirty,
 				log: Log);
+
+			// instead of flushing all the dirty pages as fast as we can, we flush them in batches
+			// with a sleep between each flush to allow other writes to proceed.
+			// we could consider making these configurable but we have set defaults as follows
+			// based on 8 KiB pages:
+			//  1. sleep 128ms between batches to gives a good chunk of time for other writes
+			//  2. calculate how many pages to flush per batch in order to give no more than 60s
+			//     of sleep total. if the whole filter is dirty, total sleep will add up to 60s.
+			// this will yield bigger batches for bigger filters, but they ought also to be running
+			// on faster disks.
+			//
+			// For default filter this yields a batch size of 96 pages, 0.75 MiB
+			// For max size filter this yield a batch size of 1120 pages, 8.75 MiB
+			FlushBatchDelay = 128;
+			FlushBatchSize = DataAccessor.NumPages * FlushBatchDelay / 60_000;
+			FlushBatchSize = Math.Max(FlushBatchSize, 32);
+			FlushBatchSize = FlushBatchSize.RoundUpToMultipleOf(32);
 
 			// dirtypages: one bit per page, but pad to the nearest cacheline boundary
 			var numBits = DataAccessor.NumPages;
@@ -139,9 +162,6 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			var flushedPages = 0L;
 			var pauses = 0;
 
-			//qq configurable?
-			var flushBatchSize = 512;
-			var flushBatchDelay = 100; // enough to get out of the way of any other writes
 			var activelyFlushing = Stopwatch.StartNew();
 
 			for (var remaining = _dirtyPageBitmap.AsSpan();
@@ -161,10 +181,11 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 							WritePage(pageNumber, fileStream);
 							flushedPages++;
 
-							if (flushedPages % flushBatchSize == 0) {
+							if (flushedPages % FlushBatchSize == 0) {
+								fileStream.FlushToDisk();
 								activelyFlushing.Stop();
 								pauses++;
-								Thread.Sleep(flushBatchDelay);
+								Thread.Sleep(FlushBatchDelay);
 								activelyFlushing.Start();
 							}
 						}
@@ -190,7 +211,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 				"Delay {delay} per batch. Total delay {totalDelay:N0}ms. " +
 				"Actively flushing: {activeFlushTime} {activeFlushRate:N2}MB/s. ",
 				flushedPages, DataAccessor.NumPages, flushedBytes,
-				flushBatchDelay, flushBatchDelay * pauses,
+				FlushBatchDelay, FlushBatchDelay * pauses,
 				activelyFlushing.Elapsed, activeFlushRateMBperS);
 		}
 

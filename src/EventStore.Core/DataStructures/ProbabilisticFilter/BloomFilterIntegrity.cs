@@ -10,7 +10,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	public class BloomFilterIntegrity {
 		public const int CacheLineSize = 64;
 		public const int HashSize = 4;
-		//qq this is the flush unit, discuss with james whether it should be configurable and what the default should be.
+		// amount of filter that is marked dirty for flushing
 		public const int PageSize = 8 * 1024;
 
 		private const int UintHashIndex = (CacheLineSize - HashSize) / HashSize;

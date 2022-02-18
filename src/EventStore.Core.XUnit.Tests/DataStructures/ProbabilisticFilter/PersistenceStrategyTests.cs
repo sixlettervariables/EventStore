@@ -90,11 +90,22 @@ namespace EventStore.Core.XUnit.Tests.DataStructures.ProbabilisticFilter {
 				_fixture = fixture;
 			}
 
-			protected override IPersistenceStrategy GenSut(
+			protected override FileStreamPersistence GenSut(
 				long size, bool create, string fileName) {
 
 				return new FileStreamPersistence(
 					size, _fixture.GetFilePathFor(fileName), create);
+			}
+
+			[Theory]
+			[InlineData(10_000, 32)]
+			[InlineData(256_000_000, 96)]
+			[InlineData(4_000_000_000, 1120, Skip = "big")]
+			public void CalculatesIntendedFlushSize(long size, long expectedFlushBatchSize) {
+				var sut = GenSut(size, create: true, "thefilter");
+				sut.Init();
+				Assert.Equal(128, sut.FlushBatchDelay);
+				Assert.Equal(expectedFlushBatchSize, sut.FlushBatchSize);
 			}
 		}
 	}
