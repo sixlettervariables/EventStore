@@ -8,12 +8,8 @@ using Serilog;
 
 namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 	// testing
-	// - check if we unalign the memory it goes slower
-	// compatibility with the previous filter files
 	// perf test
 	// power pull test
-	// time how long fillwithzeroes takes for a max size file.
-
 	public unsafe class FileStreamPersistence : IPersistenceStrategy {
 		protected static readonly ILogger Log = Serilog.Log.ForContext<FileStreamPersistence>();
 
@@ -110,7 +106,7 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			var fileSizeMb = DataAccessor.FileSize / 1000 / 1000;
 			var megaBytesPerSecond = fileSizeMb / elapsed.TotalSeconds;
 			Log.Information(
-				"Read persisted bloom filter {path} into memory. Took {elapsed}. {megaBytesPerSecond} MB/s",
+				"Read persisted bloom filter {path} into memory. Took {elapsed}. {megaBytesPerSecond:N2} MB/s",
 				_path,
 				elapsed,
 				megaBytesPerSecond);
@@ -139,8 +135,8 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			Span<byte> localCacheLine = stackalloc byte[BloomFilterIntegrity.CacheLineSize];
 			localCacheLine.Clear();
 
-			var pageNumber = 0;
-			var flushedPages = 0;
+			var pageNumber = 0L;
+			var flushedPages = 0L;
 			var pauses = 0;
 
 			//qq configurable?
@@ -180,7 +176,6 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 				}
 			}
 
-
 			Done:
 			fileStream.FlushToDisk();
 
@@ -191,15 +186,15 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 			var activeFlushRateMBperS = flushedMegaBytes / activelyFlushing.Elapsed.TotalSeconds;
 
 			Log.Information(
-				"Flushed {pages:N0} pages out of {totalPages}. {bytes:N0} bytes. " +
-				"Delay {delay} per batch. Total delay {totalDelay}. " +
+				"Flushed {pages:N0} pages out of {totalPages:N0}. {bytes:N0} bytes. " +
+				"Delay {delay} per batch. Total delay {totalDelay:N0}ms. " +
 				"Actively flushing: {activeFlushTime} {activeFlushRate:N2}MB/s. ",
 				flushedPages, DataAccessor.NumPages, flushedBytes,
 				flushBatchDelay, flushBatchDelay * pauses,
 				activelyFlushing.Elapsed, activeFlushRateMBperS);
 		}
 
-		private void WritePage(int pageNumber, FileStream fileStream) {
+		private void WritePage(long pageNumber, FileStream fileStream) {
 			var (fileOffset, pageSize) = DataAccessor.GetPagePositionInFile(pageNumber);
 			fileStream.Seek(offset: fileOffset, SeekOrigin.Begin);
 			fileStream.Write(DataAccessor.ReadBytes(fileOffset, pageSize));
