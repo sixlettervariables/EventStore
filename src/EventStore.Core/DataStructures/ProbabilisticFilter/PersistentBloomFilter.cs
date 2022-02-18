@@ -43,24 +43,29 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 
 			try {
 				_persistenceStrategy = persistenceStrategy;
-				_persistenceStrategy.Init();
-				_data = _persistenceStrategy.DataAccessor;
-				var numBits = _data.LogicalFilterSizeBits;
-				if (_persistenceStrategy.Create) {
-					_header = new Header() {
-						Version = Header.CurrentVersion,
-						CorruptionRebuildCount = corruptionRebuildCount,
-						NumBits = numBits
-					};
+				// initialisation and verification can involve writing
+				// there will be no contention since we are in the constructor, but
+				// we want to ensure our writes are available to the readers
+				lock (_writeLock) {
+					_persistenceStrategy.Init();
+					_data = _persistenceStrategy.DataAccessor;
+					var numBits = _data.LogicalFilterSizeBits;
+					if (_persistenceStrategy.Create) {
+						_header = new Header() {
+							Version = Header.CurrentVersion,
+							CorruptionRebuildCount = corruptionRebuildCount,
+							NumBits = numBits
+						};
 
-					_persistenceStrategy.WriteHeader(_header);
-				} else {
-					_header = _persistenceStrategy.ReadHeader();
-					if (_header.NumBits != numBits) {
-						throw new SizeMismatchException(
-							$"The configured number of bytes ({(numBits / 8):N0}) does not match the number of bytes in file header ({(_header.NumBits / 8):N0}).");
+						_persistenceStrategy.WriteHeader(_header);
+					} else {
+						_header = _persistenceStrategy.ReadHeader();
+						if (_header.NumBits != numBits) {
+							throw new SizeMismatchException(
+								$"The configured number of bytes ({(numBits / 8):N0}) does not match the number of bytes in file header ({(_header.NumBits / 8):N0}).");
+						}
+						Verify(0.05);
 					}
-					Verify(0.05);
 				}
 			} catch {
 				Dispose();
@@ -135,7 +140,9 @@ namespace EventStore.Core.DataStructures.ProbabilisticFilter {
 
 		// corruptionThreshold = 0.05 => tolerate up to 5% corruption
 		public void Verify(double corruptionThreshold) {
-			_data.Verify(_header.CorruptionRebuildCount, corruptionThreshold);
+			lock (_writeLock) {
+				_data.Verify(_header.CorruptionRebuildCount, corruptionThreshold);
+			}
 		}
 	}
 }
