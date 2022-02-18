@@ -7,9 +7,6 @@ using EventStore.Common.Utils;
 using Serilog;
 
 namespace EventStore.Core.DataStructures.ProbabilisticFilter {
-	// testing
-	// perf test
-	// power pull test
 	public unsafe class FileStreamPersistence : IPersistenceStrategy {
 		protected static readonly ILogger Log = Serilog.Log.ForContext<FileStreamPersistence>();
 
