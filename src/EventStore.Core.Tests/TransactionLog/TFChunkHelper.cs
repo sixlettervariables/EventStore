@@ -6,9 +6,16 @@ using EventStore.Core.Util;
 
 namespace EventStore.Core.Tests.TransactionLog {
 	public static class TFChunkHelper {
-		public static TFChunkDbConfig CreateDbConfig(string pathName, long writerCheckpointPosition,
+		//qq the overloads are different here in master, take care.
+		public static TFChunkDbConfig CreateDbConfig(
+			string pathName,
+			long writerCheckpointPosition,
 			long chaserCheckpointPosition = 0,
-			long epochCheckpointPosition = -1, long truncateCheckpoint = -1, int chunkSize = 10000) {
+			long epochCheckpointPosition = -1,
+			long truncateCheckpoint = -1,
+			int chunkSize = 10000,
+			bool memDb = false) {
+
 			return new TFChunkDbConfig(pathName,
 				new VersionedPatternFileNamingStrategy(pathName, "chunk-"),
 				chunkSize,
@@ -18,11 +25,18 @@ namespace EventStore.Core.Tests.TransactionLog {
 				new InMemoryCheckpoint(epochCheckpointPosition),
 				new InMemoryCheckpoint(truncateCheckpoint),
 				new InMemoryCheckpoint(-1),
-				Opts.ChunkInitialReaderCountDefault);
+				Opts.ChunkInitialReaderCountDefault,
+				inMemDb: memDb);
 		}
 
-		public static TFChunkDbConfig CreateDbConfig(string pathName, ICheckpoint writerCheckpoint,
-			ICheckpoint chaserCheckpoint, int chunkSize = 10000, ICheckpoint replicationCheckpoint = null) {
+		public static TFChunkDbConfig CreateDbConfig(
+			string pathName,
+			ICheckpoint writerCheckpoint,
+			ICheckpoint chaserCheckpoint,
+			int chunkSize = 10000,
+			ICheckpoint replicationCheckpoint = null,
+			bool memDb = false) {
+
 			if (replicationCheckpoint == null) replicationCheckpoint = new InMemoryCheckpoint(-1);
 			return new TFChunkDbConfig(pathName,
 				new VersionedPatternFileNamingStrategy(pathName, "chunk-"),
@@ -33,7 +47,8 @@ namespace EventStore.Core.Tests.TransactionLog {
 				new InMemoryCheckpoint(-1),
 				new InMemoryCheckpoint(-1),
 				replicationCheckpoint,
-				Opts.ChunkInitialReaderCountDefault);
+				Opts.ChunkInitialReaderCountDefault,
+				inMemDb: memDb);
 		}
 
 		public static TFChunk CreateNewChunk(string fileName, int chunkSize = 4096, bool isScavenged = false) {

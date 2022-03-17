@@ -38,6 +38,8 @@ using EventStore.Core.Services.PersistentSubscription.ConsumerStrategy;
 using System.Threading.Tasks;
 using System.Collections;
 using System.Diagnostics;
+using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.LogV2;
 
 namespace EventStore.Core {
 	public class ClusterVNode :
@@ -206,9 +208,13 @@ namespace EventStore.Core {
 				"ReadIndex readers pool", ESConsts.PTableInitialReaderCount, maxReaderCount,
 				() => new TFChunkReader(db, db.Config.WriterCheckpoint,
 					optimizeReadSideCache: db.Config.OptimizeReadSideCache));
+
+			var lowHasher = new XXHashUnsafe();
+			var highHasher = new Murmur3AUnsafe();
+
 			var tableIndex = new TableIndex(indexPath,
-				new XXHashUnsafe(),
-				new Murmur3AUnsafe(),
+				lowHasher,
+				highHasher,
 				() => new HashListMemTable(vNodeSettings.IndexBitnessVersion,
 					maxSize: vNodeSettings.MaxMemtableEntryCount * 2),
 				() => new TFReaderLease(readerPool),
@@ -545,21 +551,66 @@ namespace EventStore.Core {
 			perSubscrBus.Subscribe<SubscriptionMessage.PersistentSubscriptionTimerTick>(persistentSubscription);
 
 			// STORAGE SCAVENGER
-			var scavengerLogManager = new TFChunkScavengerLogManager(_nodeInfo.ExternalHttp.ToString(),
-				TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge), ioDispatcher);
-			var storageScavenger = new StorageScavenger(db,
-				tableIndex,
-				readIndex,
-				scavengerLogManager,
-				vNodeSettings.AlwaysKeepScavenged,
-				!vNodeSettings.DisableScavengeMerging,
-				unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+			var newScavenge = true; //qq make configurable
+			if (newScavenge) {
+				//qq iron this out, possibly more needs to be in the logformat, depending on what is
+				// affected by the log format ofc.
+				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
+				var accumulator = new Accumulator<string>(
+					longHasher,
+					new LogV2SystemStreams(),
+					new ChunkReaderForAccumulator<string>());
 
-			// ReSharper disable RedundantTypeArgumentsOfMethod
-			_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
-			_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
-			_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
-			// ReSharper restore RedundantTypeArgumentsOfMethod
+				var calculator = new Calculator<string>(
+					new IndexForScavenge(readIndex));
+
+				var chunkExecutor = new ChunkExecutor<string>(
+					new ChunkManagerForScavenge(), //qq mock
+					new ChunkReaderForScavenge());
+
+				var indexExecutor = new IndexExecutor<string>(
+					new StuffForIndexExecutor());
+
+				var scavengeState = new ScavengeState<string>(
+					longHasher,
+					new InMemoryScavengeMap<string, Unit>(),
+					new InMemoryScavengeMap<ulong, MetastreamData>(),
+					new InMemoryScavengeMap<string, MetastreamData>(),
+					new InMemoryScavengeMap<ulong, DiscardPoint>(),
+					new InMemoryScavengeMap<string, DiscardPoint>(),
+					new InMemoryScavengeMap<int, long>(),
+					new InMemoryIndexReaderForAccumulator<string>());
+
+				var scavenger = new Scavenger<string>(
+					scavengeState,
+					accumulator,
+					calculator,
+					chunkExecutor,
+					indexExecutor,
+					new ScavengePointSource(db));
+
+				var storageScavenger = new NewStorageScavenger<string>(scavenger);
+
+				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
+				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
+				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
+			} else {
+				var scavengerLogManager = new TFChunkScavengerLogManager(_nodeInfo.ExternalHttp.ToString(),
+					TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge), ioDispatcher);
+				var storageScavenger = new StorageScavenger(db,
+					tableIndex,
+					readIndex,
+					scavengerLogManager,
+					vNodeSettings.AlwaysKeepScavenged,
+					!vNodeSettings.DisableScavengeMerging,
+					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+
+				// ReSharper disable RedundantTypeArgumentsOfMethod
+				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
+				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
+				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
+				// ReSharper restore RedundantTypeArgumentsOfMethod
+			}
 
 
 			// TIMER

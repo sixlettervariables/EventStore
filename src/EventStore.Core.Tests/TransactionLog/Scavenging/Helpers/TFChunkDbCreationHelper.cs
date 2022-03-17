@@ -46,7 +46,9 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 			var streams = new Dictionary<string, StreamInfo>();
 			var streamUncommitedVersion = new Dictionary<string, long>();
 
+			// for each chunk i
 			for (int i = 0; i < _chunkRecs.Count; ++i) {
+				// for each record j in chunk i
 				for (int j = 0; j < _chunkRecs[i].Length; ++j) {
 					var rec = _chunkRecs[i][j];
 
@@ -82,10 +84,13 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 				}
 			}
 
+			// convert the Recs into LogRecords and write them to the database.
+			// for each chunk i
 			for (int i = 0; i < _chunkRecs.Count; ++i) {
 				var chunk = i == 0 ? _db.Manager.GetChunk(0) : _db.Manager.AddNewChunk();
 				_db.Config.WriterCheckpoint.Write(i * (long)_db.Config.ChunkSize);
 
+				// for each record j in chunk i
 				for (int j = 0; j < _chunkRecs[i].Length; ++j) {
 					var rec = _chunkRecs[i][j];
 					var transInfo = transactions[rec.Transaction];
@@ -324,9 +329,9 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 	}
 
 	public class DbResult {
-		public readonly TFChunkDb Db;
-		public readonly LogRecord[][] Recs;
-		public readonly Dictionary<string, StreamInfo> Streams;
+		public TFChunkDb Db { get; }
+		public LogRecord[][] Recs { get; }
+		public Dictionary<string, StreamInfo> Streams { get; }
 
 		public DbResult(TFChunkDb db, LogRecord[][] recs, Dictionary<string, StreamInfo> streams) {
 			Ensure.NotNull(db, "db");
