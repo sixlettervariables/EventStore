@@ -204,11 +204,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 	}
 
-	public class ScaffoldChunkReaderForScavenge : IChunkReaderForChunkExecutor<string> {
-		public ScaffoldChunkReaderForScavenge(LogRecord[][] log) {
+	public class ScaffoldChunkReaderForExecutor : IChunkReaderForExecutor<string> {
+		public ScaffoldChunkReaderForExecutor(LogRecord[] log) {
 		}
 
-		public IEnumerable<RecordForScavenge<string>> Read(TFChunk chunk) {
+		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			yield return new RecordForScavenge<string>() {
 				StreamId = "thestream",
 				EventNumber = 123,
@@ -216,17 +216,46 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 	}
 
-	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor {
-		public TFChunk GetChunk(int logicalChunkNum) {
-			throw new NotImplementedException();
+	public class ScaffoldChunkWriterForExecutor : IChunkWriterForExecutor<string, LogRecord[]> {
+		public ScaffoldChunkWriterForExecutor() {
+
 		}
 
-		public TFChunk SwitchChunk(TFChunk chunk, bool verifyHash, bool removeChunksWithGreaterNumbers) {
+		public LogRecord[] WrittenChunk => throw new NotImplementedException();
+
+		public void WriteRecord(RecordForScavenge<string> record) {
+			throw new NotImplementedException();
+		}
+	}
+
+	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, LogRecord[]> {
+		private readonly LogRecord[][] _log;
+
+		public ScaffoldChunkManagerForScavenge(LogRecord[][] log) {
+			_log = log;
+		}
+
+		public IChunkWriterForExecutor<string, LogRecord[]> CreateChunkWriter() {
+			return new ScaffoldChunkWriterForExecutor();
+		}
+
+		public IChunkReaderForExecutor<string> GetChunkReader(int logicalChunkNum) {
+			return new ScaffoldChunkReaderForExecutor(_log[logicalChunkNum]);
+		}
+
+		public bool TrySwitchChunk(
+			LogRecord[] chunk,
+			bool verifyHash,
+			bool removeChunksWithGreaterNumbers,
+			out string newFileName) {
+
 			throw new NotImplementedException();
 		}
 	}
 
 	//qq
 	public class ScaffoldStuffForIndexExecutor : IDoStuffForIndexExecutor {
+		public ScaffoldStuffForIndexExecutor(LogRecord[][] log) {
+		}
 	}
 }

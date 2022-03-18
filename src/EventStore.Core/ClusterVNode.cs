@@ -40,6 +40,7 @@ using System.Collections;
 using System.Diagnostics;
 using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.LogV2;
+using EventStore.Core.TransactionLog.Chunks.TFChunk;
 
 namespace EventStore.Core {
 	public class ClusterVNode :
@@ -564,9 +565,8 @@ namespace EventStore.Core {
 				var calculator = new Calculator<string>(
 					new IndexForScavenge(readIndex));
 
-				var chunkExecutor = new ChunkExecutor<string>(
-					new ChunkManagerForScavenge(), //qq mock
-					new ChunkReaderForScavenge());
+				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
+					new ChunkManagerForScavenge(db.Manager, db.Config));
 
 				var indexExecutor = new IndexExecutor<string>(
 					new StuffForIndexExecutor());

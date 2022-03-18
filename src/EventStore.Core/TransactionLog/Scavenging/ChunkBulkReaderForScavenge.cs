@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.Chunks.TFChunk;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -82,8 +83,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	//qq implement
-	public class ChunkReaderForScavenge : IChunkReaderForChunkExecutor<string> {
-		public IEnumerable<RecordForScavenge<string>> Read(TFChunk chunk) {
+	public class ChunkReaderForExecutor : IChunkReaderForExecutor<string> {
+		private readonly TFChunk _chunk;
+
+		public ChunkReaderForExecutor(TFChunk chunk) {
+			_chunk = chunk;
+		}
+
+		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			yield return new RecordForScavenge<string>() {
 				StreamId = "thestream",
 				EventNumber = 123,
@@ -91,27 +98,73 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 	}
 
+	public class ChunkWriterForExecutor : IChunkWriterForExecutor<string, TFChunk> {
+		private readonly TFChunk _tfChunk;
+
+		public ChunkWriterForExecutor(TFChunkDbConfig dbConfig) {
+			_tfChunk = null;
+			//qq _tfChunk = TFChunk.CreateNew(...)
+		}
+
+		public TFChunk WrittenChunk => _tfChunk;
+
+		public void WriteRecord(RecordForScavenge<string> record) {
+			//qq _tfChunk.TryAppend(...)
+			throw new NotImplementedException();
+		}
+	}
+
 	//qq implement
-	public class ChunkManagerForScavenge : IChunkManagerForChunkExecutor {
-		public TFChunk GetChunk(int logicalChunkNum) {
-			throw new NotImplementedException();
+	public class ChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, TFChunk> {
+		private readonly TFChunkManager _manager;
+		private readonly TFChunkDbConfig _dbConfig;
+
+		public ChunkManagerForScavenge(TFChunkManager manager, TFChunkDbConfig dbConfig) {
+			_manager = manager;
+			_dbConfig = dbConfig;
 		}
 
-		public TFChunk SwitchChunk(TFChunk chunk, bool verifyHash, bool removeChunksWithGreaterNumbers) {
-			throw new NotImplementedException();
+		public IChunkWriterForExecutor<string, TFChunk> CreateChunkWriter() {
+			return new ChunkWriterForExecutor(_dbConfig);
+		}
+
+		public IChunkReaderForExecutor<string> GetChunkReader(int logicalChunkNum) {
+			var tfChunk = _manager.GetChunk(logicalChunkNum);
+			return new ChunkReaderForExecutor(tfChunk);
+		}
+
+		public bool TrySwitchChunk(
+			TFChunk chunk,
+			bool verifyHash,
+			bool removeChunksWithGreaterNumbers,
+			out string newFileName) {
+
+			var tfChunk = _manager.SwitchChunk(
+				chunk,
+				verifyHash,
+				removeChunksWithGreaterNumbers);
+
+			if (tfChunk == null) {
+				newFileName = default;
+				return false;
+			} else {
+				newFileName = tfChunk.FileName;
+				return true;
+			}
 		}
 	}
 
-	public class ChunkBulkReaderForScavenge<TStreamId> : IChunkReaderForChunkExecutor<TStreamId> {
-		public IEnumerable<RecordForScavenge<TStreamId>> Read(TFChunk chunk) {
-			throw new NotImplementedException();
-			//using var reader = chunk.AcquireReader();
-			//var start = 0;
-			//var count = ChunkHeader.Size + chunk.ChunkFooter.PhysicalDataSize;
+	//qq
+	//public class ChunkBulkReaderForScavenge<TStreamId> : IChunkReaderForChunkExecutor<TStreamId> {
+	//	public IEnumerable<RecordForScavenge<TStreamId>> Read(TFChunk chunk) {
+	//		throw new NotImplementedException();
+	//		//using var reader = chunk.AcquireReader();
+	//		//var start = 0;
+	//		//var count = ChunkHeader.Size + chunk.ChunkFooter.PhysicalDataSize;
 
-			//yield return new RecordForScavenge(); //qq
-		}
-	}
+	//		//yield return new RecordForScavenge(); //qq
+	//	}
+	//}
 
 	//qq
 	public class StuffForIndexExecutor : IDoStuffForIndexExecutor {

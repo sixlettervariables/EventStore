@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using EventStore.Core.Data;
-using EventStore.Core.TransactionLog.Chunks.TFChunk;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// There are two kinds of streams that we might want to remove events from
@@ -96,15 +95,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		void Execute(IScavengeStateForIndexExecutor<TStreamId> instructions);
 	}
 
-	// So that the scavenger knows where to scavenge up to
-	public interface IScavengePointSource {
-		ScavengePoint GetScavengePoint();
-	}
 
-	public interface IChunkManagerForChunkExecutor {
-		TFChunk SwitchChunk(TFChunk chunk, bool verifyHash, bool removeChunksWithGreaterNumbers);
-		TFChunk GetChunk(int logicalChunkNum);
-	}
+
+
+
+
+
+
+
+
+
+
+
+	//
+	// FOR ACCUMULATOR
+	//
 
 	//qq note dont use allreader to implement this, it has logic to deal with transactions, skips
 	// epochs etc.
@@ -112,6 +117,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		IEnumerable<RecordForAccumulator<TStreamId>> Read(
 			int startFromChunk,
 			ScavengePoint scavengePoint);
+	}
+
+	//qq name
+	public interface IIndexReaderForAccumulator<TStreamId> {
+		//qq definitely a similar here to the delegate defined by the collision detector..
+		// is it actually the same thing in need of a refactor? then the other is just a
+		// decorator pattern that adds memoisation. might need to pass the hash into
+		// collisiondetector.add, or let it hash it itself
+		bool HashInUseBefore(ulong hash, long postion, out TStreamId hashUser);
+	}
+
+
+	public readonly struct EventInfo {
+		public readonly long LogPosition;
+		public readonly long EventNumber;
+
+		public EventInfo(long logPosition, long eventNumber) {
+			LogPosition = logPosition;
+			EventNumber = eventNumber;
+		}
 	}
 
 	//qq could use streamdata? its a class though
@@ -144,30 +169,123 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 	}
 
+
+
+
+
+
+
+
+
+
+
+	//
+	// FOR CALCULATOR
+	//
+
 	//qq name
-	public interface IChunkReaderForChunkExecutor<TStreamId> {
-		IEnumerable<RecordForScavenge<TStreamId>> Read(TFChunk chunk);
+	public interface IIndexReaderForCalculator<TStreamId> {
+		//qq maxposition  / positionlimit instead of scavengepoint?
+		long GetLastEventNumber(StreamHandle<TStreamId> streamHandle, ScavengePoint scavengePoint);
+
+		//qq name min age or maxage or 
+		//long GetLastEventNumber(TStreamId streamId, DateTime age);
+
+		//qq maybe we can do better than allocating an array for the return
+		EventInfo[] ReadEventInfoForward(
+			StreamHandle<TStreamId> stream,
+			long fromEventNumber,
+			int maxCount,
+			ScavengePoint scavengePoint);
 	}
+
+
+
+
+
+
+
+
+
+
+	//
+	// FOR CHUNK EXECUTOR
+	//
+
+	public interface IChunkManagerForChunkExecutor<TStreamId, TChunk> {
+		IChunkWriterForExecutor<TStreamId, TChunk> CreateChunkWriter();
+
+		IChunkReaderForExecutor<TStreamId> GetChunkReader(int logicalChunkNum);
+
+		bool TrySwitchChunk(
+			TChunk chunk,
+			bool verifyHash,
+			bool removeChunksWithGreaterNumbers,
+			out string newFileName);
+	}
+
+	public interface IChunkReaderForExecutor<TStreamId> {
+		IEnumerable<RecordForScavenge<TStreamId>> ReadRecords();
+	}
+
+	public interface IChunkWriterForExecutor<TStreamId, TChunk> {
+		TChunk WrittenChunk { get; }
+
+		void WriteRecord(RecordForScavenge<TStreamId> record);
+		//qq finalize, etc.
+	}
+
+
+
+
+
+
+
+	//
+	// FOR INDEX EXECUTOR
+	//
 
 	//qq name
 	public interface IDoStuffForIndexExecutor {
 		//qq
 	}
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	//
+	// MISC
+	//
+
+	// So that the scavenger knows where to scavenge up to
+	public interface IScavengePointSource {
+		ScavengePoint GetScavengePoint();
+	}
+
 	// when scavenging we dont need all the data for a record
 	//qq but we do need more data than this
 	// but the bytes can just be bytes, in the end we are going to keep it or discard it.
 	//qq recycle this record like the recordforaccumulation?
+	//qq hopefully doesn't have to be a class, or can be pooled
 	public class RecordForScavenge<TStreamId> {
 		public TStreamId StreamId { get; set; }
 		public long EventNumber { get; set; }
+		public byte[] RecordBytes { get; set; } //qq allocation :(
 	}
-
-
-
-
-
-
 
 	//qqq this is now IStateForChunkExecutor
 	//public interface IScavengeInstructions<TStreamId> {
@@ -188,43 +306,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public int ChunkNumber { get; }
 
 		public float Weight { get; }
-	}
-
-
-	//qq name
-	public interface IIndexReaderForAccumulator<TStreamId> {
-		//qq definitely a similar here to the delegate defined by the collision detector..
-		// is it actually the same thing in need of a refactor? then the other is just a
-		// decorator pattern that adds memoisation. might need to pass the hash into
-		// collisiondetector.add, or let it hash it itself
-		bool HashInUseBefore(ulong hash, long postion, out TStreamId hashUser);
-	}
-
-
-	public readonly struct EventInfo {
-		public readonly long LogPosition;
-		public readonly long EventNumber;
-
-		public EventInfo(long logPosition, long eventNumber) {
-			LogPosition = logPosition;
-			EventNumber = eventNumber;
-		}
-	}
-
-	//qq name
-	public interface IIndexReaderForCalculator<TStreamId> {
-		//qq maxposition  / positionlimit instead of scavengepoint?
-		long GetLastEventNumber(StreamHandle<TStreamId> streamHandle, ScavengePoint scavengePoint);
-
-		//qq name min age or maxage or 
-		//long GetLastEventNumber(TStreamId streamId, DateTime age);
-
-		//qq maybe we can do better than allocating an array for the return
-		EventInfo[] ReadEventInfoForward(
-			StreamHandle<TStreamId> stream,
-			long fromEventNumber,
-			int maxCount,
-			ScavengePoint scavengePoint);
 	}
 
 	// Refers to a stream by name or by hash

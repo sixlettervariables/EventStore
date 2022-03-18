@@ -222,11 +222,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					chunkReader: new ScaffoldChunkReaderForAccumulator(log)),
 				new Calculator<string>(
 					index: new ScaffoldIndexForScavenge(log, hasher)),
-				new ChunkExecutor<string>(
-					chunkManager: new ScaffoldChunkManagerForScavenge(),
-					chunkReader: new ScaffoldChunkReaderForScavenge(log)),
+				new ChunkExecutor<string, LogRecord[]>(
+					chunkManager: new ScaffoldChunkManagerForScavenge(log)),
 				new IndexExecutor<string>(
-					stuff: new ScaffoldStuffForIndexExecutor()),
+					stuff: new ScaffoldStuffForIndexExecutor(log)),
 				new ScaffoldScavengePointSource(scavengePoint));
 
 			sut.Start(); //qq irl how do we know when its done
