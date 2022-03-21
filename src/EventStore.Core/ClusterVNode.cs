@@ -554,31 +554,35 @@ namespace EventStore.Core {
 			// STORAGE SCAVENGER
 			var newScavenge = true; //qq make configurable
 			if (newScavenge) {
+				var metastreamLookup = new LogV2SystemStreams();
+
 				//qq iron this out, possibly more needs to be in the logformat, depending on what is
 				// affected by the log format ofc.
 				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
 				var accumulator = new Accumulator<string>(
 					longHasher,
-					new LogV2SystemStreams(),
+					metastreamLookup,
 					new ChunkReaderForAccumulator<string>());
 
 				var calculator = new Calculator<string>(
 					new IndexForScavenge(readIndex));
 
 				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
-					new ChunkManagerForScavenge(db.Manager, db.Config));
+					new ChunkManagerForScavenge(db.Manager, db.Config),
+					chunkSize: db.Config.ChunkSize);
 
 				var indexExecutor = new IndexExecutor<string>(
 					new StuffForIndexExecutor());
 
 				var scavengeState = new ScavengeState<string>(
 					longHasher,
+					metastreamLookup,
 					new InMemoryScavengeMap<string, Unit>(),
 					new InMemoryScavengeMap<ulong, MetastreamData>(),
 					new InMemoryScavengeMap<string, MetastreamData>(),
-					new InMemoryScavengeMap<ulong, DiscardPoint>(),
-					new InMemoryScavengeMap<string, DiscardPoint>(),
-					new InMemoryScavengeMap<int, long>(),
+					new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>(),
+					new InMemoryScavengeMap<string, EnrichedDiscardPoint>(),
+					new InMemoryScavengeMap<int, float>(),
 					new InMemoryIndexReaderForAccumulator<string>());
 
 				var scavenger = new Scavenger<string>(

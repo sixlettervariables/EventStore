@@ -36,18 +36,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//qq how bad is this, how much could we save
 				if (!scavengeState.TryGetOriginalStreamData(
 						originalStreamHandle,
-						out var originalDiscardPoint)) {
-					originalDiscardPoint = DiscardPoint.KeepAll;
+						out var originalStreamData)) {
+					originalStreamData = new EnrichedDiscardPoint(
+						isTombstoned: false,
+						discardPoint: DiscardPoint.KeepAll);
 				}
 
 				var adjustedDiscardPoint = CalculateDiscardPointForStream(
 					scavengeState,
 					originalStreamHandle,
-					originalDiscardPoint,
+					originalStreamData.IsTombstoned,
+					originalStreamData.DiscardPoint,
 					metastreamData,
 					scavengePoint);
 
-				scavengeState.SetOriginalStreamData(originalStreamHandle, adjustedDiscardPoint);
+				scavengeState.SetOriginalStreamData(
+					originalStreamHandle,
+					new EnrichedDiscardPoint(
+						isTombstoned: originalStreamData.IsTombstoned,
+						adjustedDiscardPoint));
 			}
 		}
 
@@ -108,6 +115,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private DiscardPoint CalculateDiscardPointForStream(
 			IScavengeStateForCalculator<TStreamId> scavengeState,
 			StreamHandle<TStreamId> streamHandle,
+			bool isTombstoned,
 			DiscardPoint discardPoint,
 			MetastreamData metadata,
 			ScavengePoint scavengePoint) {
@@ -149,9 +157,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var logPositionCutoff = 0L;
 
-			// if we are already discarding the maximum, then no need to bother adjusting it
-			// or calculating logPositionCutoff. we just discard everything except the tombstone.
-			if (discardPoint != DiscardPoint.Tombstone) {
+			// if the stream is tombstoned, the accumulator already set the discard point to discard
+			// everything except the tombstone. just do that, no need for further adjustment of the
+			// discard point.
+			if (!isTombstoned) {
 				//qq check these all carefuly
 
 				// Discard more if required by TruncateBefore
@@ -174,9 +183,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// we want to discard events including event 5
 					//
 					// say the lastEventNumber is 5
-					// and the maxCount is 7
-					// we want to discard events including event -2 (keep all events)
+					// and the maxCount is 6
+					// we want to discard events including event -1 (keep all events)
+					//
+					// say the lastEventNumber is 5
+					// and the maxCount is 5
+					// we want to discard events including 0
 					var lastEventToDiscard = lastEventNumber - metadata.MaxCount.Value;
+					//qq be careful not to call this with long.max
 					var dpMaxCount = DiscardPoint.DiscardIncluding(lastEventToDiscard);
 					discardPoint = DiscardPoint.AnyOf(discardPoint, dpMaxCount);
 				}

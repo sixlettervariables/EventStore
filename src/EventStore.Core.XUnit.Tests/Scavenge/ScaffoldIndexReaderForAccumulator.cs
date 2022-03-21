@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using EventStore.Core.Data;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.Services;
-using EventStore.Core.TransactionLog.Chunks.TFChunk;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
 
@@ -101,29 +101,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 							Metadata = StreamMetadata.FromJsonBytes(prepare.Data),
 							StreamId = prepare.EventStreamId,
 						};
-					} else if (prepare.EventType == SystemEventTypes.StreamDeleted) {
-						//qq maybe the eventtype is enough. if we also check the expected version then
-						// we'd want to be careful about prepare version 0 tombstones.
-						// is the StreamDelete prepare flag relevant?
-						//qq does anywhere else in the scavenge logic rely on the tombstone
-						// having a particular expected version
-						// does a tombstone get indexed, are we expecting to find it in the index
-						// it would mean that we can't just just set the DiscardPoint to DP.Tombstone
-						// and have it discard events that are before then if the tombstone is, in fact
-						// before then! what does old scavenge do? old scavenge uses the prepare flag
-						// to detect that it is a tombstone and keep it. we can do that in the log
-						// but can't do that index only.
-						// it looooks like the indexreader knows a stream is deleted by seeing its
-						// event number is EventNumber.DeletedStream i.e. long.max
-						// so maybe the event number is the thing that matters. presumably this works
-						// for old prepares too...... aha in the index reader the latest version number
-						//  _always_ comes from the index and not from the record itself, so perhaps we
-						// upgraded the maxvalue as part of upgrading the ptable
-						// in which case the index entry for the tombstone might have a different
-						// eventnumber to the expected version of the record in the log.
-						// hmm!
-
+					} else if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
 						yield return new RecordForAccumulator<string>.TombStoneRecord {
+							EventNumber = prepare.ExpectedVersion + 1,
 							LogPosition = prepare.LogPosition,
 							StreamId = prepare.EventStreamId,
 						};
@@ -205,52 +185,122 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	}
 
 	public class ScaffoldChunkReaderForExecutor : IChunkReaderForExecutor<string> {
-		public ScaffoldChunkReaderForExecutor(LogRecord[] log) {
+		private readonly int _chunkSize;
+		private readonly int _logicalChunkNumber;
+		private readonly LogRecord[] _chunk;
+
+		public ScaffoldChunkReaderForExecutor(
+			int chunkSize,
+			int logicalChunkNumber,
+			LogRecord[] chunk) {
+			_chunkSize = chunkSize;
+			_logicalChunkNumber = logicalChunkNumber;
+			_chunk = chunk;
+		}
+
+		public int ChunkStartNumber => _logicalChunkNumber;
+
+		public int ChunkEndNumber => _logicalChunkNumber;
+
+		public bool IsReadOnly => true;
+
+		public long ChunkEndPosition => (_logicalChunkNumber + 1) * (long)_chunkSize;
+
+		public IEnumerable<int> LogicalChunkNumbers {
+			get {
+				yield return _logicalChunkNumber;
+			}
 		}
 
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
-			yield return new RecordForScavenge<string>() {
-				StreamId = "thestream",
-				EventNumber = 123,
-			};
+			foreach (var record in _chunk) {
+				if (!(record is PrepareLogRecord prepare))
+					continue;
+
+				//qq hopefully getting rid of this scaffolding before long, but
+				// if not, consider efficiency of this, maybe reuse array, writer, etc.
+				var bytes = new byte[1024];
+				using (var stream = new MemoryStream(bytes))
+				using (var binaryWriter = new BinaryWriter(stream)) {
+					record.WriteTo(binaryWriter);
+					yield return new RecordForScavenge<string>() {
+						StreamId = prepare.EventStreamId,
+						EventNumber = prepare.ExpectedVersion + 1,
+						RecordBytes = bytes,
+					};
+				}
+			}
 		}
 	}
 
-	public class ScaffoldChunkWriterForExecutor : IChunkWriterForExecutor<string, LogRecord[]> {
-		public ScaffoldChunkWriterForExecutor() {
+	public class ScaffoldChunkWriterForExecutor : IChunkWriterForExecutor<string, ScaffoldChunk> {
+		private readonly List<LogRecord> _writtenChunk = new List<LogRecord>();
+		private readonly int _logicalChunkNumber;
 
+		public ScaffoldChunkWriterForExecutor(int logicalChunkNumber) {
+			_logicalChunkNumber = logicalChunkNumber;
 		}
 
-		public LogRecord[] WrittenChunk => throw new NotImplementedException();
+		public ScaffoldChunk WrittenChunk => new ScaffoldChunk(
+			logicalChunkNumber: _logicalChunkNumber,
+			records: _writtenChunk.ToArray());
 
 		public void WriteRecord(RecordForScavenge<string> record) {
-			throw new NotImplementedException();
+			using (var stream = new MemoryStream(record.RecordBytes))
+			using (var binaryReader = new BinaryReader(stream)) {
+				var logRecord = LogRecord.ReadFrom(binaryReader);
+				_writtenChunk.Add(logRecord);
+			}
 		}
 	}
 
-	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, LogRecord[]> {
+	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, ScaffoldChunk> {
+		private readonly int _chunkSize;
 		private readonly LogRecord[][] _log;
 
-		public ScaffoldChunkManagerForScavenge(LogRecord[][] log) {
+		public ScaffoldChunkManagerForScavenge(int chunkSize, LogRecord[][] log) {
+			_chunkSize = chunkSize;
+			//qqqqq should we pass in the original log, or copy of log
 			_log = log;
 		}
 
-		public IChunkWriterForExecutor<string, LogRecord[]> CreateChunkWriter() {
-			return new ScaffoldChunkWriterForExecutor();
+		public IChunkWriterForExecutor<string, ScaffoldChunk> CreateChunkWriter(
+			int chunkStartNumber,
+			int chunkEndNumber) {
+
+			if (chunkStartNumber != chunkEndNumber) {
+				throw new NotSupportedException(
+					"non-singular range of chunk numbers not supported by this implementation");
+			}
+
+			return new ScaffoldChunkWriterForExecutor(chunkStartNumber);
 		}
 
-		public IChunkReaderForExecutor<string> GetChunkReader(int logicalChunkNum) {
-			return new ScaffoldChunkReaderForExecutor(_log[logicalChunkNum]);
+		public IChunkReaderForExecutor<string> GetChunkReaderFor(long position) {
+			var chunkNum = (int)(position / _chunkSize);
+			return new ScaffoldChunkReaderForExecutor(_chunkSize, chunkNum, _log[chunkNum]);
 		}
 
 		public bool TrySwitchChunk(
-			LogRecord[] chunk,
+			ScaffoldChunk chunk,
 			bool verifyHash,
 			bool removeChunksWithGreaterNumbers,
 			out string newFileName) {
 
-			throw new NotImplementedException();
+			_log[chunk.LogicalChunkNumber] = chunk.Records;
+			newFileName = $"chunk{chunk.LogicalChunkNumber}";
+			return true;
 		}
+	}
+
+	public class ScaffoldChunk {
+		public ScaffoldChunk(int logicalChunkNumber, LogRecord[] records) {
+			LogicalChunkNumber = logicalChunkNumber;
+			Records = records;
+		}
+
+		public int LogicalChunkNumber { get; }
+		public LogRecord[] Records { get; }
 	}
 
 	//qq

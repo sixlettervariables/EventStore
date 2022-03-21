@@ -54,6 +54,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	// It also creates a heuristic for which chunks are most in need of scavenging.
 	//  - an approximate count of the number of records to discard in each chunk
+	//     //qq explain why it is approximate. 
+	//         - we don't count commit records (but, i think, if we are able to scavenge a commit record
+	//            then we will have increased the weight of the chunk for the sake of the event records	//             
+	//         - we don't currently count metadata records, but we probably could if its worth it
+	//             each time we find a metadata record we need to increment the count for the chunk
+	//             of the _old_ metadata record, which we can find because we stored its position yay
+	//         - any other reason?
 	//qqqqqqqq logical chunk or physical chunk
 	//
 	// The job of calculating the DiscardPoints is split between the Accumulator and the Calculator.
@@ -114,6 +121,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq note dont use allreader to implement this, it has logic to deal with transactions, skips
 	// epochs etc.
 	public interface IChunkReaderForAccumulator<TStreamId> {
+		//qq tombstones to be identified by their prepare flags
 		IEnumerable<RecordForAccumulator<TStreamId>> Read(
 			int startFromChunk,
 			ScavengePoint scavengePoint);
@@ -156,6 +164,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			public TombStoneRecord() {}
 			public TStreamId StreamId { get; set; }
 			public long LogPosition { get; set; }
+			// old scavenge, index writer and index committer are set up to handle
+			// tombstones that have abitrary event numbers, so lets handle them here
+			// in case it used to be possible to create them.
+			public long EventNumber { get; set; }
 		}
 
 		//qq make sure we only instantiate these for metadata records in metadata streams
@@ -213,9 +225,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 
 	public interface IChunkManagerForChunkExecutor<TStreamId, TChunk> {
-		IChunkWriterForExecutor<TStreamId, TChunk> CreateChunkWriter();
+		IChunkWriterForExecutor<TStreamId, TChunk> CreateChunkWriter(
+			int chunkStartNumber,
+			int chunkEndNumber);
 
-		IChunkReaderForExecutor<TStreamId> GetChunkReader(int logicalChunkNum);
+		IChunkReaderForExecutor<TStreamId> GetChunkReaderFor(long position);
 
 		bool TrySwitchChunk(
 			TChunk chunk,
@@ -225,6 +239,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	public interface IChunkReaderForExecutor<TStreamId> {
+		int ChunkStartNumber { get; }
+		int ChunkEndNumber { get; }
+		bool IsReadOnly { get; }
+		long ChunkEndPosition { get; }
+		IEnumerable<int> LogicalChunkNumbers { get; }
+		//qq this is probably just the prepares, rename accordingly?
 		IEnumerable<RecordForScavenge<TStreamId>> ReadRecords();
 	}
 
@@ -282,9 +302,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq recycle this record like the recordforaccumulation?
 	//qq hopefully doesn't have to be a class, or can be pooled
 	public class RecordForScavenge<TStreamId> {
+		public RecordForScavenge() {
+		}
+
 		public TStreamId StreamId { get; set; }
 		public long EventNumber { get; set; }
-		public byte[] RecordBytes { get; set; } //qq allocation :(
+		//qq pool
+		public byte[] RecordBytes { get; set; }
 	}
 
 	//qqq this is now IStateForChunkExecutor
@@ -295,18 +319,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//	//qq this isn't quite it, prolly need stream name
 	//	bool TryGetDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
 	//}
-
-	public struct ChunkWeight {
-		public ChunkWeight(int chunkNumber, float weight) {
-			ChunkNumber = chunkNumber;
-			Weight = weight;
-		}
-
-		//qq logical or phsyical?
-		public int ChunkNumber { get; }
-
-		public float Weight { get; }
-	}
 
 	// Refers to a stream by name or by hash
 	public struct StreamHandle {
@@ -377,8 +389,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public long? TruncateBefore { get; set; }
 
 		//qq this is the discard point of the metadata stream.
-		//qq not sure this wants to be nullable
-		public DiscardPoint? DiscardPoint { get; set; }
+		public DiscardPoint DiscardPoint { get; set; }
+		//qq true iff the metadata stream has been hard deleted.
+		public bool IsTombstoned { get; set; }
 
 		//qq probably dont need this, but we could easily populate it if it is useful later.
 		// its tempting because is would allow us to easily see which stream the metadata is for
@@ -394,6 +407,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			"";
 	}
 
+	//qq want better name, but this is the discard point combined with whether the stream has been
+	// tombstoned or not.
+	public struct EnrichedDiscardPoint {
+		public EnrichedDiscardPoint(bool isTombstoned, DiscardPoint discardPoint) {
+			IsTombstoned = isTombstoned;
+			DiscardPoint = discardPoint;
+		}
+
+		public bool IsTombstoned { get; }
+		public DiscardPoint DiscardPoint { get; }
+	}
 
 	//qq some kind of configurable speed throttle on each of the phases to stop them hogging iops
 
@@ -520,7 +544,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	//qq dont forget about chunk merging.. maybe is that another phase after execution, or part of
 	// execution.
-	
+
 	//qq DETERMINISTIC SCAVENGE
 	// there are some interesting things to note/decide about this
 	// - when we write the scavenge point, it is in the open chunk, which we can't scavenge.
@@ -554,6 +578,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//   in several points could just jump to the last one also.
 	//   in any of these cases getting the chunk version numbering right could be awkward, i wonder
 	//   whether it is important.
+	//   even if we have to jump through some hoops for the chunks, we pretty surely only need to
+	//   scavenge the index once.
 	//
 	// - if we put the threshold in the scavenge points, perhaps to skip over scavenge points you just
 	//   need to min/max the threshold.
@@ -627,7 +653,33 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//    - i.e. store allll the discard points in one map
 	// - all in one map
 	//    - downside: wasted space, or complexity of variable length values
-
+	//
+	//qq REDACTION
+	//  needs notes
+	//
+	//qq TOMBSTONES
+	// tldr: tombstones do not necessarily have eventnumber int.maxvalue or long.maxvalue.
+	// but they do have PrepareFlags.StreamDelete.
+	//
+	// Although the StorageWriterService does, these days, create tombstones with
+	// EventNumber = EventNumber.DeletedStream the TFChunkScavenger, IndexComitter, and IndexWriter are
+	// all geared up not to rely on that, but to rely on the prepareflags instead. It looks like they use
+	// this to causes index.GetStreamLastEventNumber to return long.max (i.e. EventNumber.DeletedStream)
+	// regardless of the eventnumber of the tombstone. SO lets assume that some old tombstones have other
+	// eventnumbers and use the prepareflag to detect it.
+	//
+	// Note, if there is such a tombstone whose eventnumber is not long.max, then that means that its
+	// event number in its indexentry would be different to its event number in the log.
+	//
+	// So, have done this:
+	//  - go back to having a 'is tombstoned' flag
+	//  - get rid of the 'tombstone' discard point. i.e. we keep them separate again.
+	//  then
+	//  - we can probably persist it in the sign bit of the discard point itself
+	//  - then we have an explicit representation of tombstoning seprate to the discard point, which
+	//    helps to simplify things
+	//  - saves us from needing to spot tombtones (via their prepare flags) in the chunk executor,
+	//    just obey the DP.
 
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp

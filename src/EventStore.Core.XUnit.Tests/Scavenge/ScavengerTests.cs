@@ -42,7 +42,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			RunScenario(x => x
 				.Chunk(
 					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(0, "ab-1"))
+					Rec.Prepare(1, "ab-1"))
 				.CompleteLastChunk()
 				.CreateDb());
 		}
@@ -154,14 +154,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.CreateDb());
 		}
 
+		//qq we are expecting to actually get something scavenged here
+		// use this as a vehicle to
+		//  a) get it scavenged
+		//  b) test that it was scavenged successfully. <- compare to the normal scavenge tests
 		[Fact]
 		public void simple_tombstone() {
-			RunScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Delete(1, "ab-1"))
-				.CompleteLastChunk()
-				.CreateDb());
+			RunScenario(
+				x => x
+					.Chunk(
+						Rec.Prepare(0, "ab-1"),
+						Rec.Delete(1, "ab-1"))
+					.CompleteLastChunk()
+					.CreateDb(),
+
+				dbResult => new[] {
+					dbResult.Recs[0].KeepIndexes(1),
+				});
 		}
 
 		[Fact]
@@ -175,7 +184,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		//qq refactor to base class
 		private static void RunScenario(
-			Func<TFChunkDbCreationHelper, DbResult> createDb) {
+			Func<TFChunkDbCreationHelper, DbResult> createDb,
+			Func<DbResult, LogRecord[][]> getExpectedKeptRecords = null) {
 
 			//qq use directory fixture, or memdb. pattern in ScavengeTestScenario.cs
 			var pathName = @"unused currently";
@@ -184,7 +194,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var dbCreator = new TFChunkDbCreationHelper(dbConfig);
 
 			var dbResult = createDb(dbCreator);
+			var keptRecords = getExpectedKeptRecords == null
+				? null
+				: getExpectedKeptRecords(dbResult);
+
+			// the log. will mutate as we scavenge.
 			var log = dbResult.Recs;
+
+			// original log. will not mutate, for calculating expected results.
+			var originalLog = log.ToArray();
 
 			var hasher = new HumanReadableHasher();
 			var metastreamLookup = new LogV2SystemStreams();
@@ -192,14 +210,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var collisionStorage = new InMemoryScavengeMap<string, Unit>();
 			var metaStorage = new InMemoryScavengeMap<ulong, MetastreamData>();
 			var metaCollisionStorage = new InMemoryScavengeMap<string, MetastreamData>();
-			var originalStorage = new InMemoryScavengeMap<ulong, DiscardPoint>();
-			var originalCollisionStorage = new InMemoryScavengeMap<string, DiscardPoint>();
-			var chunkWeightStorage = new InMemoryScavengeMap<int, long>();
+			var originalStorage = new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>();
+			var originalCollisionStorage = new InMemoryScavengeMap<string, EnrichedDiscardPoint>();
+			var chunkWeightStorage = new InMemoryScavengeMap<int, float>();
 
 			//qq date storage
 
 			var scavengeState = new ScavengeState<string>(
 				hasher,
+				metastreamLookup,
 				collisionStorage,
 				metaStorage,
 				metaCollisionStorage,
@@ -222,8 +241,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					chunkReader: new ScaffoldChunkReaderForAccumulator(log)),
 				new Calculator<string>(
 					index: new ScaffoldIndexForScavenge(log, hasher)),
-				new ChunkExecutor<string, LogRecord[]>(
-					chunkManager: new ScaffoldChunkManagerForScavenge(log)),
+				new ChunkExecutor<string, ScaffoldChunk>(
+					chunkManager: new ScaffoldChunkManagerForScavenge(
+						chunkSize: dbConfig.ChunkSize,
+						log: log),
+					chunkSize: dbConfig.ChunkSize),
 				new IndexExecutor<string>(
 					stuff: new ScaffoldStuffForIndexExecutor(log)),
 				new ScaffoldScavengePointSource(scavengePoint));
@@ -255,7 +277,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// 1a. naively calculate list of collisions
 			var hashesInUse = new Dictionary<ulong, string>();
 			var collidingStreams = new HashSet<string>();
-			foreach (var chunk in log) {
+			foreach (var chunk in originalLog) {
 				foreach (var record in chunk) {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
@@ -283,7 +305,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// 2. Find the metadata for each stream, by stream name
 			// 2a. naively calculate the expected metadata per stream
 			var expectedMetadataPerStream = new Dictionary<string, MetastreamData>();
-			foreach (var chunk in log) {
+			foreach (var chunk in originalLog) {
 				foreach (var record in chunk) {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
@@ -346,6 +368,67 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				expectedHandles.Select(x => x.metadata),
 				actual.Select(x => x.Item2),
 				compareOnlyMetadata);
+
+			// 4. The records we expected to keep are kept
+			if (keptRecords != null)
+				CheckRecordsScaffolding(keptRecords, dbResult);
+		}
+
+		//qq nicked from scavengetestscenario, will probably just use that class
+		protected static void CheckRecords(LogRecord[][] expected, DbResult actual) {
+			Assert.True(
+				expected.Length == actual.Db.Manager.ChunksCount,
+				"Wrong number of chunks. " +
+				$"Expected {expected.Length}. Actual {actual.Db.Manager.ChunksCount}");
+
+			for (int i = 0; i < expected.Length; ++i) {
+				var chunk = actual.Db.Manager.GetChunk(i);
+
+				var chunkRecords = new List<LogRecord>();
+				var result = chunk.TryReadFirst();
+				while (result.Success) {
+					chunkRecords.Add(result.LogRecord);
+					result = chunk.TryReadClosestForward((int)result.NextPosition);
+				}
+
+				Assert.True(
+					expected[i].Length == chunkRecords.Count,
+					$"Wrong number of records in chunk #{i}. " +
+					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
+
+				for (int j = 0; j < expected[i].Length; ++j) {
+					Assert.True(
+						expected[i][j] == chunkRecords[j],
+						$"Wrong log record #{j} read from chunk #{i}. " +
+						$"Expected {expected[i][j]}. Actual {chunkRecords[j]}");
+				}
+			}
+		}
+
+		//qq this one reads the records out of actual.Recs, for use with the scaffolding implementations
+		// until we transition.
+		protected static void CheckRecordsScaffolding(LogRecord[][] expected, DbResult actual) {
+			Assert.True(
+				expected.Length == actual.Db.Manager.ChunksCount,
+				"Wrong number of chunks. " +
+				$"Expected {expected.Length}. Actual {actual.Db.Manager.ChunksCount}");
+
+			for (int i = 0; i < expected.Length; ++i) {
+				var chunkRecords = actual.Recs[i].ToList();
+
+				Assert.True(
+					expected[i].Length == chunkRecords.Count,
+					$"Wrong number of records in chunk #{i}. " +
+					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
+
+				for (int j = 0; j < expected[i].Length; ++j) {
+					Assert.True(
+						expected[i][j].Equals(chunkRecords[j]),
+						$"Wrong log record #{j} read from chunk #{i}.\r\n" +
+						$"Expected {expected[i][j]}\r\n" +
+						$"Actual   {chunkRecords[j]}");
+				}
+			}
 		}
 
 		class CompareOnlyMetadata : IEqualityComparer<MetastreamData> {
@@ -360,7 +443,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.MaxCount == y.MaxCount &&
 					x.MaxAge == y.MaxAge &&
 					x.TruncateBefore == y.TruncateBefore;
-
 			}
 
 			public int GetHashCode(MetastreamData obj) {
@@ -368,4 +450,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}
 		}
 	}
+
+	public static class ArrayExtensions {
+		public static T[] KeepIndexes<T>(this T[] self, params int[] indexes) =>
+			self.Where((x, i) => indexes.Contains(i)).ToArray();
+	}
+
 }

@@ -10,6 +10,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//      (eg hashes are keys)
 	//  - one that stores a small number of variable sized keys (e.g. for stream names)
 	//  - we might want one that stores contiguous keys (eg chunk numbers)
+	//         probably not, the number of chunk lookups is small compared to streams so just dont worry
+	//         about it for now.
 	public interface IScavengeMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> {
 		bool TryGetValue(TKey key, out TValue value);
 		TValue this[TKey key] { set; }

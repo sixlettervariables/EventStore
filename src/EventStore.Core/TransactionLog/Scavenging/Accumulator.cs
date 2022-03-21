@@ -121,12 +121,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					MaxAge = metaStreamData.MaxAge,
 					MaxCount = metaStreamData.MaxCount,
 					TruncateBefore = metaStreamData.TruncateBefore,
-					DiscardPoint = DiscardPoint.Tombstone,
+					//qq does the existing discard point need encorporating?
+					//DiscardPoint = metaStreamData.DiscardPoint,
+					DiscardPoint = DiscardPoint.DiscardBefore(record.EventNumber),
+					IsTombstoned = true,
 				};
 				state.SetMetastreamData(record.StreamId, newMetaStreamData);
 			} else {
 				// get the streamData for the stream, tell it the stream is deleted
-				state.SetOriginalStreamData(record.StreamId, DiscardPoint.Tombstone);
+				var originalStreamData = new EnrichedDiscardPoint(
+					isTombstoned: true,
+					//qq does the existing discard point need encorporating?
+					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
+				state.SetOriginalStreamData(record.StreamId, originalStreamData);
 			}
 		}
 

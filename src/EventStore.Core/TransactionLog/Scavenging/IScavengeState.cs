@@ -46,7 +46,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// no need for the accumulator to get the original stream data, all it does with it is sets it
 		// on tombstone, for which the previous value is not relevant.
-		void SetOriginalStreamData(TStreamId streamId, DiscardPoint discardPoint);
+		void SetOriginalStreamData(TStreamId streamId, EnrichedDiscardPoint originalStreamData);
 	}
 
 	public interface IScavengeStateForCalculator<TStreamId> {
@@ -57,32 +57,36 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		bool TryGetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
-			out DiscardPoint discardPoint);
+			out EnrichedDiscardPoint originalStreamData);
 
 		//qq we set a discard point for every relevant stream.
-		void SetOriginalStreamData(StreamHandle<TStreamId> streamHandle, DiscardPoint discardPoint);
+		void SetOriginalStreamData(
+			StreamHandle<TStreamId> streamHandle,
+			EnrichedDiscardPoint originalStreamData);
 
 		//qq consider api
-		bool TryGetChunkWeight(int chunkNumber, out long weight);
-		void SetChunkWeight(int chunkNumber, long weight);
+		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
+		void SetChunkWeight(int logicalChunkNumber, float weight);
 	}
 
 	//qq needs to work for metadata streams and also for original streams
 	// but that is easy enough because we can see if the streamid is for a metastream or not
 	public interface IScavengeStateForChunkExecutor<TStreamId> {
-		IEnumerable<ChunkWeight> GetChunkWeights(ScavengePoint scavengePoint);
+		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
+		void SetChunkWeight(int logicalChunkNumber, float weight);
 		bool TryGetDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
-		//qq complication around logical/physical chunks and merging?
-		bool OnChunkScavenged(int chunkNumber);
 	}
 
 	//qq needs to work for metadata streams and also for original streams
 	//qq which is awkward because if we only have the hash we don't know which it is
 	// we would need to check in both maps which is not ideal.
-	//qq ^ the index executor should be smart enough though to only call this once per non-colliding stream.
+	//qq ^ the index executor should be smart enough though to only call this once per
+	//non-colliding stream.
 	public interface IScavengeStateForIndexExecutor<TStreamId> {
 		bool IsCollision(ulong streamHash);
 		//qq precondition: the streamhandle must be of the correct kind.
-		bool TryGetDiscardPoint(StreamHandle<TStreamId> streamHandle, out DiscardPoint discardPoint);
+		bool TryGetDiscardPoint(
+			StreamHandle<TStreamId> streamHandle,
+			out DiscardPoint discardPoint);
 	}
 }

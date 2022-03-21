@@ -90,10 +90,29 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunk = chunk;
 		}
 
+		public int ChunkStartNumber => _chunk.ChunkHeader.ChunkStartNumber;
+
+		public int ChunkEndNumber => _chunk.ChunkHeader.ChunkEndNumber;
+
+		public bool IsReadOnly => _chunk.IsReadOnly;
+
+		public long ChunkEndPosition => _chunk.ChunkHeader.ChunkEndPosition;
+
+		public IEnumerable<int> LogicalChunkNumbers {
+			get {
+				for (var i = _chunk.ChunkHeader.ChunkStartNumber;
+					i < _chunk.ChunkHeader.ChunkEndNumber;
+					i++)
+
+					yield return i;
+			}
+		}
+
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			yield return new RecordForScavenge<string>() {
 				StreamId = "thestream",
 				EventNumber = 123,
+				RecordBytes = null,
 			};
 		}
 	}
@@ -124,12 +143,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_dbConfig = dbConfig;
 		}
 
-		public IChunkWriterForExecutor<string, TFChunk> CreateChunkWriter() {
+		public IChunkWriterForExecutor<string, TFChunk> CreateChunkWriter(
+			int chunkStartNumber, //qq pass along
+			int chunkEndNumber) {
+
 			return new ChunkWriterForExecutor(_dbConfig);
 		}
 
-		public IChunkReaderForExecutor<string> GetChunkReader(int logicalChunkNum) {
-			var tfChunk = _manager.GetChunk(logicalChunkNum);
+		public IChunkReaderForExecutor<string> GetChunkReaderFor(long position) {
+			var tfChunk = _manager.GetChunkFor(position);
 			return new ChunkReaderForExecutor(tfChunk);
 		}
 

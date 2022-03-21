@@ -4,32 +4,12 @@ using Xunit;
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class DiscardPointTests {
 		[Fact]
-		public void tombstone_discards_everything_before_max() {
-			var sut = DiscardPoint.Tombstone;
-
-			Assert.True(sut.ShouldDiscard(0));
-			Assert.True(sut.ShouldDiscard(1));
-			Assert.True(sut.ShouldDiscard(1000));
-			Assert.True(sut.ShouldDiscard(long.MaxValue - 1));
-			Assert.False(sut.ShouldDiscard(long.MaxValue));
-		}
-
-		[Fact]
 		public void can_keep_all() {
 			var sut = DiscardPoint.KeepAll;
 
 			Assert.False(sut.ShouldDiscard(0));
 			Assert.False(sut.ShouldDiscard(1));
 			Assert.False(sut.ShouldDiscard(long.MaxValue));
-		}
-
-		[Fact]
-		public void discard_all() {
-			var sut = DiscardPoint.DiscardAll;
-
-			Assert.True(sut.ShouldDiscard(0));
-			Assert.True(sut.ShouldDiscard(1));
-			Assert.True(sut.ShouldDiscard(long.MaxValue));
 		}
 
 		[Fact]
@@ -84,7 +64,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void get_hash_code() {
-			Assert.Equal(3.GetHashCode(), DiscardPoint.DiscardIncluding(3).GetHashCode());
+			Assert.Equal(3.GetHashCode(), DiscardPoint.DiscardBefore(3).GetHashCode());
 		}
 	}
 }

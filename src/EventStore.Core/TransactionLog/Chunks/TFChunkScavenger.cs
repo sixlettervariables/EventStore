@@ -557,7 +557,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 
 			var lastEventNumber = _readIndex.GetStreamLastEventNumber(prepare.EventStreamId);
 			if (lastEventNumber == EventNumber.DeletedStream) {
-				//qq i wrote somewhere that old scavenge tells tombstones just by the prepare flags, but here it does pay attention to the event number ^
 				// The stream is hard deleted but this is not the tombstone.
 				// When all prepares and commit of transaction belong to single chunk and the stream is deleted,
 				// we can safely delete both prepares and commit.
