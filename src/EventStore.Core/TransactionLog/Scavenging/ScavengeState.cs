@@ -67,21 +67,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkWeights = chunkWeights;
 			_hashUsageChecker = hashUsageChecker;
 
-			bool HashInUseBefore(TStreamId recordStream, long recordPosition, out TStreamId candidateCollidee) {
+			bool HashInUseBefore(TStreamId recordStream, long recordPosition, out TStreamId hashUser) {
 				var hash = _hasher.Hash(recordStream);
 
-				if (cache.TryGetValue(hash, out candidateCollidee))
+				if (cache.TryGetValue(hash, out hashUser))
 					return true;
 
 				//qq look in the index for any record with the current hash up to the limit
 				// if any exists then grab the stream name for it
-				if (_hashUsageChecker.HashInUseBefore(hash, recordPosition, out candidateCollidee)) {
-					cache[hash] = candidateCollidee;
+				if (_hashUsageChecker.HashInUseBefore(hash, recordPosition, out hashUser)) {
+					cache[hash] = hashUser;
 					return true;
 				}
 
 				cache[hash] = recordStream;
-				candidateCollidee = default;
+				hashUser = default;
 				return false;
 			}
 		}

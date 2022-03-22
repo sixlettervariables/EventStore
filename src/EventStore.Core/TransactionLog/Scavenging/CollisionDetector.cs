@@ -7,9 +7,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public class CollisionDetector<T> {
 		// checks if the hash is in use before this item at this position. returns true if so.
 		// if returning true then out parameter is one of the items that hashes to that hash
-		//qq why is it a candidateColliddee exactly, i think (check?) because it might be 'itself'
-		// in which case it isn't a collision. it would be better to be called hashUser
-		public delegate bool HashInUseBefore(T item, long itemPosition, out T candidateCollidee);
+		public delegate bool HashInUseBefore(T item, long itemPosition, out T hashUser);
 
 		private static EqualityComparer<T> TComparer { get; } = EqualityComparer<T>.Default;
 		private readonly HashInUseBefore _hashInUseBefore;

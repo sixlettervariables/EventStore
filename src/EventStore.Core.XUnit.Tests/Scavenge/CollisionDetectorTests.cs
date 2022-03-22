@@ -101,10 +101,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			//qq see comment above InMemoryAccumulator.Accumulate(EventRecord) for another option for how
 			// the cache could work
 			var cache = new Dictionary<ulong, string>(); // maps hashes to stream names
-			bool HashInUseBefore(string recordStream, long recordPosition, out string candidateCollidee) {
+			bool HashInUseBefore(string recordStream, long recordPosition, out string hashUser) {
 				var hash = hasher.Hash(recordStream);
 
-				if (cache.TryGetValue(hash, out candidateCollidee))
+				if (cache.TryGetValue(hash, out hashUser))
 					return true;
 
 				//qq a bloom filter could assist before checking the ptables if we had one that was built
@@ -118,8 +118,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// filtering to those entries less than recordPosition is important
 						// for case (2a)
 						if (entry < recordPosition) {
-							candidateCollidee = log[entry];
-							cache[hash] = candidateCollidee;
+							hashUser = log[entry];
+							cache[hash] = hashUser;
 							return true;
 						}
 					}
@@ -130,7 +130,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				// so there is no danger of returning this result when it should have
 				// been excluded by the position filter.
 				cache[hash] = recordStream;
-				candidateCollidee = default;
+				hashUser = default;
 				return false;
 			}
 
