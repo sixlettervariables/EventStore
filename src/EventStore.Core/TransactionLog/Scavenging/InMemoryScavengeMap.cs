@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class InMemoryScavengeMap<TKey, TValue> : IScavengeMap<TKey, TValue> {
+		public InMemoryScavengeMap() {
+		}
+
 		private readonly Dictionary<TKey, TValue> _dict = new Dictionary<TKey, TValue>();
 
 		public TValue this[TKey key] {

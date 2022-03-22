@@ -565,7 +565,7 @@ namespace EventStore.Core {
 					new ChunkReaderForAccumulator<string>());
 
 				var calculator = new Calculator<string>(
-					new IndexForScavenge(readIndex));
+					new IndexReaderForScavenge(readIndex));
 
 				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
 					new ChunkManagerForScavenge(db.Manager, db.Config),
@@ -583,7 +583,7 @@ namespace EventStore.Core {
 					new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<string, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<int, float>(),
-					new InMemoryIndexReaderForAccumulator<string>());
+					new IndexReaderForAccumulator<string>());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,
