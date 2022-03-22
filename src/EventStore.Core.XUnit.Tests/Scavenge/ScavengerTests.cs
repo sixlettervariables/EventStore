@@ -158,6 +158,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		// use this as a vehicle to
 		//  a) get it scavenged
 		//  b) test that it was scavenged successfully. <- compare to the normal scavenge tests
+		//qqq we will probably want a set of these to test out collisions when there are tombstones
+		// and a set for collisions when there is metadata
+		// but shouldn't need to test different kinds of metadata
 		[Fact]
 		public void simple_tombstone() {
 			RunScenario(
@@ -233,6 +236,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				Position = 123, //qq
 			};
 
+			var indexScavenger = new ScaffoldStuffForIndexExecutor(originalLog, hasher);
 			var sut = new Scavenger<string>(
 				scavengeState,
 				new Accumulator<string>(
@@ -247,7 +251,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						log: log),
 					chunkSize: dbConfig.ChunkSize),
 				new IndexExecutor<string>(
-					stuff: new ScaffoldStuffForIndexExecutor(log)),
+					indexScavenger: indexScavenger,
+					streamLookup: new ScaffoldChunkReaderForIndexExecutor(log)),
 				new ScaffoldScavengePointSource(scavengePoint));
 
 			sut.Start(); //qq irl how do we know when its done
@@ -370,8 +375,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				compareOnlyMetadata);
 
 			// 4. The records we expected to keep are kept
-			if (keptRecords != null)
+			// 5. The index entries we expected to be kept are kept
+			if (keptRecords != null) {
 				CheckRecordsScaffolding(keptRecords, dbResult);
+				CheckIndex(keptRecords, indexScavenger.Scavenged);
+			}
+
 		}
 
 		//qq nicked from scavengetestscenario, will probably just use that class
@@ -425,6 +434,30 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Assert.True(
 						expected[i][j].Equals(chunkRecords[j]),
 						$"Wrong log record #{j} read from chunk #{i}.\r\n" +
+						$"Expected {expected[i][j]}\r\n" +
+						$"Actual   {chunkRecords[j]}");
+				}
+			}
+		}
+
+		private static void CheckIndex(LogRecord[][] expected, LogRecord[][] actual) {
+			Assert.True(
+				expected.Length == actual.Length,
+				"IndexCheck. Wrong number of chunks. " +
+				$"Expected {expected.Length}. Actual {actual.Length}");
+
+			for (int i = 0; i < expected.Length; ++i) {
+				var chunkRecords = actual[i];
+
+				Assert.True(
+					expected[i].Length == chunkRecords.Length,
+					$"IndexCheck. Wrong number of records in chunk #{i}. " +
+					$"Expected {expected[i].Length}. Actual {chunkRecords.Length}");
+
+				for (int j = 0; j < expected[i].Length; ++j) {
+					Assert.True(
+						expected[i][j].Equals(chunkRecords[j]),
+						$"IndexCheck. Wrong log record #{j} read from chunk #{i}.\r\n" +
 						$"Expected {expected[i][j]}\r\n" +
 						$"Actual   {chunkRecords[j]}");
 				}

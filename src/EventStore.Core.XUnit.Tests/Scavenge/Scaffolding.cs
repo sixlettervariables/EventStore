@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Threading;
 using EventStore.Core.Data;
+using EventStore.Core.Index;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.Services;
 using EventStore.Core.TransactionLog.LogRecords;
@@ -304,8 +307,63 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	}
 
 	//qq
-	public class ScaffoldStuffForIndexExecutor : IDoStuffForIndexExecutor {
-		public ScaffoldStuffForIndexExecutor(LogRecord[][] log) {
+	public class ScaffoldStuffForIndexExecutor : IIndexScavenger {
+		private readonly LogRecord[][] _log;
+		private readonly ILongHasher<string> _hasher;
+
+		public ScaffoldStuffForIndexExecutor(
+			LogRecord[][] log,
+			ILongHasher<string> hasher) {
+
+			// here the log represents the index, haven't bothered to build a separate index structure
+			_log = log;
+			_hasher = hasher;
+		}
+
+		public void ScavengeIndex(
+			Func<IndexEntry, bool> shouldKeep,
+			IIndexScavengerLog log,
+			CancellationToken cancellationToken) {
+
+			Scavenged = _log
+				.Select(chunk => chunk
+					.OfType<PrepareLogRecord>()
+					.Where(prepare =>
+						shouldKeep(
+							new IndexEntry(
+								stream: _hasher.Hash(prepare.EventStreamId),
+								version: prepare.ExpectedVersion + 1,
+								position: prepare.LogPosition)))
+					.ToArray())
+				.ToArray();
+		}
+
+		public LogRecord[][] Scavenged { get; private set; }
+	}
+
+	public class ScaffoldChunkReaderForIndexExecutor : IChunkReaderForIndexExecutor<string> {
+		private readonly LogRecord[][] _log;
+
+		public ScaffoldChunkReaderForIndexExecutor(LogRecord[][] log) {
+			_log = log;
+		}
+
+		public bool TryGetStreamId(long position, out string streamId) {
+			foreach (var chunk in _log) {
+				foreach (var record in chunk) {
+					if (!(record is PrepareLogRecord prepare))
+						continue;
+
+					if (prepare.LogPosition != position)
+						continue;
+
+					streamId = prepare.EventStreamId;
+					return true;
+				}
+			}
+
+			streamId = default;
+			return false;
 		}
 	}
 }

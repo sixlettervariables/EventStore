@@ -1,33 +1,60 @@
-﻿using EventStore.Core.Index;
+﻿using System;
+using EventStore.Core.Index;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
+	//qq tbc if we need our own implementation of this or can use the regular one.
+	// also tbc where it should be constructed
+	public class MyScavengerLog : IIndexScavengerLog {
+		public void IndexTableNotScavenged(
+			int level,
+			int index,
+			TimeSpan elapsed,
+			long entriesKept,
+			string errorMessage) {
+
+			throw new NotImplementedException();
+		}
+
+		public void IndexTableScavenged(
+			int level,
+			int index,
+			TimeSpan elapsed,
+			long entriesDeleted,
+			long entriesKept,
+			long spaceSaved) {
+
+			throw new NotImplementedException();
+		}
+	}
+
 	public class IndexExecutor<TStreamId> : IIndexExecutor<TStreamId> {
-		public IndexExecutor(IDoStuffForIndexExecutor stuff) {
+		private readonly IIndexScavenger _indexScavenger;
+		private readonly IChunkReaderForIndexExecutor<TStreamId> _streamLookup;
+
+		public IndexExecutor(
+			IIndexScavenger indexScavenger,
+			IChunkReaderForIndexExecutor<TStreamId> streamLookup) {
+
+			_indexScavenger = indexScavenger;
+			_streamLookup = streamLookup;
+		}
+
+		public void Execute(IScavengeStateForIndexExecutor<TStreamId> state) {
+			_indexScavenger.ScavengeIndex(
+				shouldKeep: GenShouldKeep(state),
+				log: new MyScavengerLog(),
+				//qq pass through a cancellation token
+				cancellationToken: default);
 
 		}
 
-		public void Execute(IScavengeStateForIndexExecutor<TStreamId> instructions) {
-			//qq fill this in, scavenge the ptables
-			var ptables = new[] { 2, 3 }; //qq temp
-			foreach (var ptable in ptables) {
-				ExecutePTable(instructions, ptable);
-			}
-		}
-
-		public void ExecutePTable(
-			IScavengeStateForIndexExecutor<TStreamId> state,
-			int ptable) {
-
-			//qq get the index entries from the ptable
-			var indexEntries = new[] {
-				new IndexEntry(stream: 123, version: 456, position: 789),
-			};
-
+		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
+			//qq check/test
 			var currentHash = (ulong?)null;
 			var currentHashIsCollision = false;
 			var discardPoint = DiscardPoint.KeepAll;
 
-			foreach (var indexEntry in indexEntries) {
+			bool ShouldKeep(IndexEntry indexEntry) {
 				//qq to decide whether to keep an index entry we need to 
 				// 1. determine which stream it is for
 				// 2. look up the discard point for that stream
@@ -39,22 +66,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					discardPoint = GetDiscardPoint(
 						state,
+						indexEntry.Position,
 						currentHash.Value,
 						currentHashIsCollision);
 				}
 
-				if (discardPoint.ShouldDiscard(indexEntry.Version)) {
-					// drop index entry
-				} else {
-					//qq keep index entry, copy it to output
-				}
+				return !discardPoint.ShouldDiscard(indexEntry.Version);
 			}
 
-			//qq save ptable, swap it in, etc.
+			return ShouldKeep;
 		}
 
 		private DiscardPoint GetDiscardPoint(
 			IScavengeStateForIndexExecutor<TStreamId> state,
+			long position,
 			ulong hash,
 			bool isCollision) {
 
@@ -63,8 +88,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (isCollision) {
 				// collision, we need to get the event for this position, see what stream it is
 				// really for, and look up the discard point by streamId.
-				TStreamId streamId = default; //qq _index.ReadEvent(indexEntry.Position).StreamId;
-				handle = StreamHandle.ForStreamId(streamId);
+
+				if (_streamLookup.TryGetStreamId(position, out var streamId)) {
+					handle = StreamHandle.ForStreamId(streamId);
+				} else {
+					//qq how unexpected is this, throw, or make this a TryGetDiscardPoint
+					// presumably this can happen if the record was scavenged
+					throw new Exception("lksjfw");
+				}
 
 			} else {
 				// not a collision, we can get the discard point by hash.

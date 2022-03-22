@@ -571,8 +571,10 @@ namespace EventStore.Core {
 					new ChunkManagerForScavenge(db.Manager, db.Config),
 					chunkSize: db.Config.ChunkSize);
 
+				//qq make sure the maxreaders for the pool is high enough to accommodate us
 				var indexExecutor = new IndexExecutor<string>(
-					new StuffForIndexExecutor());
+					new IndexScavenger(tableIndex),
+					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)));
 
 				var scavengeState = new ScavengeState<string>(
 					longHasher,

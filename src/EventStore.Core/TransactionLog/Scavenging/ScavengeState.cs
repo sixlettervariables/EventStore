@@ -191,6 +191,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// then we know the hash does not collide, but we do not know whether it is for a 
 			// stream or a metastream. but since we know it does not collide we can just check
 			// both maps (better if we didnt have to though..)
+			if (_originalStreamDatas.TryGetValue(streamHandle, out var streamData)) {
+				discardPoint = streamData.DiscardPoint;
+				return true;
+			}
 			//if (streamHandle.IsHash) {
 			//	if (_metadatas.TryGetValue(streamHandle, out var metastreamData)) {
 			//		return metastreamData.DiscardPoint.Value;
@@ -201,8 +205,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//	return _metadatas[streamHandle.StreamId].DiscardPoint.Value;
 			//}
 
-			discardPoint = DiscardPoint.KeepAll;
-			return true;
+			discardPoint = default;
+			return false;
 		}
 
 		public bool IsCollision(ulong streamHash) {

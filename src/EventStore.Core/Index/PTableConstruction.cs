@@ -311,6 +311,7 @@ namespace EventStore.Core.Index {
 
 		public static PTable Scavenged(PTable table, string outputFile, Func<string, ulong, ulong> upgradeHash,
 			Func<IndexEntry, bool> existsAt, Func<IndexEntry, Tuple<string, bool>> readRecord, byte version,
+			Func<IndexEntry, bool> shouldKeep,
 			out long spaceSaved,
 			int cacheDepth = 16, bool skipIndexVerify = false, CancellationToken ct = default(CancellationToken)) {
 			Ensure.NotNull(table, "table");
@@ -328,7 +329,8 @@ namespace EventStore.Core.Index {
 			long droppedCount;
 
 			try {
-				//qq the output file is opened with a large buffer and for sequential scan, but the input is not
+				//qq the output file is opened with a large buffer and for sequential scan, but the input is not.
+				// maybe it should be?
 				using (var f = new FileStream(outputFile, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
 					DefaultSequentialBufferSize, FileOptions.SequentialScan)) {
 					f.SetLength(fileSizeUpToIndexEntries);
@@ -347,7 +349,7 @@ namespace EventStore.Core.Index {
 							new EnumerableTable(version, table, upgradeHash, existsAt, readRecord)) {
 							while (enumerator.MoveNext()) {
 								ct.ThrowIfCancellationRequested();
-								if (existsAt(enumerator.Current)) {
+								if (shouldKeep(enumerator.Current)) {
 									AppendRecordTo(bs, buffer, version, enumerator.Current, indexEntrySize);
 									keptCount++;
 								}
@@ -548,6 +550,22 @@ namespace EventStore.Core.Index {
 			}
 		}
 
+		// enumerates the IndexEntries in a PTable
+		// there are two modes of operation in here. regular, and upgrading 32 to 64 bit.
+		// - regular
+		//    - _enumerator enumerates through the pTable
+		//    - _list is null
+		//    - _ptableEnumerator is null
+		//    - _firstIteration is unused
+		//    - _lastIteration is unused
+		//    - _upgradeHash is unused
+		//    - _existsAt is unused
+		//    - _readRecord is unused
+		//
+		// - upgrading: when reading a PTableVersions.IndexV1 and writing a higher version, we convert
+		//   the hashes from 32bit to 64bit.
+		//qq its probably ok to upgrade a ptable and scavenge at the same time.. but give this a bit of
+		//thought
 		internal class EnumerableTable : IEnumerator<IndexEntry> {
 			private ISearchTable _ptable;
 			private List<IndexEntry> _list;
@@ -557,8 +575,8 @@ namespace EventStore.Core.Index {
 			private bool _lastIteration = false;
 
 			readonly Func<string, ulong, ulong> _upgradeHash;
-			readonly Func<IndexEntry, bool> _existsAt; // only used when upgrading ptables from V1
-			readonly Func<IndexEntry, Tuple<string, bool>> _readRecord; // only for upgrading hashes
+			readonly Func<IndexEntry, bool> _existsAt;
+			readonly Func<IndexEntry, Tuple<string, bool>> _readRecord;
 			readonly byte _mergedPTableVersion;
 			static readonly IComparer<IndexEntry> EntryComparer = new IndexEntryComparer();
 
@@ -584,10 +602,12 @@ namespace EventStore.Core.Index {
 				_readRecord = readRecord;
 
 				if (table.Version == PTableVersions.IndexV1 && mergedPTableVersion != PTableVersions.IndexV1) {
+					// upgrading 32 to 64 bit
 					_list = new List<IndexEntry>();
 					_enumerator = _list.GetEnumerator();
 					_ptableEnumerator = _ptable.IterateAllInOrder().GetEnumerator();
 				} else {
+					// regular
 					_enumerator = _ptable.IterateAllInOrder().GetEnumerator();
 				}
 			}
@@ -602,8 +622,10 @@ namespace EventStore.Core.Index {
 
 			public bool MoveNext() {
 				var hasMovedToNext = _enumerator.MoveNext();
-				if (_list == null || hasMovedToNext) return hasMovedToNext;
+				if (_list == null || hasMovedToNext)
+					return hasMovedToNext;
 
+				// upgrading 32 to 64 bit
 				_enumerator.Dispose();
 				_list = ReadUntilDifferentHash(_mergedPTableVersion, _ptableEnumerator, _upgradeHash, _existsAt,
 					_readRecord);
@@ -612,6 +634,7 @@ namespace EventStore.Core.Index {
 				return _enumerator.MoveNext();
 			}
 
+			// only called when upgrading 32 to 64 bit
 			private List<IndexEntry> ReadUntilDifferentHash(byte version, IEnumerator<IndexEntry> ptableEnumerator,
 				Func<string, ulong, ulong> upgradeHash, Func<IndexEntry, bool> existsAt,
 				Func<IndexEntry, Tuple<string, bool>> readRecord) {

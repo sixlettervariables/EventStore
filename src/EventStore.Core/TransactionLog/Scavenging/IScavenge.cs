@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using EventStore.Core.Data;
+using EventStore.Core.Index;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// There are two kinds of streams that we might want to remove events from
@@ -255,12 +257,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// FOR INDEX EXECUTOR
 	//
 
-	//qq name
-	public interface IDoStuffForIndexExecutor {
-		//qq
+	public interface IIndexScavenger {
+		void ScavengeIndex(
+			Func<IndexEntry, bool> shouldKeep,
+			IIndexScavengerLog log,
+			CancellationToken cancellationToken);
 	}
 
-
+	public interface IChunkReaderForIndexExecutor<TStreamId> {
+		bool TryGetStreamId(long position, out TStreamId streamId);
+	}
 
 
 
@@ -333,6 +339,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// some contain the full stream id (when they do collide)
 	//qq consider explicit layout
 	public readonly struct StreamHandle<TStreamId> {
+		//qq use kind so that we can easily spot default handles. consider specifying byte if we are
+		// going to end up with a lot of these in memory
+		public enum Kind {
+			None,
+			Hash,
+			Id,
+		};
+
 		public readonly bool IsHash;
 		public readonly TStreamId StreamId;
 		public readonly ulong StreamHash;
