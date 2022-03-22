@@ -91,52 +91,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				entries.Insert(0, i);
 			}
 
-
-			// simulates looking in the index for records with the current hash up to
-			// the all stream positionLimit. exclude the positionLimit itself because that is the
-			// position of the record that the hash came from.
-			// irl this isn't _that_ expensive, but wont be that cheap either
-			// and we'll be calling it for ~every record. so we could definitely do with a cache
-			// as long as that doesn't break any of the properties that we require
-			//qq see comment above InMemoryAccumulator.Accumulate(EventRecord) for another option for how
-			// the cache could work
-			var cache = new Dictionary<ulong, string>(); // maps hashes to stream names
-			bool HashInUseBefore(string recordStream, long recordPosition, out string hashUser) {
-				var hash = hasher.Hash(recordStream);
-
-				if (cache.TryGetValue(hash, out hashUser))
-					return true;
-
-				//qq a bloom filter could assist before checking the ptables if we had one that was built
-				// up to this point in the log only - if the stream _hash_ is not present in the bloom filter
-				// then we know that it is not a collision, and in fact will not be present in the ptables
-				// at all.
-				// simulate hitting the ptables. if we find any entries for this hash
-				// then look up the record for one of them to get the stream name
-				if (index.TryGetValue(hash, out var entries)) {
-					foreach (var entry in entries) {
-						// filtering to those entries less than recordPosition is important
-						// for case (2a)
-						if (entry < recordPosition) {
-							hashUser = log[entry];
-							cache[hash] = hashUser;
-							return true;
-						}
-					}
-				}
-
-				// we can cache this entry because the next time this method is called
-				// the recordPosition will definitely be greater than it is this time
-				// so there is no danger of returning this result when it should have
-				// been excluded by the position filter.
-				cache[hash] = recordStream;
-				hashUser = default;
-				return false;
-			}
-
 			var sut = new CollisionDetector<string>(
-				HashInUseBefore,
-				new InMemoryScavengeMap<string, Unit>());
+				new MemoisingHashUsageChecker<string>(new MockHashUsageChecker(log, index)),
+				new InMemoryScavengeMap<string, Unit>(),
+				hasher);
 
 			var expectedCollisions = new HashSet<string>();
 
@@ -149,6 +107,43 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					expectedCollisions.OrderBy(x => x),
 					sut.GetAllCollisions());
 			}
+		}
+	}
+
+	class MockHashUsageChecker : IHashUsageChecker<string> {
+		private readonly string[] _log;
+		private readonly Dictionary<ulong, List<int>> _index;
+
+		public MockHashUsageChecker(
+			string[] log,
+			Dictionary<ulong, List<int>> index) {
+			_log = log;
+			_index = index;
+		}
+
+		// simulates looking in the index for records with the current hash up to
+		// the all stream positionLimit. exclude the positionLimit itself because that is the
+		// position of the record that the hash came from.
+		public bool HashInUseBefore(string item, ulong hash, long position, out string hashUser) {
+			//qq a bloom filter could assist before checking the ptables if we had one that was built
+			// up to this point in the log only - if the stream _hash_ is not present in the bloom filter
+			// then we know that it is not a collision, and in fact will not be present in the ptables
+			// at all.
+			// simulate hitting the ptables. if we find any entries for this hash
+			// then look up the record for one of them to get the stream name
+			if (_index.TryGetValue(hash, out var entries)) {
+				foreach (var entry in entries) {
+					// filtering to those entries less than position is important
+					// for case (2a)
+					if (entry < position) {
+						hashUser = _log[entry];
+						return true;
+					}
+				}
+			}
+
+			hashUser = default;
+			return false;
 		}
 	}
 }

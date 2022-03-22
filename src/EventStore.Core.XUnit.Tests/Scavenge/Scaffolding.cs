@@ -22,7 +22,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_log = log;
 		}
 
-		public bool HashInUseBefore(ulong hash, long position, out string hashUser) {
+		public bool HashInUseBefore(string item, ulong hash, long position, out string hashUser) {
 			// iterate through the log
 
 			foreach (var chunk in _log) {
@@ -36,7 +36,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						//qq technically probably only have to detect in use if its committed
 						// but this is a detail that probalby wont matter for us
 						case PrepareLogRecord prepare: {
-								//qq do these have populated event numbres? what about when committed?
+							//qq do these have populated event numbers? what about when committed?
 							var stream = prepare.EventStreamId;
 							if (_hasher.Hash(stream) == hash) {
 								hashUser = stream;

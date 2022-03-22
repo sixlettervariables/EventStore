@@ -282,12 +282,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 
 
-	public interface IHashUsageChecker<TStreamId> {
-		//qq definitely a similar here to the delegate defined by the collision detector..
-		// is it actually the same thing in need of a refactor? then the other is just a
-		// decorator pattern that adds memoisation. might need to pass the hash into
-		// collisiondetector.add, or let it hash it itself
-		bool HashInUseBefore(ulong hash, long postion, out TStreamId hashUser);
+	public interface IHashUsageChecker<T> {
+		// checks if the hash is in use before this item at this position. returns true if so.
+		// if returning true then out parameter is one of the items that hashes to that hash
+		bool HashInUseBefore(T item, ulong hash, long position, out T hashUser);
 	}
 
 	// So that the scavenger knows where to scavenge up to

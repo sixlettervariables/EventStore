@@ -1,16 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using EventStore.Core.Index.Hashes;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// add things to the collision detector and it keeps a list of things that collided.
 	public class CollisionDetector<T> {
-		// checks if the hash is in use before this item at this position. returns true if so.
-		// if returning true then out parameter is one of the items that hashes to that hash
-		public delegate bool HashInUseBefore(T item, long itemPosition, out T hashUser);
-
 		private static EqualityComparer<T> TComparer { get; } = EqualityComparer<T>.Default;
-		private readonly HashInUseBefore _hashInUseBefore;
+		private readonly IHashUsageChecker<T> _hashUsageChecker;
+		private readonly ILongHasher<T> _hasher;
 
 		// store the values. could possibly store just the hashes instead but that would
 		// lose us information and it should be so rare that there are any collisions at all.
@@ -23,11 +21,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private long _lastPosition;
 
 		public CollisionDetector(
-			HashInUseBefore hashInUseBefore,
-			IScavengeMap<T, Unit> collisionStorage) {
+			IHashUsageChecker<T> hashUsageChecker,
+			IScavengeMap<T, Unit> collisionStorage,
+			ILongHasher<T> hasher) {
 
-			_hashInUseBefore = hashInUseBefore;
+			_hashUsageChecker = hashUsageChecker;
 			_collisions = collisionStorage;
+			_hasher = hasher;
 		}
 
 		public bool IsCollision(T item) => _collisions.TryGetValue(item, out _);
@@ -117,7 +117,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			// collision not previously known, but might be a new one now.
-			if (!_hashInUseBefore(item, itemPosition, out collision)) {
+			var itemHash = _hasher.Hash(item);
+			if (!_hashUsageChecker.HashInUseBefore(item, itemHash, itemPosition, out collision)) {
 				return CollisionResult.NoCollision; // hash not in use, can be no collision. 2b
 			}
 

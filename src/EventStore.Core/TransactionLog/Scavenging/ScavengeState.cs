@@ -23,7 +23,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
-		private readonly IHashUsageChecker<TStreamId> _hashUsageChecker;
 
 		private readonly IScavengeMap<int, float> _chunkWeights;
 
@@ -38,16 +37,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<int, float> chunkWeights,
 			IHashUsageChecker<TStreamId> hashUsageChecker) {
 
-			//qq inject this so that in log v3 we can have a trivial implementation
-			// to save us having to look up the stream names repeatedly
-			// irl this would be a lru cache.
-			var cache = new Dictionary<ulong, TStreamId>();
 
 			//qq inject this so that in log v3 we can have a trivial implementation
 			//qq to save us having to look up the stream names repeatedly
 			_collisionDetector = new CollisionDetector<TStreamId>(
-				HashInUseBefore,
-				collisionStorage);
+				new MemoisingHashUsageChecker<TStreamId>(hashUsageChecker),
+				collisionStorage,
+				hasher);
 
 			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
@@ -65,25 +61,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				originalCollisionStorage);
 
 			_chunkWeights = chunkWeights;
-			_hashUsageChecker = hashUsageChecker;
-
-			bool HashInUseBefore(TStreamId recordStream, long recordPosition, out TStreamId hashUser) {
-				var hash = _hasher.Hash(recordStream);
-
-				if (cache.TryGetValue(hash, out hashUser))
-					return true;
-
-				//qq look in the index for any record with the current hash up to the limit
-				// if any exists then grab the stream name for it
-				if (_hashUsageChecker.HashInUseBefore(hash, recordPosition, out hashUser)) {
-					cache[hash] = hashUser;
-					return true;
-				}
-
-				cache[hash] = recordStream;
-				hashUser = default;
-				return false;
-			}
 		}
 
 
