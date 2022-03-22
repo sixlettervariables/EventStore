@@ -11,11 +11,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	//qq the scaffold classes help us to get things tested before we have the real implementations
 	// written, but will be removed once we can drop in the real implementations (which can run against
 	// memdb for rapid testing)
-	public class ScaffoldIndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
+	public class ScaffoldHashUsageChecker : IHashUsageChecker<string> {
 		private readonly ILongHasher<string> _hasher;
 		private readonly LogRecord[][] _log;
 
-		public ScaffoldIndexReaderForAccumulator(
+		public ScaffoldHashUsageChecker(
 			ILongHasher<string> hasher, LogRecord[][] log) {
 
 			_hasher = hasher;

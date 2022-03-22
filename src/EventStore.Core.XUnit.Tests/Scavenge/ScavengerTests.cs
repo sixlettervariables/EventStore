@@ -225,7 +225,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				originalStorage,
 				originalCollisionStorage,
 				chunkWeightStorage,
-				new ScaffoldIndexReaderForAccumulator(hasher, log));
+				new ScaffoldHashUsageChecker(hasher, log));
 
 			//qq we presumably want to actually get this from the log.
 			var scavengePoint = new ScavengePoint {

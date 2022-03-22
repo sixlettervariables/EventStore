@@ -23,7 +23,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
-		private readonly IIndexReaderForAccumulator<TStreamId> _indexReaderForAccumulator;
+		private readonly IHashUsageChecker<TStreamId> _hashUsageChecker;
 
 		private readonly IScavengeMap<int, float> _chunkWeights;
 
@@ -36,8 +36,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<ulong, EnrichedDiscardPoint> originalStorage,
 			IScavengeMap<TStreamId, EnrichedDiscardPoint> originalCollisionStorage,
 			IScavengeMap<int, float> chunkWeights,
-			//qq odd to pass something that is called 'foraccumulator' in here
-			IIndexReaderForAccumulator<TStreamId> indexReaderForAccumulator) {
+			IHashUsageChecker<TStreamId> hashUsageChecker) {
 
 			//qq inject this so that in log v3 we can have a trivial implementation
 			// to save us having to look up the stream names repeatedly
@@ -66,7 +65,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				originalCollisionStorage);
 
 			_chunkWeights = chunkWeights;
-			_indexReaderForAccumulator = indexReaderForAccumulator;
+			_hashUsageChecker = hashUsageChecker;
 
 			bool HashInUseBefore(TStreamId recordStream, long recordPosition, out TStreamId candidateCollidee) {
 				var hash = _hasher.Hash(recordStream);
@@ -76,7 +75,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				//qq look in the index for any record with the current hash up to the limit
 				// if any exists then grab the stream name for it
-				if (_indexReaderForAccumulator.HashInUseBefore(hash, recordPosition, out candidateCollidee)) {
+				if (_hashUsageChecker.HashInUseBefore(hash, recordPosition, out candidateCollidee)) {
 					cache[hash] = candidateCollidee;
 					return true;
 				}

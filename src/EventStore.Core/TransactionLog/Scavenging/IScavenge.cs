@@ -127,26 +127,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengePoint scavengePoint);
 	}
 
-	//qq name
-	public interface IIndexReaderForAccumulator<TStreamId> {
-		//qq definitely a similar here to the delegate defined by the collision detector..
-		// is it actually the same thing in need of a refactor? then the other is just a
-		// decorator pattern that adds memoisation. might need to pass the hash into
-		// collisiondetector.add, or let it hash it itself
-		bool HashInUseBefore(ulong hash, long postion, out TStreamId hashUser);
-	}
-
-
-	public readonly struct EventInfo {
-		public readonly long LogPosition;
-		public readonly long EventNumber;
-
-		public EventInfo(long logPosition, long eventNumber) {
-			LogPosition = logPosition;
-			EventNumber = eventNumber;
-		}
-	}
-
 	//qq could use streamdata? its a class though
 	public abstract class RecordForAccumulator<TStreamId> {
 		//qq make sure to recycle these.
@@ -209,6 +189,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			long fromEventNumber,
 			int maxCount,
 			ScavengePoint scavengePoint);
+	}
+
+	public readonly struct EventInfo {
+		public readonly long LogPosition;
+		public readonly long EventNumber;
+
+		public EventInfo(long logPosition, long eventNumber) {
+			LogPosition = logPosition;
+			EventNumber = eventNumber;
+		}
 	}
 
 
@@ -290,6 +280,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	// MISC
 	//
+
+
+	public interface IHashUsageChecker<TStreamId> {
+		//qq definitely a similar here to the delegate defined by the collision detector..
+		// is it actually the same thing in need of a refactor? then the other is just a
+		// decorator pattern that adds memoisation. might need to pass the hash into
+		// collisiondetector.add, or let it hash it itself
+		bool HashInUseBefore(ulong hash, long postion, out TStreamId hashUser);
+	}
 
 	// So that the scavenger knows where to scavenge up to
 	public interface IScavengePointSource {

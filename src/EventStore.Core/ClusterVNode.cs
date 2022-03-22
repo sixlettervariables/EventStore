@@ -583,7 +583,7 @@ namespace EventStore.Core {
 					new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<string, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<int, float>(),
-					new IndexReaderForAccumulator<string>());
+					new HashUsageChecker<string>());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,
