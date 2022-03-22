@@ -3,10 +3,10 @@ using EventStore.Core.Services.Storage.ReaderIndex;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq consider whether to use IReadIndex or TableIndex directly
-	public class IndexReaderForScavenge : IIndexReaderForCalculator<string> {
+	public class IndexReaderForCalculator : IIndexReaderForCalculator<string> {
 		private readonly IReadIndex _readIndex;
 
-		public IndexReaderForScavenge(IReadIndex readIndex) {
+		public IndexReaderForCalculator(IReadIndex readIndex) {
 			_readIndex = readIndex;
 		}
 

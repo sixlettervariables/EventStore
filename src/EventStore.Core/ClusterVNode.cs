@@ -565,7 +565,7 @@ namespace EventStore.Core {
 					new ChunkReaderForAccumulator<string>());
 
 				var calculator = new Calculator<string>(
-					new IndexReaderForScavenge(readIndex));
+					new IndexReaderForCalculator(readIndex));
 
 				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
 					new ChunkManagerForScavenge(db.Manager, db.Config),
