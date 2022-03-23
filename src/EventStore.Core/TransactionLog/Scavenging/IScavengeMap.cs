@@ -15,5 +15,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> {
 		bool TryGetValue(TKey key, out TValue value);
 		TValue this[TKey key] { set; }
+		//qq we can have void Remove(TKey) if that is easier to implement
+		bool TryRemove(TKey key, out TValue value);
 	}
 }

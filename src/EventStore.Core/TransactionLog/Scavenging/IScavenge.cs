@@ -426,6 +426,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	//qq want better name, but this is the discard point combined with whether the stream has been
 	// tombstoned or not.
+	//qq implement performance overrides as necessary for this struct and others
+	// (DiscardPoint, StreamHandle, ..)
 	public struct EnrichedDiscardPoint {
 		public EnrichedDiscardPoint(bool isTombstoned, DiscardPoint discardPoint) {
 			IsTombstoned = isTombstoned;

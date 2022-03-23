@@ -17,5 +17,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _dict.GetEnumerator();
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+		public bool TryRemove(TKey key, out TValue value) {
+			_dict.TryGetValue(key, out value);
+			return _dict.Remove(key);
+		}
 	}
 }

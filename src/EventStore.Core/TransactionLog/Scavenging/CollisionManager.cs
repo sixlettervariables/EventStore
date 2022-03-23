@@ -31,27 +31,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<ulong, TValue> nonCollisions,
 			IScavengeMap<TKey, TValue> collisions) {
 
-			_hasher = hasher; //qq slightly suspicious of having to pass the hasher in here
+			_hasher = hasher;
 			_isCollision = isCollision;
 			_nonCollisions = nonCollisions;
 			_collisions = collisions;
 		}
 
 		public bool TryGetValue(TKey key, out TValue value) {
-			//qq is this any different to checking isCollision and then picking the map
-			//qq is it possible that we have an entry for the same stream in both maps
-			//   shouldn't be - if it is a collision it should only be in the collision map and
-			//   vice versa. although make sure that this is the case even if crashing at unopportune time
-			// important precondition: the key must already be checked for whether it collides.
-			//qq but consider, collision or not, not every key has to be in either map at all.
-			// so it might be possible for the key to be a collision, not be present in the collisions
-			// map, and then find the wrong thing in the non-collisions map. write a test to cover this
-			// and fix it
-			return _collisions.TryGetValue(key, out value)
-				|| _nonCollisions.TryGetValue(_hasher.Hash(key), out value);
+			//qq important precondition: the key must already be checked for whether it collides.
+			return _isCollision(key)
+				? _collisions.TryGetValue(key, out value)
+				: _nonCollisions.TryGetValue(_hasher.Hash(key), out value);
 		}
 
-		//qq better for this to take a ulong or a handle.. if handle then is the Key overload obsolete?
+		//qq
 		// perhaps the difference is when providing a handle we are saying we know how we want to look
 		// this up (we know if it is a collision), and if we provide the full key we are saying 
 		// 'dont care whether it is a collision or not'.
@@ -122,10 +115,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// when a key that didn't used to be a collision, becomes a collision.
 		public void NotifyCollision(TKey key) {
-			// this is very rare, so we can just leave the data in _nonCollisions to save having to
-			// support removing entries from it. just when reading we need the collisions to take
-			// precedence.
-			if (_nonCollisions.TryGetValue(_hasher.Hash(key), out var value)) {
+			var hash = _hasher.Hash(key);
+			//qq make sure this works even if crashing at unopportune time, coordinating between
+			// two persistent datastructures.
+			if (_nonCollisions.TryRemove(hash, out var value)) {
 				_collisions[key] = value;
 			} else {
 				//qq we are notified that the key is a collision, but we dont have any entry for it
@@ -138,18 +131,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq generalize so that it isn't for streams specifically
 		//qq consider if we need to cover writing happening while we enumerate
 		public IEnumerable<(StreamHandle<TKey> Handle, TValue Value)> Enumerate() {
-			//qq later its possible that we will have calculated this elsewhere already and can
-			//just do lookups
-			HashSet<ulong> _collidingHashes = null;
 			foreach (var kvp in _collisions) {
 				yield return (StreamHandle.ForStreamId(kvp.Key), kvp.Value);
-				_collidingHashes = _collidingHashes ?? new HashSet<ulong>();
-				_collidingHashes.Add(_hasher.Hash(kvp.Key));
 			}
 
 			foreach (var kvp in _nonCollisions) {
-				if (_collidingHashes != null && _collidingHashes.Contains(kvp.Key))
-					continue;
 				yield return (StreamHandle.ForHash<TKey>(kvp.Key), kvp.Value);
 			}
 		}
