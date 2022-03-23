@@ -32,7 +32,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					// stream.
 					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: _meta1))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -42,7 +44,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "ab-1"),
 					Rec.Prepare(1, "ab-1"))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -52,7 +56,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "ab-1"),
 					Rec.Prepare(1, "ab-2"))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -62,7 +68,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "ab-1"),
 					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: _meta1))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		//qq now that we are keying on the metadta streams, does that mean that we don't
@@ -77,7 +85,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "aa-1"),
 					Rec.Prepare(1, "$$aa-1", "$metadata", metadata: _meta1))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		//qq this would fail if we checked that looking up the metadatas per stream gives us
@@ -89,7 +99,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "cb-2"))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -99,7 +111,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$cd-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -109,7 +123,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$aa-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$aa-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -119,7 +135,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$cb-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -129,7 +147,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$ac-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -139,7 +159,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$ab-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		[Fact]
@@ -149,7 +171,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
 					Rec.Prepare(1, "$$ba-2", "$metadata", metadata: _meta2))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0, 1)
+				});
 		}
 
 		//qq we are expecting to actually get something scavenged here
@@ -177,7 +201,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.Chunk(
 					Rec.Delete(1, "ab-1"))
 				.CompleteLastChunk())
-				.Run();
+				.Run(x => new[] {
+					x.Recs[0].KeepIndexes(0)
+				});
 		}
 
 		//qq refactor to base class?
@@ -499,8 +525,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	}
 
 	public static class ArrayExtensions {
-		public static T[] KeepIndexes<T>(this T[] self, params int[] indexes) =>
-			self.Where((x, i) => indexes.Contains(i)).ToArray();
+		public static T[] KeepIndexes<T>(this T[] self, params int[] indexes) {
+			foreach (var i in indexes) {
+				Assert.True(i < self.Length, $"error in test: index {i} does not exist");
+			}
+
+			return self.Where((x, i) => indexes.Contains(i)).ToArray();
+		}
 	}
 
 }
