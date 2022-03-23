@@ -7,9 +7,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// The first character of the stream name is the basis of the hash for the corresponding metastream
 	// The second character of the stream name is the basis of the hash for the original stream
 	// e.g.
-	//   "$$ma-1 -> #m
-	//   "ma-1" -> #a
+	//   "$$ma-1 -> 'm'
+	//   "ma-1" -> 'a'
 	class HumanReadableHasher : ILongHasher<string> {
+		public HumanReadableHasher() {
+		}
+
 		public ulong Hash(string x) {
 			if (x == "")
 				return 0;
@@ -18,7 +21,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				? x[2]
 				: x[1];
 
-			return (ulong)c.GetHashCode();
+			return c;
 		}
 	}
 }
