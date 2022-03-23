@@ -55,10 +55,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// perhaps the difference is when providing a handle we are saying we know how we want to look
 		// this up (we know if it is a collision), and if we provide the full key we are saying 
 		// 'dont care whether it is a collision or not'.
-		public bool TryGetValue(StreamHandle<TKey> handle, out TValue value) =>
-			handle.IsHash ?
-				_nonCollisions.TryGetValue(handle.StreamHash, out value) :
-				_collisions.TryGetValue(handle.StreamId, out value);
+		public bool TryGetValue(StreamHandle<TKey> handle, out TValue value) {
+			switch (handle.Kind) {
+				case StreamHandle.Kind.Hash:
+					return _nonCollisions.TryGetValue(handle.StreamHash, out value);
+				case StreamHandle.Kind.Id:
+					return _collisions.TryGetValue(handle.StreamId, out value);
+				default:
+					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
+			}
+		}
 
 		//qqqqqq consider this api and its preconditions. would it be better to have an indexer setter
 		// and indeed an indexer getter
@@ -70,10 +76,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return v;
 			}
 			set {
-				if (handle.IsHash) {
-					_nonCollisions[handle.StreamHash] = value;
-				} else {
-					_collisions[handle.StreamId] = value;
+				switch (handle.Kind) {
+					case StreamHandle.Kind.Hash:
+						_nonCollisions[handle.StreamHash] = value;
+						break;
+					case StreamHandle.Kind.Id:
+						_collisions[handle.StreamId] = value;
+						break;
+					default:
+						throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 				}
 			}
 		}

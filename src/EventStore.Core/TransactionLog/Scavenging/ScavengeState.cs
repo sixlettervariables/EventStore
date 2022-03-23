@@ -130,17 +130,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_metadatas.Enumerate();
 
 		public void SetOriginalStreamData(
-			StreamHandle<TStreamId> streamHandle,
+			StreamHandle<TStreamId> handle,
 			EnrichedDiscardPoint discardPoint) {
 
-			_originalStreamDatas[streamHandle] = discardPoint;
+			_originalStreamDatas[handle] = discardPoint;
 		}
 
 		public bool TryGetOriginalStreamData(
-			StreamHandle<TStreamId> streamHandle,
+			StreamHandle<TStreamId> handle,
 			out EnrichedDiscardPoint discardPoint) =>
 
-			_originalStreamDatas.TryGetValue(streamHandle, out discardPoint);
+			_originalStreamDatas.TryGetValue(handle, out discardPoint);
 
 		public bool TryGetChunkWeight(int chunkNumber, out float weight) =>
 			_chunkWeights.TryGetValue(chunkNumber, out weight);
@@ -184,30 +184,33 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//
 
 		public bool TryGetDiscardPoint(
-			StreamHandle<TStreamId> streamHandle,
+			StreamHandle<TStreamId> handle,
 			out DiscardPoint discardPoint) {
 
-			// here we know that the streamHandle is of the correct kind
+			// here we know that the handle is of the correct kind
 			// but we do not know whether it is for a metastream or an originalstream.
-			if (streamHandle.IsHash) {
-				// not a collision, but we do not know whether it is a metastream or not.
-				// check both maps (better if we didnt have to though..)
-				return TryGetDiscardPointForOriginalStream(streamHandle, out discardPoint)
-					|| TryGetDiscardPointForMetadataStream(streamHandle, out discardPoint);
-			} else {
-				// collision, but at least we can tell whether it is a metastream or not.
-				// so just check one map.
-				return _metastreamLookup.IsMetaStream(streamHandle.StreamId)
-					? TryGetDiscardPointForMetadataStream(streamHandle, out discardPoint)
-					: TryGetDiscardPointForOriginalStream(streamHandle, out discardPoint);
+			switch (handle.Kind) {
+				case StreamHandle.Kind.Hash:
+					// not a collision, but we do not know whether it is a metastream or not.
+					// check both maps (better if we didnt have to though..)
+					return TryGetDiscardPointForOriginalStream(handle, out discardPoint)
+						|| TryGetDiscardPointForMetadataStream(handle, out discardPoint);
+				case StreamHandle.Kind.Id:
+					// collision, but at least we can tell whether it is a metastream or not.
+					// so just check one map.
+					return _metastreamLookup.IsMetaStream(handle.StreamId)
+						? TryGetDiscardPointForMetadataStream(handle, out discardPoint)
+						: TryGetDiscardPointForOriginalStream(handle, out discardPoint);
+				default:
+					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}
 		}
 
 		private bool TryGetDiscardPointForMetadataStream(
-			StreamHandle<TStreamId> streamHandle,
+			StreamHandle<TStreamId> handle,
 			out DiscardPoint discardPoint) {
 
-			if (!_metadatas.TryGetValue(streamHandle, out var metastreamData)) {
+			if (!_metadatas.TryGetValue(handle, out var metastreamData)) {
 				discardPoint = default;
 				return false;
 			}
@@ -217,10 +220,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private bool TryGetDiscardPointForOriginalStream(
-			StreamHandle<TStreamId> streamHandle,
+			StreamHandle<TStreamId> handle,
 			out DiscardPoint discardPoint) {
 
-			if (!_originalStreamDatas.TryGetValue(streamHandle, out var streamData)) {
+			if (!_originalStreamDatas.TryGetValue(handle, out var streamData)) {
 				discardPoint = default;
 				return false;
 			}

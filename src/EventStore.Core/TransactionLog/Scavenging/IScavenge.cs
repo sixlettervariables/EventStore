@@ -325,12 +325,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	// Refers to a stream by name or by hash
 	public struct StreamHandle {
+		//qq consider specifying byte if we are going to end up with a lot of these in memory
+		public enum Kind {
+			None,
+			Hash,
+			Id,
+		};
+
 		public static StreamHandle<TStreamId> ForHash<TStreamId>(ulong streamHash) {
-			return new StreamHandle<TStreamId>(isHash: true, default, streamHash);
+			return new StreamHandle<TStreamId>(kind: Kind.Hash, default, streamHash);
 		}
 
 		public static StreamHandle<TStreamId> ForStreamId<TStreamId>(TStreamId streamId) {
-			return new StreamHandle<TStreamId>(isHash: false, streamId, default);
+			return new StreamHandle<TStreamId>(kind: Kind.Id, streamId, default);
 		}
 	}
 
@@ -339,29 +346,28 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// some contain the full stream id (when they do collide)
 	//qq consider explicit layout
 	public readonly struct StreamHandle<TStreamId> {
-		//qq use kind so that we can easily spot default handles. consider specifying byte if we are
-		// going to end up with a lot of these in memory
-		public enum Kind {
-			None,
-			Hash,
-			Id,
-		};
 
-		public readonly bool IsHash;
+		public readonly StreamHandle.Kind Kind;
 		public readonly TStreamId StreamId;
 		public readonly ulong StreamHash;
 
-		//qq sort out the order here so if the flag is true then it is using the second arg
-		public StreamHandle(bool isHash, TStreamId streamId, ulong streamHash) {
-			IsHash = isHash;
+		public StreamHandle(StreamHandle.Kind kind, TStreamId streamId, ulong streamHash) {
+			Kind = kind;
 			StreamId = streamId;
 			StreamHash = streamHash;
 		}
 
-		public override string ToString() =>
-			IsHash
-				? $"Hash: {StreamHash}"
-				: $"Name: {StreamId}";
+		public override string ToString() {
+			switch (Kind) {
+				case StreamHandle.Kind.Hash:
+					return $"Hash: {StreamHash}";
+				case StreamHandle.Kind.Id:
+					return $"Id: {StreamId}";
+				case StreamHandle.Kind.None:
+				default:
+					return $"None";
+			};
+		}
 	}
 
 	public interface ChunkTimeStampOptimisation {

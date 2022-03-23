@@ -131,7 +131,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_hasher = hasher;
 		}
 
-		public long GetLastEventNumber(StreamHandle<string> streamHandle, ScavengePoint scavengePoint) {
+		public long GetLastEventNumber(StreamHandle<string> handle, ScavengePoint scavengePoint) {
 			var lastEventNumber = -1L;
 			//qq technically should only to consider committed prepares but probably doesn't matter
 			// for our purposes here.
@@ -144,14 +144,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
 
-					if (streamHandle.IsHash) {
-						if (_hasher.Hash(prepare.EventStreamId) == streamHandle.StreamHash) {
-							lastEventNumber = prepare.ExpectedVersion + 1;
-						}
-					} else {
-						if (prepare.EventStreamId == streamHandle.StreamId) {
-							lastEventNumber = prepare.ExpectedVersion + 1;
-						}
+					switch (handle.Kind) {
+						case StreamHandle.Kind.Hash:
+							if (_hasher.Hash(prepare.EventStreamId) == handle.StreamHash) {
+								lastEventNumber = prepare.ExpectedVersion + 1;
+							}
+							break;
+						case StreamHandle.Kind.Id:
+							if (prepare.EventStreamId == handle.StreamId) {
+								lastEventNumber = prepare.ExpectedVersion + 1;
+							}
+							break;
+						default:
+							throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 					}
 				}
 			}

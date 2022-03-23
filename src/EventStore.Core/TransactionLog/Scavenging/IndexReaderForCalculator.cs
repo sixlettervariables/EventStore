@@ -11,35 +11,41 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		//qq todo respect scavengepoint
-		public long GetLastEventNumber(StreamHandle<string> stream, ScavengePoint scavengePoint) {
-			if (stream.IsHash) {
-				throw new NotImplementedException();
-				//qq index only!
-				// return _readIndex.GetStreamLastEventNumber(stream.StreamHash);
-			} else {
-				// uses log to check for hash collisions
-				return _readIndex.GetStreamLastEventNumber(stream.StreamId);
+		public long GetLastEventNumber(StreamHandle<string> handle, ScavengePoint scavengePoint) {
+			switch (handle.Kind) {
+				case StreamHandle.Kind.Hash:
+					throw new NotImplementedException();
+					//qq index only!
+					// return _readIndex.GetStreamLastEventNumber(stream.StreamHash);
+				case StreamHandle.Kind.Id:
+					// uses log to check for hash collisions
+					return _readIndex.GetStreamLastEventNumber(handle.StreamId);
+				default:
+					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}
 		}
 
 		public EventInfo[] ReadEventInfoForward(
-			StreamHandle<string> stream,
+			StreamHandle<string> handle,
 			long fromEventNumber,
 			int maxCount,
 			ScavengePoint scavengePoint) { //qq account for scavengepoint
 
-			if (stream.IsHash) {
-				//qq index only!
-				throw new NotImplementedException();
-			} else {
-				// uses log to check for hash collisions
-				var result = _readIndex.ReadStreamEventsForward(
-					stream.StreamId,
-					fromEventNumber,
-					maxCount);
+			switch (handle.Kind) {
+				case StreamHandle.Kind.Hash:
+					//qq index only!
+					throw new NotImplementedException();
+				case StreamHandle.Kind.Id:
+					// uses log to check for hash collisions
+					var result = _readIndex.ReadStreamEventsForward(
+						handle.StreamId,
+						fromEventNumber,
+						maxCount);
 
-				//qq do we need to look at the other things like .Result, .IsEndOfStream etc
-				return null; //qq	result.Records;
+					//qq do we need to look at the other things like .Result, .IsEndOfStream etc
+					return null; //qq	result.Records;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}
 		}
 	}
