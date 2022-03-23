@@ -49,62 +49,73 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
-			//qq check/test
+			//qq probably need some tests to execise the cached variables a bit
+			// cache some info between invocations of ShouldKeep since it will typically be invoked
+			// repeatedly with the same stream hash.
+			//
+			// invariants, guaranteed at the beginning and end of each Invokation of ShouldKeep:
+			//  (a) currentHash is not null =>
+			//         currentHashIsCollision iff currentHash is a collision
+			//
+			//  (b) currentHash is not null && !currentHashIsCollision =>
+			//         currentDiscardPoint is the discardpoint of the unique stream
+			//         that hashes to currentHash.
+			//
 			var currentHash = (ulong?)null;
 			var currentHashIsCollision = false;
-			var discardPoint = DiscardPoint.KeepAll;
+			var currentDiscardPoint = DiscardPoint.KeepAll;
 
 			bool ShouldKeep(IndexEntry indexEntry) {
-				//qq to decide whether to keep an index entry we need to 
-				// 1. determine which stream it is for
-				// 2. look up the discard point for that stream
-				// 3. see if it is to be discarded.
 				if (currentHash != indexEntry.Stream || currentHashIsCollision) {
-					// on to a new stream, get its discard point.
+					// currentHash != indexEntry.Stream || currentHashIsCollision
+					// we are on to a new stream, or the hash collides so we _might_ be on to a new stream.
+
+					// bring currentHash up to date.
 					currentHash = indexEntry.Stream;
+					// re-establish (a)
 					currentHashIsCollision = state.IsCollision(indexEntry.Stream);
 
-					discardPoint = GetDiscardPoint(
-						state,
-						indexEntry.Position,
-						currentHash.Value,
-						currentHashIsCollision);
+					StreamHandle<TStreamId> handle = default;
+
+					if (currentHashIsCollision) {
+						// (b) is re-established because currentHashIsCollision is true
+						// collision, so the hash itself does not identify the stream. need to look it up.
+						if (!_streamLookup.TryGetStreamId(indexEntry.Position, out var streamId)) {
+							// there is no record at this position to get the stream from.
+							// we should definitely discard the entry (just like old index scavenge does)
+							// we can't even tell which stream it is for.
+							return false;
+						} else {
+							// we got a streamId, which means we must have found a record at this
+							// position, but that doesn't necessarily mean we want to keep the IndexEntry
+							// the log record might still exist only because its chunk hasn't reached
+							// the threshold.
+							handle = StreamHandle.ForStreamId(streamId);
+						}
+					} else {
+						// not a collision, we can get the discard point by hash.
+						handle = StreamHandle.ForHash<TStreamId>(currentHash.Value);
+					}
+
+					//qq memoize to speed up other ptables?
+					// ^ (consider this generally for the scavenge state)
+					// re-establish (b)
+					if (!state.TryGetDiscardPoint(handle, out currentDiscardPoint)) {
+						// this stream has no discard point. keep everything.
+						currentDiscardPoint = DiscardPoint.KeepAll;
+						return true;
+					}
+				} else {
+					// same hash as the previous invocation, and it is not a collision, so it must be for
+					// the same stream, so the currentDiscardPoint applies.
+					// invariants already established.
 				}
 
-				return !discardPoint.ShouldDiscard(indexEntry.Version);
+				return !currentDiscardPoint.ShouldDiscard(indexEntry.Version);
 			}
 
 			return ShouldKeep;
 		}
 
-		private DiscardPoint GetDiscardPoint(
-			IScavengeStateForIndexExecutor<TStreamId> state,
-			long position,
-			ulong hash,
-			bool isCollision) {
-
-			StreamHandle<TStreamId> handle = default;
-
-			if (isCollision) {
-				// collision, we need to get the event for this position, see what stream it is
-				// really for, and look up the discard point by streamId.
-
-				if (_streamLookup.TryGetStreamId(position, out var streamId)) {
-					handle = StreamHandle.ForStreamId(streamId);
-				} else {
-					//qq how unexpected is this, throw, or make this a TryGetDiscardPoint
-					// presumably this can happen if the record was scavenged
-					throw new Exception("lksjfw");
-				}
-
-			} else {
-				// not a collision, we can get the discard point by hash.
-				handle = StreamHandle.ForHash<TStreamId>(hash);
-			}
-
-			return state.TryGetDiscardPoint(handle, out var discardPoint)
-				? discardPoint
-				: DiscardPoint.KeepAll;
-		}
 	}
 }

@@ -89,6 +89,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				MaxAge = record.Metadata.MaxAge,
 				MaxCount = record.Metadata.MaxCount,
 				TruncateBefore = record.Metadata.TruncateBefore,
+				//qq put this in IsTombstoned = metaStreamData.IsTombstoned,
 				//qq probably only want to increase the discard point here, in order to respect tombstone
 				// although... if there was a tombstone then this record shouldn't exist, and if it does
 				// we probably want to ignore it

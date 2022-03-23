@@ -187,26 +187,46 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			StreamHandle<TStreamId> streamHandle,
 			out DiscardPoint discardPoint) {
 
-			//qq here we know that the streamHandle is of the correct kind, so if it is a hash handle
-			// then we know the hash does not collide, but we do not know whether it is for a 
-			// stream or a metastream. but since we know it does not collide we can just check
-			// both maps (better if we didnt have to though..)
-			if (_originalStreamDatas.TryGetValue(streamHandle, out var streamData)) {
-				discardPoint = streamData.DiscardPoint;
-				return true;
+			// here we know that the streamHandle is of the correct kind
+			// but we do not know whether it is for a metastream or an originalstream.
+			if (streamHandle.IsHash) {
+				// not a collision, but we do not know whether it is a metastream or not.
+				// check both maps (better if we didnt have to though..)
+				return TryGetDiscardPointForOriginalStream(streamHandle, out discardPoint)
+					|| TryGetDiscardPointForMetadataStream(streamHandle, out discardPoint);
+			} else {
+				// collision, but at least we can tell whether it is a metastream or not.
+				// so just check one map.
+				return _metastreamLookup.IsMetaStream(streamHandle.StreamId)
+					? TryGetDiscardPointForMetadataStream(streamHandle, out discardPoint)
+					: TryGetDiscardPointForOriginalStream(streamHandle, out discardPoint);
 			}
-			//if (streamHandle.IsHash) {
-			//	if (_metadatas.TryGetValue(streamHandle, out var metastreamData)) {
-			//		return metastreamData.DiscardPoint.Value;
-			//	}
+		}
 
-			//} else {
-			//	//qqqq temp. it might be null, it might not be a metadata stream
-			//	return _metadatas[streamHandle.StreamId].DiscardPoint.Value;
-			//}
+		private bool TryGetDiscardPointForMetadataStream(
+			StreamHandle<TStreamId> streamHandle,
+			out DiscardPoint discardPoint) {
 
-			discardPoint = default;
-			return false;
+			if (!_metadatas.TryGetValue(streamHandle, out var metastreamData)) {
+				discardPoint = default;
+				return false;
+			}
+
+			discardPoint = metastreamData.DiscardPoint;
+			return true;
+		}
+
+		private bool TryGetDiscardPointForOriginalStream(
+			StreamHandle<TStreamId> streamHandle,
+			out DiscardPoint discardPoint) {
+
+			if (!_originalStreamDatas.TryGetValue(streamHandle, out var streamData)) {
+				discardPoint = default;
+				return false;
+			}
+
+			discardPoint = streamData.DiscardPoint;
+			return true;
 		}
 
 		public bool IsCollision(ulong streamHash) {

@@ -39,6 +39,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public bool TryGetValue(TKey key, out TValue value) {
 			//qq is this any different to checking isCollision and then picking the map
+			//qq is it possible that we have an entry for the same stream in both maps
+			//   shouldn't be - if it is a collision it should only be in the collision map and
+			//   vice versa. although make sure that this is the case even if crashing at unopportune time
+			// important precondition: the key must already be checked for whether it collides.
+			//qq but consider, collision or not, not every key has to be in either map at all.
+			// so it might be possible for the key to be a collision, not be present in the collisions
+			// map, and then find the wrong thing in the non-collisions map. write a test to cover this
+			// and fix it
 			return _collisions.TryGetValue(key, out value)
 				|| _nonCollisions.TryGetValue(_hasher.Hash(key), out value);
 		}

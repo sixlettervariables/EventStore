@@ -2,7 +2,6 @@
 using EventStore.Core.Services;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	//qq finish implementations
 	// Generates hashes that are obvious to humans based on the stream name.
 	// The first character of the stream name is the basis of the hash for the corresponding metastream
 	// The second character of the stream name is the basis of the hash for the original stream
