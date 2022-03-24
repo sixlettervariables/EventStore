@@ -1,4 +1,6 @@
 ﻿using System;
+using EventStore.Core.Index;
+using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Scavenger<TStreamId> : IScavenger {
@@ -26,7 +28,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_scavengePointSource = scavengePointSource;
 		}
 
-		public void Start() {
+		public void Start(ITFChunkScavengerLog scavengerLogger) {
 			//qq implement stopping and resuming at each stage, so that it picks up
 			// where it left off. cts?
 			// for now this starts from the beginning
@@ -37,7 +39,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_accumulator.Accumulate(scavengePoint, _scavengeState);
 			_calculator.Calculate(scavengePoint, _scavengeState);
 			_chunkExecutor.Execute(scavengePoint, _scavengeState);
-			_indexExecutor.Execute(_scavengeState);
+			_indexExecutor.Execute(_scavengeState, scavengerLogger);
 			//qqqq tidy.. maybe call accumulator.done or something?
 		}
 

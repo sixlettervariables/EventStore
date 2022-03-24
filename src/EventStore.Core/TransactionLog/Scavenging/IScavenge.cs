@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using EventStore.Core.Data;
 using EventStore.Core.Index;
+using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// There are two kinds of streams that we might want to remove events from
@@ -24,7 +25,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavenger {
 		//qq probably we want this to continue a previous scavenge if there is one going,
 		// or start a new one otherwise.
-		void Start();
+		void Start(ITFChunkScavengerLog scavengerLogger);
 		//qq options
 		// - timespan, or datetime to autostop
 		// - chunk to scavenge up to
@@ -95,13 +96,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IChunkExecutor<TStreamId> {
 		void Execute(
 			ScavengePoint scavengePoint,
-			IScavengeStateForChunkExecutor<TStreamId> instructions);
+			IScavengeStateForChunkExecutor<TStreamId> state);
 	}
 
 	// the index executor performs the actual removal of the index entries
 	// should be very rare to do any further lookups at this point.
 	public interface IIndexExecutor<TStreamId> {
-		void Execute(IScavengeStateForIndexExecutor<TStreamId> instructions);
+		void Execute(
+			IScavengeStateForIndexExecutor<TStreamId> state,
+			IIndexScavengerLog scavengerLogger);
 	}
 
 

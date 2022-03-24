@@ -2,31 +2,6 @@
 using EventStore.Core.Index;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq tbc if we need our own implementation of this or can use the regular one.
-	// also tbc where it should be constructed
-	public class MyScavengerLog : IIndexScavengerLog {
-		public void IndexTableNotScavenged(
-			int level,
-			int index,
-			TimeSpan elapsed,
-			long entriesKept,
-			string errorMessage) {
-
-			throw new NotImplementedException();
-		}
-
-		public void IndexTableScavenged(
-			int level,
-			int index,
-			TimeSpan elapsed,
-			long entriesDeleted,
-			long entriesKept,
-			long spaceSaved) {
-
-			throw new NotImplementedException();
-		}
-	}
-
 	public class IndexExecutor<TStreamId> : IIndexExecutor<TStreamId> {
 		private readonly IIndexScavenger _indexScavenger;
 		private readonly IChunkReaderForIndexExecutor<TStreamId> _streamLookup;
@@ -39,13 +14,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_streamLookup = streamLookup;
 		}
 
-		public void Execute(IScavengeStateForIndexExecutor<TStreamId> state) {
+		public void Execute(
+			IScavengeStateForIndexExecutor<TStreamId> state,
+			IIndexScavengerLog scavengerLogger) {
+
 			_indexScavenger.ScavengeIndex(
 				shouldKeep: GenShouldKeep(state),
-				log: new MyScavengerLog(),
+				log: scavengerLogger,
 				//qq pass through a cancellation token
 				cancellationToken: default);
-
 		}
 
 		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
@@ -66,6 +43,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var currentDiscardPoint = DiscardPoint.KeepAll;
 
 			bool ShouldKeep(IndexEntry indexEntry) {
+				//qq throttle?
+
 				if (currentHash != indexEntry.Stream || currentHashIsCollision) {
 					// currentHash != indexEntry.Stream || currentHashIsCollision
 					// we are on to a new stream, or the hash collides so we _might_ be on to a new stream.

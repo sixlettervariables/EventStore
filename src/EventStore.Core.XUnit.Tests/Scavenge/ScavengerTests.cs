@@ -322,7 +322,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						streamLookup: new ScaffoldChunkReaderForIndexExecutor(log)),
 					new ScaffoldScavengePointSource(scavengePoint));
 
-				sut.Start(); //qq irl how do we know when its done
+				sut.Start(new FakeTFScavengerLog()); //qq irl how do we know when its done
 
 				//qqqqqqqq ACCUMULATE (the accumulator does this, remove once the tests are passing)
 				// iterate through the log, detecting collisions and accumulating metadatas

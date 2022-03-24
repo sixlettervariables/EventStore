@@ -552,6 +552,13 @@ namespace EventStore.Core {
 			perSubscrBus.Subscribe<SubscriptionMessage.PersistentSubscriptionTimerTick>(persistentSubscription);
 
 			// STORAGE SCAVENGER
+			//qq tbc how relevant this is to new scavenge. will largely depend on how relevant the log
+			// records are that it produces
+			var scavengerLogManager = new TFChunkScavengerLogManager(
+				nodeEndpoint: _nodeInfo.ExternalHttp.ToString(),
+				scavengeHistoryMaxAge: TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge),
+				ioDispatcher: ioDispatcher);
+
 			var newScavenge = true; //qq make configurable
 			if (newScavenge) {
 				var metastreamLookup = new LogV2SystemStreams();
@@ -595,14 +602,14 @@ namespace EventStore.Core {
 					indexExecutor,
 					new ScavengePointSource(db));
 
-				var storageScavenger = new NewStorageScavenger<string>(scavenger);
+				var storageScavenger = new NewStorageScavenger<string>(
+					scavengerLogManager,
+					scavenger);
 
 				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
 				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
 				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
 			} else {
-				var scavengerLogManager = new TFChunkScavengerLogManager(_nodeInfo.ExternalHttp.ToString(),
-					TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge), ioDispatcher);
 				var storageScavenger = new StorageScavenger(db,
 					tableIndex,
 					readIndex,
