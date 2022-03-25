@@ -1,24 +1,34 @@
 ﻿using System;
-using System.Collections.Generic;
+using EventStore.Core.Index.Hashes;
+using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Calculator<TStreamId> : ICalculator<TStreamId> {
+		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IIndexReaderForCalculator<TStreamId> _index;
+		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 
-		public Calculator(IIndexReaderForCalculator<TStreamId> index) {
+		public Calculator(
+			ILongHasher<TStreamId> hasher,
+			IIndexReaderForCalculator<TStreamId> index,
+			IMetastreamLookup<TStreamId> metastreamLookup) {
+
+			_hasher = hasher;
 			_index = index;
+			_metastreamLookup = metastreamLookup;
 		}
 
 		public void Calculate(
 			ScavengePoint scavengePoint,
-			IScavengeStateForCalculator<TStreamId> scavengeState) {
+			IScavengeStateForCalculator<TStreamId> state) {
 
 			// iterate through the metadata streams, for each one use the metadata to modify the
 			// discard point of the stream and store it. along the way note down which chunks
 			// the records to be discarded.
-			foreach (var (metastreamHandle, metastreamData) in scavengeState.MetastreamDatas) {
+			foreach (var (metastreamHandle, metastreamData) in state.MetastreamDatas) {
 				var originalStreamHandle = GetOriginalStreamHandle(
+					state,
 					metastreamHandle,
 					metastreamData.OriginalStreamHash);
 
@@ -34,7 +44,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//qq if the scavengemap supports RMW that might have a bearing too, but for now maybe
 				// this is just overcomplicating things.
 				//qq how bad is this, how much could we save
-				if (!scavengeState.TryGetOriginalStreamData(
+				if (!state.TryGetOriginalStreamData(
 						originalStreamHandle,
 						out var originalStreamData)) {
 					originalStreamData = new EnrichedDiscardPoint(
@@ -43,14 +53,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				}
 
 				var adjustedDiscardPoint = CalculateDiscardPointForStream(
-					scavengeState,
+					state,
 					originalStreamHandle,
 					originalStreamData.IsTombstoned,
 					originalStreamData.DiscardPoint,
 					metastreamData,
 					scavengePoint);
 
-				scavengeState.SetOriginalStreamData(
+				state.SetOriginalStreamData(
 					originalStreamHandle,
 					new EnrichedDiscardPoint(
 						isTombstoned: originalStreamData.IsTombstoned,
@@ -58,55 +68,54 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		//qq this is broken
-		//qq implement this, perhaps in another class that can be unit tested separately
+		//qq make sure all the cases are covered by the tests
 		// This gets the handle to the original stream, given the handle to the metadata stream and the
 		// hash of the original stream.
 		//
 		// The resulting handle needs to contain the original stream name if it is a collision,
 		// and just the hash if it is not a collision.
-		//
-		// Consider cases according to whether the metadata stream and the original stream collide with
-		// anything:
-		//
-		// - say neither stram collides with anything
-		//     then it is fine, we use the originalstreamhash to look up the lasteventnumber
-		//     and, and store the result against the originalstreamhash.
-		//
-		// - say the meta stream collides (and we are have a handle to it)
-		//     fine. basically same as above
-		//
-		// - say the original stream collides, (but the metastreams dont)
-		//     means we will have hash handles to metastreamdata objects with original hashes it
-		//       where the original hashes are the same.
-		//     123 => originalHash: 5
-		//     124 => originalHash: 5
-		//     we need to (i) notice that 5 is a collision and (ii) find out the stream name that
-		//     hashes to it in each case.
-		//
-		//     remember we have a (very short) list of all the stream names that collide.
-		//     we use that to build a map from hashcollision to list of stream names that map to it.
-		//     we can then discover that (5) is a collision of "a" and "b", we can then hash
-		//     "$$a" and "$$b" until we discover which maps to 123. that will tell us which
-		//     stream (a or b) this metadata is for, and give us a streamnamehandle to manipulate it.
-		//
-		//     NO this doesn't work if one of the original streams doesn't actually exist, then it wont
-		//     collide.
-		//
-		// - say they both collide. worst case, but actually slightly easier.
-		//     then we have:
-		//     $$a => originalHash: 5
-		//     $$b => originalHash: 5
-		//       
-		//     we will notice that 5 is a collision, but we will know immediately from the handle
-		//     that this is the metadata in stream "$$a" therefore for stream "a"
-
 		private StreamHandle<TStreamId> GetOriginalStreamHandle(
+			IScavengeStateForCalculator<TStreamId> state,
 			StreamHandle<TStreamId> metastreamHandle,
 			ulong originalStreamHash) {
 
-			//qqqqqqqqqqqqqq needs to check for collision and use the ForStreamName if necessary
-			return StreamHandle.ForHash<TStreamId>(originalStreamHash);
+			if (!state.IsCollision(originalStreamHash)) {
+				return StreamHandle.ForHash<TStreamId>(originalStreamHash);
+			}
+
+			if (metastreamHandle.Kind == StreamHandle.Kind.Id) {
+				var originalStreamId = _metastreamLookup.OriginalStreamOf(metastreamHandle.StreamId);
+				return StreamHandle.ForStreamId(originalStreamId);
+			}
+
+			if (metastreamHandle.Kind != StreamHandle.Kind.Hash) {
+				throw new ArgumentOutOfRangeException(nameof(metastreamHandle), metastreamHandle, null);
+			}
+
+			// metastreamHandle is a hash, so the metastream does not collide with anything.
+			foreach (var collision in state.Collisions()) {
+				// we are calculating the originalStreamHandle. we know that the originalStream
+				// collides, so the handle will be a streamId (not a hash) and that streamId is
+				// in the list of collisions, which is short. We just need to pick the right one.
+				// it is the collision that:
+				//   1. is an originalstream
+				//   2. has a metadata stream name that hashes to the right hash
+				//      (metastreamHandle.StreamHash)
+				if (_metastreamLookup.IsMetaStream(collision))
+					continue;
+
+				var metastreamOfCollision = _metastreamLookup.MetaStreamOf(collision);
+				if (_hasher.Hash(metastreamOfCollision) != metastreamHandle.StreamHash)
+					continue;
+
+				return StreamHandle.ForStreamId(collision);
+			}
+
+			throw new InvalidOperationException(
+				$"Could not get the original stream handle for " +
+				$"metaStream: {metastreamHandle}. " +
+				$"originalStreamHash: {originalStreamHash}. " +
+				"corrupt scavenge state?"); //qq add detail
 		}
 
 		// streamHandle: handle to the original stream
@@ -322,16 +331,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// figure out which chunk it is for and note it down
 		//qq chunk instructions are per logical chunk (for now)
 		private void Discard(
-			IScavengeStateForCalculator<TStreamId> scavengeState,
+			IScavengeStateForCalculator<TStreamId> state,
 			long logPosition) {
 
 			var chunkNumber = (int)(logPosition / TFConsts.ChunkSize);
 
 			//qq dont go lookin it up every time, hold on to one set of chunkinstructions until we
 			// have made it to the next chunk.
-			if (!scavengeState.TryGetChunkWeight(chunkNumber, out var weight))
+			if (!state.TryGetChunkWeight(chunkNumber, out var weight))
 				weight = 0;
-			scavengeState.SetChunkWeight(chunkNumber, weight++);
+			state.SetChunkWeight(chunkNumber, weight++);
 		}
 	}
 }

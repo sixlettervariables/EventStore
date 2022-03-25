@@ -11,7 +11,7 @@ using EventStore.Core.TransactionLog.Scavenging;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ScavengerTests {
+	public class ScavengerTests : ScavengerTestsBase {
 		private static readonly StreamMetadata _meta1 = new StreamMetadata(maxCount: 1);
 		private static readonly StreamMetadata _meta2 = new StreamMetadata(maxCount: 2);
 		private static readonly StreamMetadata _meta3 = new StreamMetadata(maxCount: 3);
@@ -178,7 +178,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		//qq
-		[Fact(Skip ="will pass when we spot collisions between metadata streams and non-existent original streams")]
+		[Fact(Skip = "will pass when we spot collisions between metadata streams and non-existent original streams")]
 		public void metadatas_for_different_streams_cross_colliding() {
 			CreateScenario(x => x
 				.Chunk(
@@ -233,13 +233,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.Recs[0].KeepIndexes(0)
 				});
 		}
+	}
 
+	public class ScavengerTestsBase {
 		//qq refactor to base class?
-		private Scenario CreateScenario(Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> createDb) {
+		protected Scenario CreateScenario(Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> createDb) {
 			return new Scenario(createDb);
 		}
 
-		class Scenario {
+		public class Scenario {
 			private readonly Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> _createDb;
 
 			public Scenario(
@@ -311,7 +313,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						metastreamLookup: metastreamLookup,
 						chunkReader: new ScaffoldChunkReaderForAccumulator(log)),
 					new Calculator<string>(
-						index: new ScaffoldIndexForScavenge(log, hasher)),
+						hasher: hasher,
+						index: new ScaffoldIndexForScavenge(log, hasher),
+						metastreamLookup: metastreamLookup),
 					new ChunkExecutor<string, ScaffoldChunk>(
 						chunkManager: new ScaffoldChunkManagerForScavenge(
 							chunkSize: dbConfig.ChunkSize,

@@ -26,7 +26,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
-			//qq probably need some tests to execise the cached variables a bit
 			// cache some info between invocations of ShouldKeep since it will typically be invoked
 			// repeatedly with the same stream hash.
 			//
@@ -47,7 +46,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				if (currentHash != indexEntry.Stream || currentHashIsCollision) {
 					// currentHash != indexEntry.Stream || currentHashIsCollision
-					// we are on to a new stream, or the hash collides so we _might_ be on to a new stream.
+					// we are on to a new stream, or the hash collides so we _might_ be on
+					// to a new stream.
 
 					// bring currentHash up to date.
 					currentHash = indexEntry.Stream;
@@ -57,8 +57,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					StreamHandle<TStreamId> handle = default;
 
 					if (currentHashIsCollision) {
-						// (b) is re-established because currentHashIsCollision is true
-						// collision, so the hash itself does not identify the stream. need to look it up.
+						// (b) is re-established because currentHashIsCollision is true collision, so
+						// the hash itself does not identify the stream. need to look it up.
 						if (!_streamLookup.TryGetStreamId(indexEntry.Position, out var streamId)) {
 							// there is no record at this position to get the stream from.
 							// we should definitely discard the entry (just like old index scavenge does)
@@ -88,6 +88,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// same hash as the previous invocation, and it is not a collision, so it must be for
 					// the same stream, so the currentDiscardPoint applies.
 					// invariants already established.
+					;
 				}
 
 				return !currentDiscardPoint.ShouldDiscard(indexEntry.Version);

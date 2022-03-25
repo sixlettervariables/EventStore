@@ -67,6 +67,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq consider api
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
 		void SetChunkWeight(int logicalChunkNumber, float weight);
+		bool IsCollision(ulong streamHash);
+		IEnumerable<TStreamId> Collisions();
 	}
 
 	//qq needs to work for metadata streams and also for original streams
