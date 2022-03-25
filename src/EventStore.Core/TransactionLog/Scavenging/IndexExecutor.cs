@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using EventStore.Core.Index;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -16,13 +17,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void Execute(
 			IScavengeStateForIndexExecutor<TStreamId> state,
-			IIndexScavengerLog scavengerLogger) {
+			IIndexScavengerLog scavengerLogger,
+			CancellationToken cancellationToken) {
 
 			_indexScavenger.ScavengeIndex(
 				shouldKeep: GenShouldKeep(state),
 				log: scavengerLogger,
-				//qq pass through a cancellation token
-				cancellationToken: default);
+				cancellationToken: cancellationToken);
 		}
 
 		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
@@ -96,6 +97,5 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			return ShouldKeep;
 		}
-
 	}
 }

@@ -104,7 +104,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IIndexExecutor<TStreamId> {
 		void Execute(
 			IScavengeStateForIndexExecutor<TStreamId> state,
-			IIndexScavengerLog scavengerLogger);
+			IIndexScavengerLog scavengerLogger,
+			CancellationToken cancellationToken);
 	}
 
 
@@ -702,6 +703,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//    helps to simplify things
 	//  - saves us from needing to spot tombtones (via their prepare flags) in the chunk executor,
 	//    just obey the DP.
+	//
+	//qq OLD INDEX SCAVENGE TESTS
+	// - there is no need to run these tests against new scavenge.
+	// - in a nutshell they test the TableIndex (and PTables), which new and old scavenge both use.
+	// - they just test that the tableindex scavenge works correctly given a function that determines
+	//   whether to keep each index entry. in the tests this function is injected via the fakeReader
+	//   and it (for example) trivially checks if the position is in a list of deleted positions.
+	//   therefore these tests are assuming a correct shouldKeep method and checking that TableIndex
+	//   responds appropriately (when index upgrades, cancellation, awaiting tables etc). there would be
+	//   no advantage to running them again injecting our own dummy shouldkeep implementation.
 
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp
