@@ -14,50 +14,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	//qq the scaffold classes help us to get things tested before we have the real implementations
 	// written, but will be removed once we can drop in the real implementations (which can run against
 	// memdb for rapid testing)
-	public class ScaffoldHashUsageChecker : IHashUsageChecker<string> {
-		private readonly ILongHasher<string> _hasher;
-		private readonly LogRecord[][] _log;
-
-		public ScaffoldHashUsageChecker(
-			ILongHasher<string> hasher, LogRecord[][] log) {
-
-			_hasher = hasher;
-			_log = log;
-		}
-
-		public bool HashInUseBefore(string item, ulong hash, long position, out string hashUser) {
-			// iterate through the log
-
-			foreach (var chunk in _log) {
-				foreach (var record in chunk) {
-					if (record.LogPosition >= position) {
-						hashUser = default;
-						return false;
-					}
-
-					switch (record) {
-						//qq technically probably only have to detect in use if its committed
-						// but this is a detail that probalby wont matter for us
-						case PrepareLogRecord prepare: {
-							//qq do these have populated event numbers? what about when committed?
-							var stream = prepare.EventStreamId;
-							if (_hasher.Hash(stream) == hash) {
-								hashUser = stream;
-								return true;
-							}
-							break;
-						}
-						//qq any other record types use streams?
-						default:
-							break;
-					}
-				}
-			}
-
-			hashUser = default;
-			return false;
-		}
-	}
 
 	public class ScaffoldScavengePointSource : IScavengePointSource {
 		private readonly ScavengePoint _scavengePoint;

@@ -35,13 +35,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<ulong, EnrichedDiscardPoint> originalStorage,
 			IScavengeMap<TStreamId, EnrichedDiscardPoint> originalCollisionStorage,
 			IScavengeMap<int, float> chunkWeights,
-			IHashUsageChecker<TStreamId> hashUsageChecker) {
+			IScavengeMap<ulong, TStreamId> hashes) {
 
 
 			//qq inject this so that in log v3 we can have a trivial implementation
 			//qq to save us having to look up the stream names repeatedly
 			_collisionDetector = new CollisionDetector<TStreamId>(
-				new MemoisingHashUsageChecker<TStreamId>(hashUsageChecker),
+				//qq todo: add cache decorator
+				hashes,
 				collisionStorage,
 				hasher);
 
@@ -92,7 +93,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//
 
 		public void NotifyForCollisions(TStreamId streamId, long position) {
-			//qq want to make use of the _s?
 			var collisionResult = _collisionDetector.DetectCollisions(
 				streamId,
 				position,

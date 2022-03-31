@@ -291,13 +291,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// MISC
 	//
 
-
-	public interface IHashUsageChecker<T> {
-		// checks if the hash is in use before this item at this position. returns true if so.
-		// if returning true then out parameter is one of the items that hashes to that hash
-		bool HashInUseBefore(T item, ulong hash, long position, out T hashUser);
-	}
-
 	// So that the scavenger knows where to scavenge up to
 	public interface IScavengePointSource {
 		ScavengePoint GetScavengePoint();

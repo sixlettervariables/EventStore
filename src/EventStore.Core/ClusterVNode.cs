@@ -594,7 +594,7 @@ namespace EventStore.Core {
 					new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<string, EnrichedDiscardPoint>(),
 					new InMemoryScavengeMap<int, float>(),
-					new HashUsageChecker<string>());
+					new InMemoryScavengeMap<ulong, string>());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,
