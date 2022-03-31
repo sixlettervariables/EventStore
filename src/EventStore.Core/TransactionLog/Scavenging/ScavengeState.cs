@@ -41,8 +41,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//qq inject this so that in log v3 we can have a trivial implementation
 			//qq to save us having to look up the stream names repeatedly
 			_collisionDetector = new CollisionDetector<TStreamId>(
-				//qq todo: add cache decorator
-				hashes,
+				//qq configurable cacheMaxCount
+				new LruCachingScavengeMap<ulong, TStreamId>(hashes, cacheMaxCount: 10_000),
 				collisionStorage,
 				hasher);
 

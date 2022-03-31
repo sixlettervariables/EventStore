@@ -51,12 +51,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//      - have to identify the point at which we can switch to just checking 0s
 		//      - is it possible that a new stream starts at non-zero without already having been checked
 		//        before? seems unlikely.. 
-		//qq - how does the cache work, we could just cache the fact that we have already
-		//   notified for this stream and not bother notifying again (we should still checkpoint that we
-		//     got this far though)
-		//   OR we can cache the user of a hash against that hash. which has the advantage that if we
-		//      do come across a hash collision it might already be in the cache. but this is so rare
-		//      as to not be a concern. pick whichever turns out to be more obviously correct
 		private static void ProcessEvent(
 			RecordForAccumulator<TStreamId>.EventRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {

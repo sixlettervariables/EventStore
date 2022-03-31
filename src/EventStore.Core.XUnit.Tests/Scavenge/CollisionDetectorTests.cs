@@ -92,8 +92,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}
 
 			var sut = new CollisionDetector<string>(
-				//qq todo: wrap in caching decorator
-				new InMemoryScavengeMap<ulong, string>(),
+				new LruCachingScavengeMap<ulong, string>(
+					new InMemoryScavengeMap<ulong, string>(),
+					cacheMaxCount: 1000),
 				new InMemoryScavengeMap<string, Unit>(),
 				hasher);
 

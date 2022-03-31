@@ -706,7 +706,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//   therefore these tests are assuming a correct shouldKeep method and checking that TableIndex
 	//   responds appropriately (when index upgrades, cancellation, awaiting tables etc). there would be
 	//   no advantage to running them again injecting our own dummy shouldkeep implementation.
-
+	//
+	//qq make sure whenever we are cashing to prepare and accessing eventnumber that we are coping with
+	// it being part of a transaction
+	
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp
 		// of the scavenge point itself? questions is whether there is any need to scavenge
