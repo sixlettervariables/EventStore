@@ -19,9 +19,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// there will be hardly any collisions we can just read the data out to store it separately
 		private readonly IScavengeMap<T, Unit> _collisions;
 		
-		//qq will need something like this to tell where to continue from. maybe not in this class though
-		private long _lastPosition;
-
 		public CollisionDetector(
 			IScavengeMap<ulong, T> hashes,
 			IScavengeMap<T, Unit> collisionStorage,
@@ -83,9 +80,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// Adds an item and detects if it collides with other items that were already added.
 		// collision is only defined when returning NewCollision.
 		// in this way we can tell when anything that was not colliding becomes colliding.
-		public CollisionResult DetectCollisions(T item, long itemPosition, out T collision) {
-			_lastPosition = itemPosition;
-
+		public CollisionResult DetectCollisions(T item, out T collision) {
 			if (IsCollision(item)) {
 				collision = default;
 				return CollisionResult.OldCollision; // previously known collision. 1a or 1b.

@@ -92,10 +92,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// FOR ACCUMULATOR
 		//
 
-		public void NotifyForCollisions(TStreamId streamId, long position) {
+		public void DetectCollisions(TStreamId streamId) {
 			var collisionResult = _collisionDetector.DetectCollisions(
 				streamId,
-				position,
 				out var collision);
 
 			if (collisionResult == CollisionResult.NewCollision) {

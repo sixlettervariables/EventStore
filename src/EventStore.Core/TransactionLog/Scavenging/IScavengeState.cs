@@ -34,10 +34,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForAccumulator<TStreamId> {
 		// call this for each record as we accumulate through the log so that we can spot every hash
 		// collision to save ourselves work later.
-		//qq maybe prefer passing in a single arg (the record) and getting its streamid and position
-		//qq mabe rename if we want the state to not be containing logic
-		//qq maybe DetectCollisions
-		void NotifyForCollisions(TStreamId streamId, long position);
+		void DetectCollisions(TStreamId streamId);
 
 		// call this to record what the current metadata is in a metadata stream.
 		// if there is previous metadata this will just overwrite it.

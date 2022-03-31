@@ -58,7 +58,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// the commit log position, or, in fact, both? it would need to be the prepare position.
 			//qq can metadata be written as part of a transaction (decided will detect and abort as an
 			// unsupported case)
-			state.NotifyForCollisions(record.StreamId, record.LogPosition);
+			state.DetectCollisions(record.StreamId);
 		}
 
 		// For every metadata record
@@ -70,7 +70,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			RecordForAccumulator<TStreamId>.MetadataRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
-			state.NotifyForCollisions(record.StreamId, record.LogPosition);
+			state.DetectCollisions(record.StreamId);
 
 			if (!state.TryGetMetastreamData(record.StreamId, out var metaStreamData))
 				metaStreamData = MetastreamData.Empty;
@@ -104,7 +104,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			RecordForAccumulator<TStreamId>.TombStoneRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
-			state.NotifyForCollisions(record.StreamId, record.LogPosition);
+			state.DetectCollisions(record.StreamId);
 
 			// it is possible, though maybe very unusual, to find a tombstone in a metadata stream
 			if (_metastreamLookup.IsMetaStream(record.StreamId)) {
