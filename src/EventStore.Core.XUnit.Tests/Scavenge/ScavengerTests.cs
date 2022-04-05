@@ -236,7 +236,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	}
 
 	public class ScavengerTestsBase {
-		//qq refactor to base class?
+		protected static DateTime EffectiveNow { get; } = new DateTime(2022, 1, 5, 00, 00, 00);
+
 		protected Scenario CreateScenario(Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> createDb) {
 			return new Scenario(createDb);
 		}
@@ -249,15 +250,20 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				_createDb = createDb;
 			}
 
-			public void Run(Func<DbResult, LogRecord[][]> getExpectedKeptRecords = null) {
+			public void Run(
+				Func<DbResult, LogRecord[][]> getExpectedKeptRecords = null,
+				Func<DbResult, LogRecord[][]> getExpectedKeptIndexEntries = null) {
+
 				RunScenario(
 					x => _createDb(x).CreateDb(),
-					getExpectedKeptRecords);
+					getExpectedKeptRecords,
+					getExpectedKeptIndexEntries);
 			}
 
 			private static void RunScenario(
 				Func<TFChunkDbCreationHelper, DbResult> createDb,
-				Func<DbResult, LogRecord[][]> getExpectedKeptRecords) {
+				Func<DbResult, LogRecord[][]> getExpectedKeptRecords,
+				Func<DbResult, LogRecord[][]> getExpectedKeptIndexEntries) {
 
 				//qq use directory fixture, or memdb. pattern in ScavengeTestScenario.cs
 				var pathName = @"unused currently";
@@ -266,9 +272,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				var dbCreator = new TFChunkDbCreationHelper(dbConfig);
 
 				var dbResult = createDb(dbCreator);
-				var keptRecords = getExpectedKeptRecords == null
-					? null
-					: getExpectedKeptRecords(dbResult);
+				var keptRecords = getExpectedKeptRecords != null
+					? getExpectedKeptRecords(dbResult)
+					: null;
+
+				var keptIndexEntries = getExpectedKeptIndexEntries != null
+					? getExpectedKeptIndexEntries(dbResult)
+					: keptRecords;
 
 				// the log. will mutate as we scavenge.
 				var log = dbResult.Recs;
@@ -280,10 +290,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				var metastreamLookup = new LogV2SystemStreams();
 
 				var collisionStorage = new InMemoryScavengeMap<string, Unit>();
+				var hashesStorage = new InMemoryScavengeMap<ulong, string>();
 				var metaStorage = new InMemoryScavengeMap<ulong, MetastreamData>();
 				var metaCollisionStorage = new InMemoryScavengeMap<string, MetastreamData>();
-				var originalStorage = new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>();
-				var originalCollisionStorage = new InMemoryScavengeMap<string, EnrichedDiscardPoint>();
+				var originalStorage = new InMemoryScavengeMap<ulong, OriginalStreamData>();
+				var originalCollisionStorage = new InMemoryScavengeMap<string, OriginalStreamData>();
+				var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
 				var chunkWeightStorage = new InMemoryScavengeMap<int, float>();
 
 				//qq date storage
@@ -292,16 +304,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					hasher,
 					metastreamLookup,
 					collisionStorage,
+					hashesStorage,
 					metaStorage,
 					metaCollisionStorage,
 					originalStorage,
 					originalCollisionStorage,
-					chunkWeightStorage,
-					new InMemoryScavengeMap<ulong, string>());
+					chunkTimeStampRangesStorage,
+					chunkWeightStorage);
 
 				//qq we presumably want to actually get this from the log.
 				var scavengePoint = new ScavengePoint {
-					EffectiveNow = new DateTime(2022, 1, 1, 15, 55, 00),
+					EffectiveNow = EffectiveNow,
 					Position = 123_000, //qq
 				};
 
@@ -315,8 +328,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					new Calculator<string>(
 						hasher: hasher,
 						index: new ScaffoldIndexForScavenge(log, hasher),
-						metastreamLookup: metastreamLookup),
+						metastreamLookup: metastreamLookup,
+						chunkSize: dbConfig.ChunkSize),
 					new ChunkExecutor<string, ScaffoldChunk>(
+						metastreamLookup: metastreamLookup,
 						chunkManager: new ScaffoldChunkManagerForScavenge(
 							chunkSize: dbConfig.ChunkSize,
 							log: log),
@@ -450,7 +465,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				// 5. The index entries we expected to be kept are kept
 				if (keptRecords != null) {
 					CheckRecordsScaffolding(keptRecords, dbResult);
-					CheckIndex(keptRecords, indexScavenger.Scavenged);
+					CheckIndex(keptIndexEntries, indexScavenger.Scavenged);
 				}
 
 			}

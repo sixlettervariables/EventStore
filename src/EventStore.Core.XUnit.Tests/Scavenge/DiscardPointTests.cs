@@ -32,9 +32,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void can_discard_any_of() {
-			var sut = DiscardPoint.AnyOf(
-				DiscardPoint.DiscardBefore(50),
-				DiscardPoint.DiscardBefore(500));
+			var sut = DiscardPoint.DiscardBefore(50)
+				.Or(DiscardPoint.DiscardBefore(500));
 
 			Assert.True(sut.ShouldDiscard(0));
 			Assert.True(sut.ShouldDiscard(499));

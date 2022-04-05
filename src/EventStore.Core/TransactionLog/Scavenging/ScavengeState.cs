@@ -19,23 +19,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly CollisionManager<TStreamId, MetastreamData> _metadatas;
 
 		// data stored keyed against original (non-metadata) streams
-		private readonly CollisionManager<TStreamId, EnrichedDiscardPoint> _originalStreamDatas;
+		private readonly CollisionManager<TStreamId, OriginalStreamData> _originalStreamDatas;
+
+		private readonly IScavengeMap<int, ChunkTimeStampRange> _chunkTimeStampRanges;
+		private readonly IScavengeMap<int, float> _chunkWeights;
 
 		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 
-		private readonly IScavengeMap<int, float> _chunkWeights;
 
 		public ScavengeState(
 			ILongHasher<TStreamId> hasher,
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IScavengeMap<TStreamId, Unit> collisionStorage,
+			IScavengeMap<ulong, TStreamId> hashes,
 			IScavengeMap<ulong, MetastreamData> metaStorage,
 			IScavengeMap<TStreamId, MetastreamData> metaCollisionStorage,
-			IScavengeMap<ulong, EnrichedDiscardPoint> originalStorage,
-			IScavengeMap<TStreamId, EnrichedDiscardPoint> originalCollisionStorage,
-			IScavengeMap<int, float> chunkWeights,
-			IScavengeMap<ulong, TStreamId> hashes) {
+			IScavengeMap<ulong, OriginalStreamData> originalStorage,
+			IScavengeMap<TStreamId, OriginalStreamData> originalCollisionStorage,
+			IScavengeMap<int, ChunkTimeStampRange> chunkTimeStampRanges,
+			IScavengeMap<int, float> chunkWeights) {
 
 
 			//qq inject this so that in log v3 we can have a trivial implementation
@@ -55,12 +58,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				metaStorage,
 				metaCollisionStorage);
 
-			_originalStreamDatas = new CollisionManager<TStreamId, EnrichedDiscardPoint>(
+			_originalStreamDatas = new CollisionManager<TStreamId, OriginalStreamData>(
 				_hasher,
 				_collisionDetector.IsCollision,
 				originalStorage,
 				originalCollisionStorage);
 
+			_chunkTimeStampRanges = chunkTimeStampRanges;
 			_chunkWeights = chunkWeights;
 		}
 
@@ -110,10 +114,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_metadatas[streamId] = streamData;
 		}
 
-		public void SetOriginalStreamData(TStreamId streamId, EnrichedDiscardPoint streamData) {
+		public void SetOriginalStreamData(TStreamId streamId, OriginalStreamData streamData) {
 			_originalStreamDatas[streamId] = streamData;
 		}
 
+		public void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range) {
+			_chunkTimeStampRanges[logicalChunkNumber] = range;
+		}
 
 
 
@@ -130,14 +137,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void SetOriginalStreamData(
 			StreamHandle<TStreamId> handle,
-			EnrichedDiscardPoint discardPoint) {
+			OriginalStreamData discardPoint) {
 
 			_originalStreamDatas[handle] = discardPoint;
 		}
 
 		public bool TryGetOriginalStreamData(
 			StreamHandle<TStreamId> handle,
-			out EnrichedDiscardPoint discardPoint) =>
+			out OriginalStreamData discardPoint) =>
 
 			_originalStreamDatas.TryGetValue(handle, out discardPoint);
 
@@ -148,6 +155,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkWeights[chunkNumber] = weight;
 		}
 
+		public bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range) =>
+			_chunkTimeStampRanges.TryGetValue(logicaChunkNumber, out range);
 
 
 
@@ -156,26 +165,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// FOR CHUNK EXECUTOR
 		//
 
-		public bool TryGetDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint) {
-			if (_metastreamLookup.IsMetaStream(streamId)) {
-				if (!_metadatas.TryGetValue(streamId, out var metastreamData)) {
-					discardPoint = default;
-					return false;
-				}
+		public bool TryGetOriginalStreamData(
+			TStreamId streamId,
+			out OriginalStreamData originalStreamData) =>
 
-				discardPoint = metastreamData.DiscardPoint;
-
-				return true;
-			} else {
-				if (!_originalStreamDatas.TryGetValue(streamId, out var originalStreamData)) {
-					discardPoint = default;
-					return false;
-				}
-
-				discardPoint = originalStreamData.DiscardPoint;
-				return true;
-			}
-		}
+			_originalStreamDatas.TryGetValue(streamId, out originalStreamData);
 
 
 		//

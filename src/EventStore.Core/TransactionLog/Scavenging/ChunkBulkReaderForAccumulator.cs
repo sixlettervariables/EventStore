@@ -9,13 +9,13 @@ using EventStore.Core.TransactionLog.LogRecords;
 namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq own files for stuff in here
 	public class ChunkReaderForAccumulator<TStreamId> : IChunkReaderForAccumulator<TStreamId> {
-		public IEnumerable<RecordForAccumulator<TStreamId>> Read(int startFromChunk, ScavengePoint scavengePoint) {
+		public IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(int logicalChunkNumber) {
 			throw new NotImplementedException();
 		}
 	}
 
 	public class ChunkBulkReaderForAccumulator<TStreamId> : IChunkReaderForAccumulator<TStreamId> {
-		public IEnumerable<RecordForAccumulator<TStreamId>> Read(int startFromChunk, ScavengePoint scavengePoint) {
+		public IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(int logicalChunkNumber) {
 			throw new NotImplementedException();
 		}
 		/*
@@ -114,6 +114,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			yield return new RecordForScavenge<string>() {
 				StreamId = "thestream",
+				TimeStamp = DateTime.UtcNow,
 				EventNumber = 123,
 				RecordBytes = null,
 			};

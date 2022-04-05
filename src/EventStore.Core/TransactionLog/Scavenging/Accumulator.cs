@@ -22,8 +22,82 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
-			var records = _chunkReader.Read(startFromChunk: 0, scavengePoint);
-			foreach (var record in records) {
+			//qq todo finish in right place, which is at latest the last open chunk when we get there
+			// or the scavenge point.
+			//qq stop before the scavenge point, or perhaps more likely at the end of the chunk before
+			// the chunk that has the scavenge point in because at the time the scavenge point is written
+			// that is as far as we can scavenge up to.
+
+			//qq todo start from right place
+			var logicalChunkNumber = 0;
+
+			try {
+				while (AccumulateChunkAndRecordRange(
+						scavengePoint,
+						state,
+						logicalChunkNumber)) {
+
+					logicalChunkNumber++;
+				}
+			}
+			catch {
+				//qq once the tests have scavengepoints we can remove this try/catch
+				// because the scavengepoints will stop the enumeration instead of
+				// running off of the end of the log like this
+			}
+		}
+
+		// returns true to continue
+		private bool AccumulateChunkAndRecordRange(
+			ScavengePoint scavengePoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			int logicalChunkNumber) {
+
+			var ret = AccumulateChunk(
+				scavengePoint,
+				state,
+				logicalChunkNumber,
+				out var chunkMinTimeStamp,
+				out var chunkMaxTimeStamp);
+
+			if (chunkMinTimeStamp <= chunkMaxTimeStamp) {
+				state.SetChunkTimeStampRange(
+					logicalChunkNumber: logicalChunkNumber,
+					new ChunkTimeStampRange(
+						min: chunkMinTimeStamp,
+						max: chunkMaxTimeStamp));
+			} else {
+				// empty range, no need to store it.
+			}
+
+			return ret;
+		}
+
+		// returns true to continue
+		// do not assume that record TimeStamps are non descending, clocks can change.
+		private bool AccumulateChunk(
+			ScavengePoint scavengePoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			int logicalChunkNumber,
+			out DateTime chunkMinTimeStamp,
+			out DateTime chunkMaxTimeStamp) {
+
+			// start with empty range and expand it as we discover records.
+			chunkMinTimeStamp = DateTime.MaxValue;
+			chunkMaxTimeStamp = DateTime.MinValue;
+
+			var stopBefore = scavengePoint.Position;
+			foreach (var record in _chunkReader.ReadChunk(logicalChunkNumber)) {
+				if (record.LogPosition >= stopBefore) {
+					return false;
+				}
+
+				if (record.TimeStamp < chunkMinTimeStamp)
+					chunkMinTimeStamp = record.TimeStamp;
+
+				if (record.TimeStamp > chunkMaxTimeStamp)
+					chunkMaxTimeStamp = record.TimeStamp;
+
 				switch (record) {
 					//qq there may be other cases... the 'empty write', the system record (epoch)
 					// which we might still want to get the timestamp of.
@@ -41,6 +115,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						throw new NotImplementedException(); //qq
 				}
 			}
+
+			return true;
 		}
 
 		// For every* event we need to see if its stream collides.
@@ -124,20 +200,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				state.SetMetastreamData(record.StreamId, newMetaStreamData);
 			} else {
 				// get the streamData for the stream, tell it the stream is deleted
-				var originalStreamData = new EnrichedDiscardPoint(
+				var originalStreamData = new OriginalStreamData(
 					isTombstoned: true,
+					//qq does any previous maxAge here need encorporating?
+					maxAge: null,
 					//qq does the existing discard point need encorporating?
-					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
+					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber),
+					//qq does the existing discard point need encorporating?
+					maybeDiscardPoint: DiscardPoint.KeepAll);
 				state.SetOriginalStreamData(record.StreamId, originalStreamData);
 			}
-		}
-
-		private void AccumulateTimeStamps(int ChunkNumber, DateTime createdAt) {
-			//qq call this. consider name
-			// actually make this add to state, separate datastructure for the timestamps
-			// idea is to decide whether a record can be discarded due to maxage just
-			// by looking at its logposition (i.e. index-only)
-			// needs configurable leeway for clockskew
 		}
 	}
 }

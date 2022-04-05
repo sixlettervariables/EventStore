@@ -574,9 +574,11 @@ namespace EventStore.Core {
 				var calculator = new Calculator<string>(
 					longHasher,
 					new IndexReaderForCalculator(readIndex),
-					metastreamLookup);
+					metastreamLookup,
+					TFConsts.ChunkSize);
 
 				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
+					metastreamLookup,
 					new ChunkManagerForScavenge(db.Manager, db.Config),
 					chunkSize: db.Config.ChunkSize);
 
@@ -589,12 +591,13 @@ namespace EventStore.Core {
 					longHasher,
 					metastreamLookup,
 					new InMemoryScavengeMap<string, Unit>(),
+					new InMemoryScavengeMap<ulong, string>(),
 					new InMemoryScavengeMap<ulong, MetastreamData>(),
 					new InMemoryScavengeMap<string, MetastreamData>(),
-					new InMemoryScavengeMap<ulong, EnrichedDiscardPoint>(),
-					new InMemoryScavengeMap<string, EnrichedDiscardPoint>(),
-					new InMemoryScavengeMap<int, float>(),
-					new InMemoryScavengeMap<ulong, string>());
+					new InMemoryScavengeMap<ulong, OriginalStreamData>(),
+					new InMemoryScavengeMap<string, OriginalStreamData>(),
+					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
+					new InMemoryScavengeMap<int, float>());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,

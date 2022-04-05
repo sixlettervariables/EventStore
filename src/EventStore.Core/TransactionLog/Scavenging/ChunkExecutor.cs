@@ -1,15 +1,20 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class ChunkExecutor<TStreamId, TChunk> : IChunkExecutor<TStreamId> {
 
+		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkManagerForChunkExecutor<TStreamId, TChunk> _chunkManager;
 		private readonly long _chunkSize;
 
 		public ChunkExecutor(
+			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkManagerForChunkExecutor<TStreamId, TChunk> chunkManager,
 			long chunkSize) {
 
+			_metastreamLookup = metastreamLookup;
 			_chunkManager = chunkManager;
 			_chunkSize = chunkSize;
 		}
@@ -36,7 +41,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return;
 				}
 
-				ExecutePhysicalChunk(scavengeState, physicalChunk);
+				ExecutePhysicalChunk(scavengePoint, scavengeState, physicalChunk);
 
 				foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
 					//qq perhaps removing the chunk weight rather than setting it to zero
@@ -59,6 +64,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			return totalWeight;
 		}
+
 		private IEnumerable<IChunkReaderForExecutor<TStreamId>> GetAllPhysicalChunks(
 			int startFromChunk,
 			long upTo) {
@@ -78,7 +84,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private void ExecutePhysicalChunk(
-			IScavengeStateForChunkExecutor<TStreamId> scavengeState,
+			ScavengePoint scavengePoint,
+			IScavengeStateForChunkExecutor<TStreamId> state,
 			IChunkReaderForExecutor<TStreamId> chunk) {
 
 			//qq the other reason we might want to not scanvenge this chunk is if the posmap would make
@@ -104,18 +111,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				chunk.ChunkEndNumber);
 
 			foreach (var record in chunk.ReadRecords()) {
-				//qq the discard point is pesimistic with maxage. if we want (configurable?),
-				// since we have the record here, we could look up the maxage and discard the event based
-				// on that. note we shouldn't do this in the index since there we don't already have the
-				// record and it would be more expensive to look it up. but the index is fine with us
-				// removing events from the log without removing them from the index
-
-				//qq consider how/where to cache the discardPoint per stream
-				if (!scavengeState.TryGetDiscardPoint(record.StreamId, out var discardPoint))
-					discardPoint = DiscardPoint.KeepAll;
+				var discard = ShouldDiscard(
+					state,
+					scavengePoint,
+					record);
 
 				//qq hmm events in transactions do not have an EventNumber
-				if (discardPoint.ShouldDiscard(record.EventNumber)) {
+				if (discard) {
 					//qq discard record
 				} else {
 					//qq keep record
@@ -143,7 +145,68 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			} else {
 				//qq log
 			}
+		}
 
+		private bool ShouldDiscard(
+			IScavengeStateForChunkExecutor<TStreamId> state,
+			ScavengePoint scavengePoint,
+			RecordForScavenge<TStreamId> record) {
+
+			//qq consider how/where to cache the this stuff per stream for quick lookups
+			GetStreamExecutionDetails(
+				state,
+				record.StreamId,
+				out var definitePoint,
+				out var maybeDiscardPoint,
+				out var maxAge);
+
+			// if definitePoint says discard then discard.
+			if (definitePoint.ShouldDiscard(record.EventNumber)) {
+				return true;
+			}
+
+			// if maybeDiscardPoint says discard then maybe we can discard - depends on maxage
+			if (!maybeDiscardPoint.ShouldDiscard(record.EventNumber)) {
+				// both discard points said do not discard, so dont.
+				return false;
+			}
+
+			if (!maxAge.HasValue) {
+				return false;
+			}
+
+			return record.TimeStamp < scavengePoint.EffectiveNow - maxAge;
+		}
+
+		private void GetStreamExecutionDetails(
+			IScavengeStateForChunkExecutor<TStreamId> state,
+			TStreamId streamId,
+			out DiscardPoint discardPoint,
+			out DiscardPoint maybeDiscardPoint,
+			out TimeSpan? maxAge) {
+
+			if (_metastreamLookup.IsMetaStream(streamId)) {
+				
+				maxAge = null;
+				maybeDiscardPoint = DiscardPoint.KeepAll;
+
+				if (state.TryGetMetastreamData(streamId, out var metaStreamData)) {
+					discardPoint = metaStreamData.DiscardPoint;
+				} else {
+					discardPoint = DiscardPoint.KeepAll;
+				}
+			} else {
+				// original stream
+				if (state.TryGetOriginalStreamData(streamId, out var originalStreamData)) {
+					discardPoint = originalStreamData.DiscardPoint;
+					maybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
+					maxAge = originalStreamData.MaxAge;
+				} else {
+					discardPoint = DiscardPoint.KeepAll;
+					maybeDiscardPoint = DiscardPoint.KeepAll;
+					maxAge = null;
+				}
+			}
 		}
 	}
 }

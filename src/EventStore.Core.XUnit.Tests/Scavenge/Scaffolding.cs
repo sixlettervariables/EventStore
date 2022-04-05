@@ -34,44 +34,43 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_log = log;
 		}
 
-		public IEnumerable<RecordForAccumulator<string>> Read(
-			int startFromChunk,
-			ScavengePoint scavengePoint) {
+		public IEnumerable<RecordForAccumulator<string>> ReadChunk(int logicalChunkNumber) {
+			if (logicalChunkNumber >= _log.Length) {
+				throw new ArgumentOutOfRangeException(
+					nameof(logicalChunkNumber),
+					logicalChunkNumber,
+					null);
+			}
 
-			var stopBefore = scavengePoint.Position;
+			foreach (var record in _log[logicalChunkNumber]) {
+				if (!(record is PrepareLogRecord prepare))
+					continue;
 
-			for (int chunkIndex = startFromChunk; chunkIndex < _log.Length; chunkIndex++) {
-				var chunk = _log[chunkIndex];
-				foreach (var record in chunk) {
-					if (record.LogPosition >= stopBefore)
-						yield break;
+				//qq in each case what is the sufficient condition
+				// do we worry about whether a user might have created system events
+				// in the wrong place, or with the wrong event number, etc.
 
-					if (!(record is PrepareLogRecord prepare))
-						continue;
-
-					//qq in each case what is the sufficient condition
-					// do we worry about whether a user might have created system events
-					// in the wrong place, or with the wrong event number, etc.
-
-					if (prepare.EventType == SystemEventTypes.StreamMetadata) {
-						yield return new RecordForAccumulator<string>.MetadataRecord {
-							EventNumber = prepare.ExpectedVersion + 1,
-							LogPosition = prepare.LogPosition,
-							Metadata = StreamMetadata.FromJsonBytes(prepare.Data),
-							StreamId = prepare.EventStreamId,
-						};
-					} else if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
-						yield return new RecordForAccumulator<string>.TombStoneRecord {
-							EventNumber = prepare.ExpectedVersion + 1,
-							LogPosition = prepare.LogPosition,
-							StreamId = prepare.EventStreamId,
-						};
-					} else {
-						yield return new RecordForAccumulator<string>.EventRecord {
-							LogPosition = prepare.LogPosition,
-							StreamId = prepare.EventStreamId,
-						};
-					}
+				if (prepare.EventType == SystemEventTypes.StreamMetadata) {
+					yield return new RecordForAccumulator<string>.MetadataRecord {
+						EventNumber = prepare.ExpectedVersion + 1,
+						LogPosition = prepare.LogPosition,
+						Metadata = StreamMetadata.FromJsonBytes(prepare.Data),
+						StreamId = prepare.EventStreamId,
+						TimeStamp = prepare.TimeStamp,
+					};
+				} else if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
+					yield return new RecordForAccumulator<string>.TombStoneRecord {
+						EventNumber = prepare.ExpectedVersion + 1,
+						LogPosition = prepare.LogPosition,
+						StreamId = prepare.EventStreamId,
+						TimeStamp = prepare.TimeStamp,
+					};
+				} else {
+					yield return new RecordForAccumulator<string>.EventRecord {
+						LogPosition = prepare.LogPosition,
+						StreamId = prepare.EventStreamId,
+						TimeStamp = prepare.TimeStamp,
+					};
 				}
 			}
 		}
@@ -189,6 +188,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					record.WriteTo(binaryWriter);
 					yield return new RecordForScavenge<string>() {
 						StreamId = prepare.EventStreamId,
+						TimeStamp = prepare.TimeStamp,
 						EventNumber = prepare.ExpectedVersion + 1,
 						RecordBytes = bytes,
 					};

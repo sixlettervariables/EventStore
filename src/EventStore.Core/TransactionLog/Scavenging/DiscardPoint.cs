@@ -34,11 +34,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq do we need as many bits as this
 		public long FirstEventNumberToKeep { get; }
 
-		// Produces a discard point that discards when any of the provided discard points would discard
+		// Produces a discard point that discards when this OR that discard point would discard
 		// i.e. takes the bigger of the two.
-		public static DiscardPoint AnyOf(DiscardPoint x, DiscardPoint y) {
-			return x.FirstEventNumberToKeep > y.FirstEventNumberToKeep ? x : y;
-		}
+		public DiscardPoint Or(DiscardPoint x) =>
+			FirstEventNumberToKeep > x.FirstEventNumberToKeep ? this : x;
 
 		public static bool operator ==(DiscardPoint x, DiscardPoint y) =>
 			x.FirstEventNumberToKeep == y.FirstEventNumberToKeep;

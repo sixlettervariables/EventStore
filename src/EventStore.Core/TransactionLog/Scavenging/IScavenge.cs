@@ -128,28 +128,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// epochs etc.
 	public interface IChunkReaderForAccumulator<TStreamId> {
 		//qq tombstones to be identified by their prepare flags
-		IEnumerable<RecordForAccumulator<TStreamId>> Read(
-			int startFromChunk,
-			ScavengePoint scavengePoint);
+		IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(int logicalChunkNumber);
 	}
 
 	//qq could use streamdata? its a class though
 	public abstract class RecordForAccumulator<TStreamId> {
+		public TStreamId StreamId { get; set; }
+		public long LogPosition { get; set; }
+		public DateTime TimeStamp { get; set; }
+
 		//qq make sure to recycle these.
 		//qq prolly have readonly interfaces to implement, perhaps a method to return them for reuse
 		//qq some of these are pretty similar, wil lthey end up being different in the end
 		public class EventRecord : RecordForAccumulator<TStreamId> {
 			public EventRecord() {}
-			public TStreamId StreamId { get; set; }
-			public long LogPosition { get; set; }
 		}
 
 		//qq how do we tell its a tombstone record, detect and abort if the tombstone is in a transaction
 		// if thats even possible
 		public class TombStoneRecord : RecordForAccumulator<TStreamId> {
 			public TombStoneRecord() {}
-			public TStreamId StreamId { get; set; }
-			public long LogPosition { get; set; }
 			// old scavenge, index writer and index committer are set up to handle
 			// tombstones that have abitrary event numbers, so lets handle them here
 			// in case it used to be possible to create them.
@@ -160,8 +158,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// or maybe rather check that this is the case in the Accumulator
 		public class MetadataRecord : RecordForAccumulator<TStreamId> {
 			public MetadataRecord() {}
-			public TStreamId StreamId { get; set; }
-			public long LogPosition { get; set; }
 			public StreamMetadata Metadata { get; set; }
 			public long EventNumber { get; set; }
 		}
@@ -306,6 +302,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public TStreamId StreamId { get; set; }
+		public DateTime TimeStamp { get; set; }
 		public long EventNumber { get; set; }
 		//qq pool
 		public byte[] RecordBytes { get; set; }
@@ -367,14 +364,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 	}
 
-	public interface ChunkTimeStampOptimisation {
-		//qq we could have a dummy implemenation of this that just never kicks in
-		// but could know, for each chunk, what the minimum timestamp of the records in
-		// that chunk are within some range (to allow for incorrectly set clocks, dst etc)
-		// then we could shortcut
-		bool Foo(DateTime dateTime, long position);
-	}
-
 	//qq according to IndexReader.GetStreamLastEventNumberCached
 	// if the original stream is hard deleted then the metadatastream is treated as deleted too
 	// according to IndexReader.GetStreamMetadataCached
@@ -425,14 +414,50 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// tombstoned or not.
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
-	public struct EnrichedDiscardPoint {
-		public EnrichedDiscardPoint(bool isTombstoned, DiscardPoint discardPoint) {
+	//qq might prefer for this to be a class now
+	public struct OriginalStreamData {
+		public OriginalStreamData(
+			bool isTombstoned,
+			TimeSpan? maxAge,
+			DiscardPoint discardPoint,
+			DiscardPoint maybeDiscardPoint) {
+
 			IsTombstoned = isTombstoned;
+			MaxAge = maxAge;
 			DiscardPoint = discardPoint;
+			MaybeDiscardPoint = maybeDiscardPoint;
+			//qqq need to reconsider whether we can store the metadata directly against the stream now
+			// that we have a bespoke storage of the hash users. then we could get rid of this
 		}
 
 		public bool IsTombstoned { get; }
 		public DiscardPoint DiscardPoint { get; }
+		public DiscardPoint MaybeDiscardPoint { get; }
+		//qq go through the OriginalStreadmData and the MetastreamData and make sure we are clear
+		// about which pieces are data are set and relied upon by which components.
+		//qqqqqqqq we might want the most recent maxage instead here (in seconds? minutes?)
+		//qq only store as much precision as we need
+		public TimeSpan? MaxAge { get; }
+	}
+
+	// store a range per chunk so that the calculator can definitely get a timestamp range for each event
+	// that is guaranteed to to contain the real timestamp of that event.
+	// if we inferred the min from the previous chunk, its possible than an incorrect clock could
+	// give us an empty range for a chunk, which would be awkward to deal with in the calculator.
+	public struct ChunkTimeStampRange {
+		//qq reduce the precision to save persistent space.
+		// say nearest minute is good enough, round min down to nearest minute and max up.
+		// this is only used to control the index scavenge and to give a heuristic to the 
+		// chunk scavenge so, 1 minute is probably more than plenty. look at how much resolution
+		// we can get for different numbers of bytes.
+		public ChunkTimeStampRange(DateTime min, DateTime max) {
+			Min = min;
+			Max = max;
+		}
+
+		public DateTime Min { get; }
+
+		public DateTime Max { get; }
 	}
 
 	//qq some kind of configurable speed throttle on each of the phases to stop them hogging iops
@@ -709,11 +734,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	//qq make sure whenever we are cashing to prepare and accessing eventnumber that we are coping with
 	// it being part of a transaction
-	
+	//qq make sure we never interact with index entries beyong the scavengepoint because we don't know
+	// whether they are collisions or not
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp
 		// of the scavenge point itself? questions is whether there is any need to scavenge
 		// at a different time or place.
+		//qq consider that at the time we place the scavenge point it is not in a scavengable chunk
 
 		public long Position { get; set; }
 		public DateTime EffectiveNow { get; set; }
