@@ -146,6 +146,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			RecordForAccumulator<TStreamId>.MetadataRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
+			if (!_metastreamLookup.IsMetaStream(record.StreamId)) {
+				// found metadata record that isn't in a metadata stream.
+				// treat it the same as a normal event.
+				state.DetectCollisions(record.StreamId);
+				return;
+			}
+
+			var originalStreamId = _metastreamLookup.OriginalStreamOf(record.StreamId);
+			state.DetectCollisions(originalStreamId);
 			state.DetectCollisions(record.StreamId);
 
 			if (!state.TryGetMetastreamData(record.StreamId, out var metaStreamData))

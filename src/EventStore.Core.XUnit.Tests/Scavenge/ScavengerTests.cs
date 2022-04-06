@@ -92,18 +92,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		//qq this would fail if we checked that looking up the metadatas per stream gives us
-		// the right metadatas. ca-2 has no metadata but we would find _meta1 anyway.
-		// we can now test this by checking what records get scavenged.
 		[Fact]
-		public void darn() {
+		public void metadata_applies_to_correct_stream_in_hidden_collision() {
+			// metastream sets metadata for stream ab-1 (which hashes to b)
+			// but that stream doesn't exist.
+			// make sure that cb-2 (which also hashes to b) does not pick up that metadata.
 			CreateScenario(x => x
 				.Chunk(
 					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "cb-2"))
+					Rec.Prepare(1, "cb-2"),
+					Rec.Prepare(2, "cb-2"))
 				.CompleteLastChunk())
 				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
+					x.Recs[0].KeepIndexes(0, 1, 2)
 				});
 		}
 
@@ -177,8 +178,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		//qq
-		[Fact(Skip = "will pass when we spot collisions between metadata streams and non-existent original streams")]
+		[Fact]
 		public void metadatas_for_different_streams_cross_colliding() {
 			CreateScenario(x => x
 				.Chunk(
@@ -368,23 +368,32 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				// 1a. naively calculate list of collisions
 				var hashesInUse = new Dictionary<ulong, string>();
 				var collidingStreams = new HashSet<string>();
+
+				void RegisterUse(string streamId) {
+					var hash = hasher.Hash(streamId);
+					if (hashesInUse.TryGetValue(hash, out var user)) {
+						if (user == streamId) {
+							// in use by us. not a collision.
+						} else {
+							// collision. register both as collisions.
+							collidingStreams.Add(streamId);
+							collidingStreams.Add(user);
+						}
+					} else {
+						// hash was not in use. so it isn't a collision.
+						hashesInUse[hash] = streamId;
+					}
+				}
+
 				foreach (var chunk in originalLog) {
 					foreach (var record in chunk) {
 						if (!(record is PrepareLogRecord prepare))
 							continue;
 
-						var hash = hasher.Hash(prepare.EventStreamId);
-						if (hashesInUse.TryGetValue(hash, out var user)) {
-							if (user == prepare.EventStreamId) {
-								// in use by us. not a collision.
-							} else {
-								// collision. register both as collisions.
-								collidingStreams.Add(prepare.EventStreamId);
-								collidingStreams.Add(user);
-							}
-						} else {
-							// hash was not in use. so it isn't a collision.
-							hashesInUse[hash] = prepare.EventStreamId;
+						RegisterUse(prepare.EventStreamId);
+
+						if (metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
+							RegisterUse(metastreamLookup.OriginalStreamOf(prepare.EventStreamId));
 						}
 					}
 				}
