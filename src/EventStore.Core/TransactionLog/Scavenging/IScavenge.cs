@@ -411,15 +411,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
 	public struct MetastreamData {
-		public MetastreamData(
-			bool isTombstoned,
-			DiscardPoint discardPoint) {
-
-			IsTombstoned = isTombstoned;
+		public MetastreamData(DiscardPoint discardPoint) {
 			DiscardPoint = discardPoint;
 		}
 
-		public bool IsTombstoned { get; } //qqqqqq probably dont need this
 		public DiscardPoint DiscardPoint { get; }
 	}
 
@@ -688,7 +683,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//       because it won't be obvious that the discard point represents a tombstone. some cases later
 	//       _might_ involve moving the DiscardPoint backwards but we must not do that if it represents
 	//       a tombstone. For now keep it simple and obvious and store the istombstone explicitly
-	//       and _not_ in the discard point.
+	//       and _not_ in the discard point. however dont keep it for metastreams, the discard point
+	//       set by the accumulator accurately describes the required effect, and there are no
+	//       complications of having other metadata affect it for metadata streams.
 	// 
 	//
 	// Although the StorageWriterService does, these days, create tombstones with

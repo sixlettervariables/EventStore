@@ -157,15 +157,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			state.DetectCollisions(record.StreamId);
 
 			// Update the MetastreamData
-			//qqqqqqq if we get rid of tombstoned then we probably dont need to do a lookup here
-			// instead just set.
-			if (!state.TryGetMetastreamData(record.StreamId, out var metastreamData))
-				metastreamData = default;
-
 			var newMetastreamData = new MetastreamData(
-				//qq consider: if we were tombstoned, and we just got a new metadata record,
-				// that would be rather unexpected. throw? or maybe dont even detect.
-				isTombstoned: metastreamData.IsTombstoned,
 				//qq event number wont be set if this metadata is in a transaction,
 				discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
 
@@ -213,7 +205,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//qq unusual enough that we can detect and abort?
 
 				var newMetastreamData = new MetastreamData(
-					isTombstoned: true,
 					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
 
 				state.SetMetastreamData(record.StreamId, newMetastreamData);

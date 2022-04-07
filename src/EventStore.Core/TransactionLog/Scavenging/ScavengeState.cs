@@ -107,9 +107,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		public bool TryGetMetastreamData(TStreamId streamId, out MetastreamData streamData) =>
-			_metadatas.TryGetValue(streamId, out streamData);
-	
 		public void SetMetastreamData(TStreamId streamId, MetastreamData streamData) {
 			_metadatas[streamId] = streamData;
 		}
@@ -140,12 +137,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_originalStreamDatas[handle] = discardPoint;
 		}
 
-		public bool TryGetOriginalStreamData(
-			StreamHandle<TStreamId> handle,
-			out OriginalStreamData discardPoint) =>
-
-			_originalStreamDatas.TryGetValue(handle, out discardPoint);
-
 		public bool TryGetChunkWeight(int chunkNumber, out float weight) =>
 			_chunkWeights.TryGetValue(chunkNumber, out weight);
 
@@ -169,6 +160,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_originalStreamDatas.TryGetValue(streamId, out originalStreamData);
 
+
+		public bool TryGetMetastreamData(TStreamId streamId, out MetastreamData streamData) =>
+			_metadatas.TryGetValue(streamId, out streamData);
 
 		//
 		// FOR INDEX EXECUTOR

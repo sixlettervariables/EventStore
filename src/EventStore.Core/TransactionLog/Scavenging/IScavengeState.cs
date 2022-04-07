@@ -37,9 +37,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// collision to save ourselves work later.
 		void DetectCollisions(TStreamId streamId);
 
-		// call this to record what the current metadata is in a metadata stream.
-		// if there is previous metadata this will just overwrite it.
-		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData data);
 		void SetMetastreamData(TStreamId streamId, MetastreamData streamData);
 
 		// no need for the accumulator to get the original stream data, all it does with it is sets it
@@ -57,10 +54,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// store them separately. (i think i meant e.g. store their address in the log)
 		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge { get; }
 
-		bool TryGetOriginalStreamData(
-			StreamHandle<TStreamId> streamHandle,
-			out OriginalStreamData data);
-
 		//qq we set a discard point for every relevant stream.
 		void SetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
@@ -70,8 +63,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
 		void SetChunkWeight(int logicalChunkNumber, float weight);
 		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
-		bool IsCollision(ulong streamHash);
-		IEnumerable<TStreamId> Collisions();
 	}
 
 	//qq needs to work for metadata streams and also for original streams
