@@ -36,14 +36,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq consider caching
 		public int LogicalChunkNumber => (int)(EventInfo.LogPosition / ChunkSize);
 
-		//qq add test cases where tombstone is not at eventnumber intmax
-		// accounts for tombstone, truncateBefore, maxCount.
-		public bool DiscardForEventNumber =>
-			Stream.TombstoneDiscardPoint
-				.Or(Stream.TruncateBeforeDiscardPoint)
-				.Or(Stream.MaxCountDiscardPoint)
-				.ShouldDiscard(EventInfo.EventNumber);
-
 		public DiscardDecision DecideEvent() {
 			// Events in original streams can be discarded because of:
 			//   Tombstones, TruncateBefore, MaxCount, MaxAge.
@@ -53,6 +45,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// or anything beyond the scavenge point, so we limit by that.
 
 			// respect the scavenge point
+			//qq possibly it should be impossible to get here because we should have run into
+			// LastEventInStream (before scavengepoint) by now, unless there wasn't one in the range we
+			// read..
 			if (IsOnOrAfterScavengePoint) {
 				return DiscardDecision.Keep;
 			}
@@ -64,12 +59,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			//qqqqq some test should fail without this. in fact without any of these.
 			// for tombstoned streams, discard everything that isn't the last event
-			if (Stream.IsTombstoned && !IsLastEventInStream) {
+			if (Stream.IsTombstoned) {
+				// we already know this is not the last event, so discard it.
 				return DiscardDecision.Discard;
 			}
 
-			// tombstone, truncatebefore, maxcount
-			if (DiscardForEventNumber) {
+			// truncatebefore, maxcount
+			if (Stream.TruncateBeforeOrMaxCountDiscardPoint.ShouldDiscard(EventInfo.EventNumber)) {
 				return DiscardDecision.Discard;
 			}
 

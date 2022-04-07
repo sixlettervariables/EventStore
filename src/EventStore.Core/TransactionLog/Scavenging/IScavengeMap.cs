@@ -3,6 +3,10 @@
 namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq name
 	//qq the enumeration is a bit clunky, see how this pans out with the stored version.
+	//  the calculator enumerates through the scavengemap to calculate things, each entry it processes
+	//  it sets back into the map. maybe it would be better expressed as a visitor.
+	//  in any case the enumerator needs to cope with the collection values being updated in this
+	//  restricted way as we iterate through.
 
 	//qq apart from the in memory version, we'll probably want a couple of different persistent versions
 	// too.

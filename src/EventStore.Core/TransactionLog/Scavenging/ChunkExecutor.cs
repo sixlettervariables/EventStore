@@ -21,7 +21,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void Execute(
 			ScavengePoint scavengePoint,
-			IScavengeStateForChunkExecutor<TStreamId> scavengeState) {
+			IScavengeStateForChunkExecutor<TStreamId> state) {
 
 			//qq would we want to run in parallel? (be careful with scavenge state interactions
 			// in that case, especially writes)
@@ -32,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var startFromChunk = 0; //qq necessarily zero?
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.Position)) {
-				var physicalWeight = WeighPhysicalChunk(scavengeState, physicalChunk);
+				var physicalWeight = WeighPhysicalChunk(state, physicalChunk);
 
 				//qq configurable threshold? in scavenge point?
 				var threshold = 0.0f;
@@ -41,11 +41,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return;
 				}
 
-				ExecutePhysicalChunk(scavengePoint, scavengeState, physicalChunk);
+				ExecutePhysicalChunk(scavengePoint, state, physicalChunk);
 
 				foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
 					//qq perhaps removing the chunk weight rather than setting it to zero
-					scavengeState.SetChunkWeight(logicalChunkNumber, 0);
+					state.SetChunkWeight(logicalChunkNumber, 0);
 				}
 			}
 		}

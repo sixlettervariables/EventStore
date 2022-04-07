@@ -23,15 +23,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void SetStream(
 			StreamHandle<TStreamId> originalStreamHandle,
-			MetastreamData metadata,
-			bool isTombstoned,
-			DiscardPoint accumulatedDiscardPoint) {
+			OriginalStreamData originalStreamData) {
 
 			_lastEventNumber = null;
+			_truncateBeforeOrMaxCountDiscardPoint = null;
+
 			OriginalStreamHandle = originalStreamHandle;
-			Metadata = metadata;
-			IsTombstoned = isTombstoned;
-			AccumulatedDiscardPoint = accumulatedDiscardPoint;
+			OriginalStreamData = originalStreamData;
 		}
 
 		// State that doesn't change. scoped to the scavenge.
@@ -40,9 +38,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// State that is scoped to the stream
 		public StreamHandle<TStreamId> OriginalStreamHandle { get; private set; }
-		public MetastreamData Metadata { get; private set; }
-		public bool IsTombstoned { get; private set; }
-		public DiscardPoint AccumulatedDiscardPoint { get; private set; }
+		public OriginalStreamData OriginalStreamData { get; private set; }
 
 		//qq consider what will happen here if the strea, doesn't exist
 		//  if it doesn't exist at all then presumably there is nothing to scavenge
@@ -61,23 +57,33 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		// for original streams, the discardPoint from the accumulator applies the tombstone only.
-		//qq ^ although, consider for subsequent scavenges.
-		public DiscardPoint TombstoneDiscardPoint =>
-			AccumulatedDiscardPoint;
-
 		public DiscardPoint TruncateBeforeDiscardPoint =>
-			Metadata.TruncateBefore.HasValue
-				? DiscardPoint.DiscardBefore(Metadata.TruncateBefore.Value)
+			OriginalStreamData.TruncateBefore.HasValue
+				? DiscardPoint.DiscardBefore(OriginalStreamData.TruncateBefore.Value)
 				: DiscardPoint.KeepAll;
 
 		public DiscardPoint MaxCountDiscardPoint =>
-			Metadata.MaxCount.HasValue
+			OriginalStreamData.MaxCount.HasValue
 				//qq be careful not to call this with long.max
-				? DiscardPoint.DiscardIncluding(LastEventNumber - Metadata.MaxCount.Value)
+				? DiscardPoint.DiscardIncluding(LastEventNumber - OriginalStreamData.MaxCount.Value)
 				: DiscardPoint.KeepAll;
 
+		// accounts for tombstone, truncateBefore, maxCount.
+		private DiscardPoint? _truncateBeforeOrMaxCountDiscardPoint;
+		public DiscardPoint TruncateBeforeOrMaxCountDiscardPoint {
+			get {
+				if (!_truncateBeforeOrMaxCountDiscardPoint.HasValue) {
+					_truncateBeforeOrMaxCountDiscardPoint =
+						TruncateBeforeDiscardPoint.Or(MaxCountDiscardPoint);
+				}
+
+				return _truncateBeforeOrMaxCountDiscardPoint.Value;
+			}
+		}
+
+		public bool IsTombstoned => OriginalStreamData.IsTombstoned;
+
 		// We can discard the event when it is as old or older than the cutoff
-		public DateTime? CutoffTime => ScavengePoint.EffectiveNow - Metadata.MaxAge;
+		public DateTime? CutoffTime => ScavengePoint.EffectiveNow - OriginalStreamData.MaxAge;
 	}
 }

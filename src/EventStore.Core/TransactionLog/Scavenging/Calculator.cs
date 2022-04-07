@@ -28,43 +28,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
 			var eventCalc = new EventCalculator<TStreamId>(_chunkSize, state, scavengePoint, streamCalc);
 
-			// iterate through the metadata streams, for each one use the metadata to modify the
-			// discard point of the stream and store it. along the way note down which chunks
-			// the records to be discarded.
-			foreach (var (metastreamHandle, metastreamData) in state.MetastreamDatas) {
-
-				var originalStreamHandle = GetOriginalStreamHandle(
-					state,
-					metastreamHandle,
-					metastreamData.OriginalStreamHash);
-
+			// iterate through the original (i.e. non-meta) streams that need scavenging (i.e.
+			// those that have metadata or tombstones)
+			// - for each one use the accumulated data to set/update the discard points of the stream.
+			// - along the way add weight to the affected chunks.
+			foreach (var (originalStreamHandle, originalStreamData) in state.OriginalStreamsToScavenge) {
 				//qq it would be neat if this interface gave us some hint about the location of
 				// the DP so that we could set it in a moment cheaply without having to search.
 				// although, if its a wal that'll be cheap anyway.
-				//
-				//qq i dont think we can save this lookup by storing it on the metastreamData
-				// because when we find, say, the tombstone of the original stream and want to set its
-				// DP, the metadata stream does not necessarily exist.
-				// unless we don't care here about the tombstone, and only care about things that could
-				// be conveniently set on the metastreamdata by the accumulator
 				//qq if the scavengemap supports RMW that might have a bearing too, but for now maybe
 				// this is just overcomplicating things.
-				//qq how bad is this, how much could we save
-				if (!state.TryGetOriginalStreamData(
-						originalStreamHandle,
-						out var originalStreamData)) {
-					originalStreamData = new OriginalStreamData(
-						isTombstoned: false,
-						maxAge: null,
-						discardPoint: DiscardPoint.KeepAll,
-						maybeDiscardPoint: DiscardPoint.KeepAll);
-				}
 
-				streamCalc.SetStream(
-					originalStreamHandle,
-					metastreamData,
-					originalStreamData.IsTombstoned,
-					originalStreamData.DiscardPoint);
+				streamCalc.SetStream(originalStreamHandle, originalStreamData);
 
 				CalculateDiscardPointForOriginalStream(
 					eventCalc,
@@ -74,65 +49,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					out var adjustedDiscardPoint,
 					out var adjustedMaybeDiscardPoint);
 
-				//qq might not need to bother setting if the data isn't going to change
-				state.SetOriginalStreamData(
-					originalStreamHandle,
-					new OriginalStreamData(
-						isTombstoned: originalStreamData.IsTombstoned,
-						maxAge: metastreamData.MaxAge,
-						discardPoint: adjustedDiscardPoint,
-						maybeDiscardPoint: adjustedMaybeDiscardPoint));
-			}
-		}
+				if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
+					adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
 
-		//qq make sure all the cases are covered by the tests
-		// This gets the handle to the original stream, given the handle to the metadata stream and the
-		// hash of the original stream.
-		//
-		// The resulting handle needs to contain the original stream name if it is a collision,
-		// and just the hash if it is not a collision.
-		private StreamHandle<TStreamId> GetOriginalStreamHandle(
-			IScavengeStateForCalculator<TStreamId> state,
-			StreamHandle<TStreamId> metastreamHandle,
-			ulong originalStreamHash) {
-
-			if (!state.IsCollision(originalStreamHash)) {
-				return StreamHandle.ForHash<TStreamId>(originalStreamHash);
-			}
-
-			if (metastreamHandle.Kind == StreamHandle.Kind.Id) {
-				var originalStreamId = _metastreamLookup.OriginalStreamOf(metastreamHandle.StreamId);
-				return StreamHandle.ForStreamId(originalStreamId);
-			}
-
-			if (metastreamHandle.Kind != StreamHandle.Kind.Hash) {
-				throw new ArgumentOutOfRangeException(nameof(metastreamHandle), metastreamHandle, null);
-			}
-
-			// metastreamHandle is a hash, so the metastream does not collide with anything.
-			foreach (var collision in state.Collisions()) {
-				// we are calculating the originalStreamHandle. we know that the originalStream
-				// collides, so the handle will be a streamId (not a hash) and that streamId is
-				// in the list of collisions, which is short. We just need to pick the right one.
-				// it is the collision that:
-				//   1. is an originalstream
-				//   2. has a metadata stream name that hashes to the right hash
-				//      (metastreamHandle.StreamHash)
-				if (_metastreamLookup.IsMetaStream(collision))
+					// nothing to update for this stream
 					continue;
+				}
 
-				var metastreamOfCollision = _metastreamLookup.MetaStreamOf(collision);
-				if (_hasher.Hash(metastreamOfCollision) != metastreamHandle.StreamHash)
-					continue;
+				var newOriginalStreamData = new OriginalStreamData {
+					IsTombstoned = originalStreamData.IsTombstoned,
+					MaxAge = originalStreamData.MaxAge,
+					MaxCount = originalStreamData.MaxCount,
+					TruncateBefore = originalStreamData.TruncateBefore,
 
-				return StreamHandle.ForStreamId(collision);
+					DiscardPoint = adjustedDiscardPoint,
+					MaybeDiscardPoint = adjustedMaybeDiscardPoint,
+				};
+
+				state.SetOriginalStreamData(originalStreamHandle, newOriginalStreamData);
 			}
-
-			throw new InvalidOperationException(
-				$"Could not get the original stream handle for " +
-				$"metaStream: {metastreamHandle}. " +
-				$"originalStreamHash: {originalStreamHash}. " +
-				"corrupt scavenge state?"); //qq add detail
 		}
 
 		// This does two things.

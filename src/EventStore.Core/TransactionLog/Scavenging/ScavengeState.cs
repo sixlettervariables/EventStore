@@ -129,11 +129,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// FOR CALCULATOR
 		//
 
-		// the calculator needs to get the accumulated data for each scavengeable stream
-		// it does not have and does not need to know the non colliding stream names.
 		//qq consider making this a method?
-		public IEnumerable<(StreamHandle<TStreamId>, MetastreamData)> MetastreamDatas =>
-			_metadatas.Enumerate();
+		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge =>
+			_originalStreamDatas.Enumerate();
 
 		public void SetOriginalStreamData(
 			StreamHandle<TStreamId> handle,

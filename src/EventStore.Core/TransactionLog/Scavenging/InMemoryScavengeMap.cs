@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class InMemoryScavengeMap<TKey, TValue> : IScavengeMap<TKey, TValue> {
@@ -14,7 +15,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public bool TryGetValue(TKey key, out TValue value) => _dict.TryGetValue(key, out value);
 
-		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _dict.GetEnumerator();
+		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() =>
+			// naive copy so we can write to the values for the keys that we are iterating through.
+			_dict
+				.ToDictionary(x => x.Key, x => x.Value)
+				.GetEnumerator();
 
 		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

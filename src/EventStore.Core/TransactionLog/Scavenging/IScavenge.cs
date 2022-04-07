@@ -64,7 +64,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//             each time we find a metadata record we need to increment the count for the chunk
 	//             of the _old_ metadata record, which we can find because we stored its position yay
 	//         - any other reason?
-	//qqqqqqqq logical chunk or physical chunk
 	//
 	// The job of calculating the DiscardPoints is split between the Accumulator and the Calculator.
 	// Some things affect the DiscardPoints in a fairly static way and can be applied to the
@@ -374,70 +373,54 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq for all of thes consider how much precision (and therefore bits) we need
 	//qq look at the places where we construct this, are we always setting what we need
 	// might want to make an explicit constructor. can we easily find the places we are calling 'with' ?
-	//qq tempting to 'optimise' this to a smaller size by storing the the 'IsTombstoned' and maybe
-	// the TruncateBefore _in_ the DiscardPoint, but it would make the semantics less clear, the code
-	// less obvious and probably less flexible. dont optimise this yet.
 	//qq for everything in here consider signed/unsigned and the number of bits and whether it needs to
 	// but nullable vs, say, using -1 to mean no value.
-	//qq prolly make this immutable
-	public class MetastreamData {
-		public static readonly MetastreamData Empty = new MetastreamData(); //qq maybe dont need
+	//qq consider whether to make this immutable or reusable and make sure we are using it appropriately.
+	public class OriginalStreamData {
+		public static OriginalStreamData Empty { get; } = new OriginalStreamData(); //qq maybe dont need
 
-		public MetastreamData() {
+		public OriginalStreamData() {
 		}
 
-		public ulong OriginalStreamHash { get; set; }
 		public long? MaxCount { get; set; }
 		public TimeSpan? MaxAge { get; set; } //qq can have limited precision?
 		public long? TruncateBefore { get; set; }
 
-		//qq this is the discard point of the metadata stream.
 		public DiscardPoint DiscardPoint { get; set; }
-		//qq true iff the metadata stream has been hard deleted.
+		public DiscardPoint MaybeDiscardPoint { get; set; }
+
 		public bool IsTombstoned { get; set; }
 
 		//qq probably dont need this, but we could easily populate it if it is useful later.
 		// its tempting because is would allow us to easily see which stream the metadata is for
-		//public long MetadataPosition { get; set; } //qq to be able to scavenge the metadata
+		//public long MetadataPosition { get; set; }
 
 		//qq prolly at the others
 		public override string ToString() =>
-			$"OriginalStreamHash: {OriginalStreamHash} " +
 			$"MaxCount: {MaxCount} " +
 			$"MaxAge: {MaxAge} " +
 			$"TruncateBefore: {TruncateBefore} " +
 			$"DiscardPoint: {DiscardPoint} " +
+			$"MaybeDiscardPoint: {MaybeDiscardPoint} " +
+			$"IsTombstoned: {IsTombstoned} " +
 			"";
 	}
 
-	//qq want better name, but this is the discard point combined with whether the stream has been
-	// tombstoned or not.
+	//qq go through the OriginalStreadmData and the MetastreamData and make sure we are clear
+	// about which pieces are data are set and relied upon by which components.
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
-	//qq might prefer for this to be a class now
-	public struct OriginalStreamData {
-		public OriginalStreamData(
+	public struct MetastreamData {
+		public MetastreamData(
 			bool isTombstoned,
-			TimeSpan? maxAge,
-			DiscardPoint discardPoint,
-			DiscardPoint maybeDiscardPoint) {
+			DiscardPoint discardPoint) {
 
 			IsTombstoned = isTombstoned;
-			MaxAge = maxAge;
 			DiscardPoint = discardPoint;
-			MaybeDiscardPoint = maybeDiscardPoint;
-			//qqq need to reconsider whether we can store the metadata directly against the stream now
-			// that we have a bespoke storage of the hash users. then we could get rid of this
 		}
 
-		public bool IsTombstoned { get; }
+		public bool IsTombstoned { get; } //qqqqqq probably dont need this
 		public DiscardPoint DiscardPoint { get; }
-		public DiscardPoint MaybeDiscardPoint { get; }
-		//qq go through the OriginalStreadmData and the MetastreamData and make sure we are clear
-		// about which pieces are data are set and relied upon by which components.
-		//qqqqqqqq we might want the most recent maxage instead here (in seconds? minutes?)
-		//qq only store as much precision as we need
-		public TimeSpan? MaxAge { get; }
 	}
 
 	// store a range per chunk so that the calculator can definitely get a timestamp range for each event
@@ -697,10 +680,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	//qq REDACTION
 	//  needs notes
-	//
+
 	//qq TOMBSTONES
 	// tldr: tombstones do not necessarily have eventnumber int.maxvalue or long.maxvalue.
-	// but they do have PrepareFlags.StreamDelete.
+	//       but they do have PrepareFlags.StreamDelete.
+	//       we are therefore reluctant to just have the accumulator capture tombstones the DiscardPoint
+	//       because it won't be obvious that the discard point represents a tombstone. some cases later
+	//       _might_ involve moving the DiscardPoint backwards but we must not do that if it represents
+	//       a tombstone. For now keep it simple and obvious and store the istombstone explicitly
+	//       and _not_ in the discard point.
+	// 
 	//
 	// Although the StorageWriterService does, these days, create tombstones with
 	// EventNumber = EventNumber.DeletedStream the TFChunkScavenger, IndexComitter, and IndexWriter are
@@ -722,6 +711,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//  - saves us from needing to spot tombtones (via their prepare flags) in the chunk executor,
 	//    just obey the DP.
 	//
+	//qq tempting to 'optimise' this to a smaller size by storing the the 'IsTombstoned' and maybe
+	// the TruncateBefore _in_ the DiscardPoint, but it would make the semantics less clear, the code
+	// less obvious and probably less flexible. dont optimise this yet.
+
 	//qq OLD INDEX SCAVENGE TESTS
 	// - there is no need to run these tests against new scavenge.
 	// - in a nutshell they test the TableIndex (and PTables), which new and old scavenge both use.
@@ -741,6 +734,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// of the scavenge point itself? questions is whether there is any need to scavenge
 		// at a different time or place.
 		//qq consider that at the time we place the scavenge point it is not in a scavengable chunk
+		//   we should probably capture that behaviour here and have Position (rename to
+		//   EffectivePosition?) return the point that we can really scavenge up to, whatever that is.
 
 		public long Position { get; set; }
 		public DateTime EffectiveNow { get; set; }

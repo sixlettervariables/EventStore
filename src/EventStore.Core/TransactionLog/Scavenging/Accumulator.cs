@@ -4,16 +4,13 @@ using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Accumulator<TStreamId> : IAccumulator<TStreamId> {
-		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
 
 		public Accumulator(
-			ILongHasher<TStreamId> hasher,
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkReaderForAccumulator<TStreamId> chunkReader) {
 
-			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
 			_chunkReader = chunkReader;
 		}
@@ -138,9 +135,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		// For every metadata record
-		//   - check if the stream collides
-		//   - cache the metadata against the metadatastream handle.
-		//         this causes scavenging of the original stream and the metadata stream.
+		//   - check if the metastream or originalstream collide with anything
+		//   - cache the metadata against the original stream so the calculator can calculate the
+		//         discard point.
+		//   - update the discard point of the metadatastream
 		//qq definitely add a test that metadata records get scavenged though
 		private void ProcessMetadata(
 			RecordForAccumulator<TStreamId>.MetadataRecord record,
@@ -153,70 +151,91 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return;
 			}
 
+			// Metadata record in a metadata stream
 			var originalStreamId = _metastreamLookup.OriginalStreamOf(record.StreamId);
 			state.DetectCollisions(originalStreamId);
 			state.DetectCollisions(record.StreamId);
 
-			if (!state.TryGetMetastreamData(record.StreamId, out var metaStreamData))
-				metaStreamData = MetastreamData.Empty;
+			// Update the MetastreamData
+			//qqqqqqq if we get rid of tombstoned then we probably dont need to do a lookup here
+			// instead just set.
+			if (!state.TryGetMetastreamData(record.StreamId, out var metastreamData))
+				metastreamData = default;
 
-			//qqqq set the new stream data, leave the harddeleted flag alone.
-			// consider if streamdata really wants to be immutable. also c# records not supported in v5
-			var originalStream = _metastreamLookup.OriginalStreamOf(record.StreamId);
-			var newStreamData = new MetastreamData {
-				OriginalStreamHash = _hasher.Hash(originalStream),
+			var newMetastreamData = new MetastreamData(
+				//qq consider: if we were tombstoned, and we just got a new metadata record,
+				// that would be rather unexpected. throw? or maybe dont even detect.
+				isTombstoned: metastreamData.IsTombstoned,
+				//qq event number wont be set if this metadata is in a transaction,
+				discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
+
+			state.SetMetastreamData(record.StreamId, newMetastreamData);
+
+			// Update the OriginalStreamData
+			if (!state.TryGetOriginalStreamData(originalStreamId, out var originalStreamData))
+				originalStreamData = OriginalStreamData.Empty;
+
+			var newStreamData = new OriginalStreamData {
+				IsTombstoned = originalStreamData.IsTombstoned,
+
+				//qqqq consider, for subsequent scavenge purposes, whether the discard points here
+				// should be affected by the metadata change.
+				// suspecting probably not. suspect when you drop a scavengepoint that closes your window
+				// to expand the metadata again.... although reads don't know that. hmm.
+				// - bear in mind we want it to be deterministic so it might be _necessary_ that we don't
+				//   allow the discardpoint to move backwards here
+				// - but if we do want to allow it to move backwards we could possibly record more data
+				//   here to indicate to the calculator that it has extra work to do
+				DiscardPoint = originalStreamData.DiscardPoint,
+				MaybeDiscardPoint = originalStreamData.MaybeDiscardPoint,
+
 				MaxAge = record.Metadata.MaxAge,
 				MaxCount = record.Metadata.MaxCount,
 				TruncateBefore = record.Metadata.TruncateBefore,
-				//qq put this in IsTombstoned = metaStreamData.IsTombstoned,
-				//qq probably only want to increase the discard point here, in order to respect tombstone
-				// although... if there was a tombstone then this record shouldn't exist, and if it does
-				// we probably want to ignore it
-				//qq event number wont be set if this metadata is in a transaction,
-				// unless we use teh allreader.
-				DiscardPoint = DiscardPoint.DiscardBefore(record.EventNumber),
-				
 			};
 
-			state.SetMetastreamData(record.StreamId, newStreamData);
+			state.SetOriginalStreamData(originalStreamId, newStreamData);
 		}
 
 		// For every tombstone
 		//   - check if the stream collides
 		//   - set the discard point for the stream that the tombstone was found in to discard
 		//     everything before the tombstone
+		//   - set the istombstoned flag to true
 		private void ProcessTombstone(
 			RecordForAccumulator<TStreamId>.TombStoneRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
 			state.DetectCollisions(record.StreamId);
 
-			// it is possible, though maybe very unusual, to find a tombstone in a metadata stream
 			if (_metastreamLookup.IsMetaStream(record.StreamId)) {
-				if (!state.TryGetMetastreamData(record.StreamId, out var metaStreamData))
-					metaStreamData = MetastreamData.Empty;
+				// it is possible, though maybe very unusual, to find a tombstone in a metadata stream
+				//qq unusual enough that we can detect and abort?
 
-				var newMetaStreamData = new MetastreamData {
-					OriginalStreamHash = metaStreamData.OriginalStreamHash,
-					MaxAge = metaStreamData.MaxAge,
-					MaxCount = metaStreamData.MaxCount,
-					TruncateBefore = metaStreamData.TruncateBefore,
-					//qq does the existing discard point need encorporating?
-					//DiscardPoint = metaStreamData.DiscardPoint,
-					DiscardPoint = DiscardPoint.DiscardBefore(record.EventNumber),
-					IsTombstoned = true,
-				};
-				state.SetMetastreamData(record.StreamId, newMetaStreamData);
+				var newMetastreamData = new MetastreamData(
+					isTombstoned: true,
+					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber));
+
+				state.SetMetastreamData(record.StreamId, newMetastreamData);
+
+				//qq would presumably want to update the originalstreamdata to blank out the metadata
+
 			} else {
 				// get the streamData for the stream, tell it the stream is deleted
-				var originalStreamData = new OriginalStreamData(
-					isTombstoned: true,
-					//qq does any previous maxAge here need encorporating?
-					maxAge: null,
-					//qq does the existing discard point need encorporating?
-					discardPoint: DiscardPoint.DiscardBefore(record.EventNumber),
-					//qq does the existing discard point need encorporating?
-					maybeDiscardPoint: DiscardPoint.KeepAll);
+				// any previous metadata is no longer relevant.
+				var originalStreamData = new OriginalStreamData {
+					//qq does the existing discard point need encorporating? probably not
+					// we probably dont need to set the discard points here at all, the tombstonedflag
+					// fully describes what we want to happen at the calculator will set the discard point.
+					DiscardPoint = DiscardPoint.DiscardBefore(record.EventNumber),
+					MaybeDiscardPoint = DiscardPoint.DiscardBefore(record.EventNumber),
+
+					IsTombstoned = true,
+					MaxAge = null,
+					MaxCount = null,
+					TruncateBefore = null,
+				};
+
 				state.SetOriginalStreamData(record.StreamId, originalStreamData);
 			}
 		}

@@ -39,30 +39,32 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// call this to record what the current metadata is in a metadata stream.
 		// if there is previous metadata this will just overwrite it.
-		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData metastreamData);
+		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData data);
 		void SetMetastreamData(TStreamId streamId, MetastreamData streamData);
 
 		// no need for the accumulator to get the original stream data, all it does with it is sets it
 		// on tombstone, for which the previous value is not relevant.
-		void SetOriginalStreamData(TStreamId streamId, OriginalStreamData originalStreamData);
+		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData data);
+		void SetOriginalStreamData(TStreamId streamId, OriginalStreamData data);
 		
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
 	}
 
 	public interface IScavengeStateForCalculator<TStreamId> {
-		// Calculator iterates through the scavengable streams and their metadata
+		// Calculator iterates through the scavengable original streams and their metadata
+		// it doesn't need to do anything with the metadata streams, accumulator has done those.
 		//qq note we dont have to _store_ the metadatas for the metadatastreams internally, we could
 		// store them separately. (i think i meant e.g. store their address in the log)
-		IEnumerable<(StreamHandle<TStreamId> MetadataStreamHandle, MetastreamData)> MetastreamDatas { get; }
+		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge { get; }
 
 		bool TryGetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
-			out OriginalStreamData originalStreamData);
+			out OriginalStreamData data);
 
 		//qq we set a discard point for every relevant stream.
 		void SetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
-			OriginalStreamData originalStreamData);
+			OriginalStreamData data);
 
 		//qq consider api
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
@@ -77,8 +79,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForChunkExecutor<TStreamId> {
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
 		void SetChunkWeight(int logicalChunkNumber, float weight);
-		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData originalStreamData);
-		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData metaStreamData);
+		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData data);
+		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData data);
 	}
 
 	//qq needs to work for metadata streams and also for original streams

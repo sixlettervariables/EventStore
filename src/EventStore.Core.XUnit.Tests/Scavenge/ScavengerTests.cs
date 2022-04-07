@@ -322,7 +322,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				var sut = new Scavenger<string>(
 					scavengeState,
 					new Accumulator<string>(
-						hasher: hasher,
 						metastreamLookup: metastreamLookup,
 						chunkReader: new ScaffoldChunkReaderForAccumulator(log)),
 					new Calculator<string>(
@@ -342,17 +341,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					new ScaffoldScavengePointSource(scavengePoint));
 
 				sut.Start(new FakeTFScavengerLog()); //qq irl how do we know when its done
-
-				//qqqqqqqq ACCUMULATE (the accumulator does this, remove once the tests are passing)
-				// iterate through the log, detecting collisions and accumulating metadatas
-				//for (var i = 0; i < log.Length; i++) {
-				//	var record = log[i];
-				//	scavengeState.DetectCollisions(record.StreamName, i);
-
-				//	if (metastreamLookup.IsMetaStream(record.StreamName)) {
-				//		scavengeState.SetMetastreamData(record.StreamName, record.MetastreamData);
-				//	}
-				//}
 
 				//qq we do some naive calculations here that are inefficient but 'obviously correct'
 				// we might want to consider breaking them out and writing some simple tests for them
@@ -404,46 +392,75 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 				// 2. Find the metadata for each stream, by stream name
 				// 2a. naively calculate the expected metadata per stream
-				var expectedMetadataPerStream = new Dictionary<string, MetastreamData>();
+				var expectedOriginalStreamDatas = new Dictionary<string, OriginalStreamData>();
 				foreach (var chunk in originalLog) {
 					foreach (var record in chunk) {
 						if (!(record is PrepareLogRecord prepare))
 							continue;
 
-						if (prepare.EventType != SystemEventTypes.StreamMetadata)
-							continue;
+						if (metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
+							if (prepare.EventType == SystemEventTypes.StreamMetadata) {
+								// metadata in a metadatastream
+								var originalStreamId = metastreamLookup.OriginalStreamOf(
+									prepare.EventStreamId);
 
-						//qq need?
-						//if (!SystemStreams.IsMetastream(prepare.EventStreamId))
-						//	continue;
+								if (!expectedOriginalStreamDatas.TryGetValue(
+									originalStreamId,
+									out var data)) {
 
-						var metadata = StreamMetadata.FromJsonBytes(prepare.Data);
+									data = OriginalStreamData.Empty;
+								}
 
-						var metaStreamData = new MetastreamData {
-							MaxAge = metadata.MaxAge,
-							MaxCount = metadata.MaxCount,
-							TruncateBefore = metadata.TruncateBefore,
-							//qq need? DiscardPoint = ?,
-							//qq need? OriginalStreamHash = ?
-						};
+								var metadata = StreamMetadata.FromJsonBytes(prepare.Data);
 
-						expectedMetadataPerStream[prepare.EventStreamId] = metaStreamData;
+								data = new OriginalStreamData {
+									MaxAge = metadata.MaxAge,
+									MaxCount = metadata.MaxCount,
+									TruncateBefore = metadata.TruncateBefore,
+									IsTombstoned = data.IsTombstoned,
+									//qq need? DiscardPoint = ?,
+									//qq need? OriginalStreamHash = ?
+								};
+
+								expectedOriginalStreamDatas[originalStreamId] = data;
+							}
+						} else {
+							if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
+								// tombstone in an original stream
+								if (!expectedOriginalStreamDatas.TryGetValue(
+									prepare.EventStreamId,
+									out var data)) {
+
+									data = OriginalStreamData.Empty;
+								}
+
+								data = new OriginalStreamData {
+									MaxAge = data.MaxAge,
+									MaxCount = data.MaxCount,
+									TruncateBefore = data.TruncateBefore,
+									IsTombstoned = true,
+								};
+
+								expectedOriginalStreamDatas[prepare.EventStreamId] = data;
+							}
+						}
 					}
 				}
 
 				// 2b. assert that we can find each one
 				//qq should also check that we dont have any extras
-				var compareOnlyMetadata = new CompareOnlyMetadata();
-				foreach (var kvp in expectedMetadataPerStream) {
-					if (!scavengeState.TryGetMetastreamData(kvp.Key, out var meta))
-						meta = MetastreamData.Empty;
-					Assert.Equal(kvp.Value, meta, compareOnlyMetadata);
+				var compareOnlyMetadata = new CompareOnlyMetadataAndTombstone();
+				foreach (var kvp in expectedOriginalStreamDatas) {
+					if (!scavengeState.TryGetOriginalStreamData(kvp.Key, out var originalStreamData))
+						originalStreamData = OriginalStreamData.Empty;
+					Assert.Equal(kvp.Value, originalStreamData, compareOnlyMetadata);
 				}
 
 				// 3. Iterate through the metadatas, find the appropriate handles.
 				// 3a. naively calculate the expected handles. one for each metadata, some by hash,
 				// some by streamname
-				var expectedHandles = expectedMetadataPerStream
+				//qq can/should probably check the handles of the metastream discard points too
+				var expectedHandles = expectedOriginalStreamDatas
 					.Select(kvp => {
 						var stream = kvp.Key;
 						var metadata = kvp.Value;
@@ -457,7 +474,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 				// 3b. compare to the actual handles.
 				var actual = scavengeState
-					.MetastreamDatas
+					.OriginalStreamsToScavenge
 					.Select(x => (x.Item1.ToString(), x.Item2))
 					.OrderBy(x => x.Item1);
 
@@ -560,8 +577,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				}
 			}
 
-			class CompareOnlyMetadata : IEqualityComparer<MetastreamData> {
-				public bool Equals(MetastreamData x, MetastreamData y) {
+			class CompareOnlyMetadataAndTombstone : IEqualityComparer<OriginalStreamData> {
+				public bool Equals(OriginalStreamData x, OriginalStreamData y) {
 					if ((x == null) != (y == null))
 						return false;
 
@@ -569,12 +586,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						return true;
 
 					return
+						x.IsTombstoned == y.IsTombstoned &&
 						x.MaxCount == y.MaxCount &&
 						x.MaxAge == y.MaxAge &&
 						x.TruncateBefore == y.TruncateBefore;
 				}
 
-				public int GetHashCode(MetastreamData obj) {
+				public int GetHashCode(OriginalStreamData obj) {
 					throw new NotImplementedException();
 				}
 			}

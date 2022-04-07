@@ -567,7 +567,6 @@ namespace EventStore.Core {
 				// affected by the log format ofc.
 				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
 				var accumulator = new Accumulator<string>(
-					longHasher,
 					metastreamLookup,
 					new ChunkReaderForAccumulator<string>());
 
