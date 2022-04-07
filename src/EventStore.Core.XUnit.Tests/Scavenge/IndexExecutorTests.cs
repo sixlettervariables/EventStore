@@ -1,5 +1,4 @@
-﻿using EventStore.Core.Data;
-using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+﻿using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
@@ -7,7 +6,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// we still do so by testing high level scavenge cases because we are well geared up
 	// for that and testing the IndexExeecutor directly would involve more mocks than it is worth.
 	public class IndexExecutorTests : ScavengerTestsBase {
-		private static readonly StreamMetadata _maxCount2 = new StreamMetadata(maxCount: 2);
 		[Fact]
 		public void nothing_to_scavenge() {
 			CreateScenario(x => x
@@ -28,7 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(0, "ab-1"),
 					Rec.Prepare(1, "ab-1"),
 					Rec.Prepare(2, "ab-1"),
-					Rec.Prepare(3, "$$ab-1", "$metadata", metadata: _maxCount2))
+					Rec.Prepare(3, "$$ab-1", "$metadata", metadata: MaxCount2))
 				.CompleteLastChunk())
 				.Run(x => new[] {
 					x.Recs[0].KeepIndexes(1, 2, 3)
@@ -43,7 +41,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Rec.Prepare(1, "cb-2"),
 					Rec.Prepare(2, "ab-1"),
 					Rec.Prepare(3, "ab-1"),
-					Rec.Prepare(4, "$$ab-1", "$metadata", metadata: _maxCount2))
+					Rec.Prepare(4, "$$ab-1", "$metadata", metadata: MaxCount2))
 				.CompleteLastChunk())
 				.Run(x => new[] {
 					x.Recs[0].KeepIndexes(1, 2, 3, 4)

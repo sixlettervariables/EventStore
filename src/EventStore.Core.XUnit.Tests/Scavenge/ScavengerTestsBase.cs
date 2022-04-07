@@ -11,232 +11,23 @@ using EventStore.Core.TransactionLog.Scavenging;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ScavengerTests : ScavengerTestsBase {
-		private static readonly StreamMetadata _meta1 = new StreamMetadata(maxCount: 1);
-		private static readonly StreamMetadata _meta2 = new StreamMetadata(maxCount: 2);
-		private static readonly StreamMetadata _meta3 = new StreamMetadata(maxCount: 3);
-		private static readonly StreamMetadata _meta4 = new StreamMetadata(maxCount: 4);
-
-		//qq there is Rec.TransSt and TransEnd.. what do prepares and commits mean here without those?
-		// probably applies to every test in here
-		[Fact]
-		public void Trivial() {
-			CreateScenario(x => x
-				.Chunk(
-					// the first letter of the stream name determines its hash value
-					// a-1:       a stream called "a-1" which hashes to "a"
-					Rec.Prepare(0, "ab-1"),
-
-					// setting metadata for a-1, which does not collide with a-1
-					//qq um this isn't in a metadata stream so it probably wont be recognised as metadata
-					// instead the stream should be called "ma1" which hashes to #a "$$ma1" which hashes
-					// to #m and the hasher chooses which character depending on whether it is a metadta
-					// stream.
-					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: _meta1))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
-				});
-		}
-
-		[Fact]
-		public void seen_stream_before() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(1, "ab-1"))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
-				});
-		}
-
-		[Fact]
-		public void collision() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(1, "ab-2"))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
-				});
-		}
-
-		[Fact]
-		public void metadata_non_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: _meta1))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
-				});
-		}
-
-		//qq now that we are keying on the metadta streams, does that mean that we don't
-		// need to many cases here? like whether or not the original streams collide might not be
-		// relevant any more.
-		//
-		//qqqqqqqqqqqqq do we want to bake tombstones into here as well
-		[Fact]
-		public void metadata_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "aa-1"),
-					Rec.Prepare(1, "$$aa-1", "$metadata", metadata: _meta1))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1)
-				});
-		}
-
-		[Fact]
-		public void metadata_applies_to_correct_stream_in_hidden_collision() {
-			// metastream sets metadata for stream ab-1 (which hashes to b)
-			// but that stream doesn't exist.
-			// make sure that cb-2 (which also hashes to b) does not pick up that metadata.
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "cb-2"),
-					Rec.Prepare(2, "cb-2"))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1, 2)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_non_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$cd-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$cd-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_all_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$aa-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$aa-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$aa-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$aa-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_original_streams_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$cb-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$cb-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_meta_streams_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$ac-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$ac-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_original_and_meta_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$ab-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$ab-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_different_streams_cross_colliding() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$ba-2", "$metadata", metadata: _meta2),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: _meta3),
-					Rec.Prepare(3, "$$ba-2", "$metadata", metadata: _meta4))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
-				});
-		}
-
-		[Fact]
-		public void metadatas_for_same_stream() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: _meta1),
-					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: _meta2))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(1)
-				});
-		}
-
-		//qq we are expecting to actually get something scavenged here
-		// use this as a vehicle to
-		//  a) get it scavenged
-		//  b) test that it was scavenged successfully. <- compare to the normal scavenge tests
-		//qqq we will probably want a set of these to test out collisions when there are tombstones
-		// and a set for collisions when there is metadata (maybe combination metadata and tombstone)
-		// but shouldn't need to test different kinds of metadata
-		[Fact]
-		public void simple_tombstone() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Delete(1, "ab-1"))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(1)
-				});
-		}
-
-		[Fact]
-		public void single_tombstone() {
-			CreateScenario(x => x
-				.Chunk(
-					Rec.Delete(1, "ab-1"))
-				.CompleteLastChunk())
-				.Run(x => new[] {
-					x.Recs[0].KeepIndexes(0)
-				});
-		}
-	}
-
 	public class ScavengerTestsBase {
+		protected static StreamMetadata TruncateBefore1 { get; } = new StreamMetadata(truncateBefore: 1);
+		protected static StreamMetadata TruncateBefore2 { get; } = new StreamMetadata(truncateBefore: 2);
+		protected static StreamMetadata TruncateBefore3 { get; } = new StreamMetadata(truncateBefore: 3);
+		protected static StreamMetadata TruncateBefore4 { get; } = new StreamMetadata(truncateBefore: 4);
+
+		protected static StreamMetadata MaxCount1 { get; } = new StreamMetadata(maxCount: 1);
+		protected static StreamMetadata MaxCount2 { get; } = new StreamMetadata(maxCount: 2);
+		protected static StreamMetadata MaxCount3 { get; } = new StreamMetadata(maxCount: 3);
+		protected static StreamMetadata MaxCount4 { get; } = new StreamMetadata(maxCount: 4);
+
+		protected static StreamMetadata MaxAgeMetadata { get; } =
+			new StreamMetadata(maxAge: TimeSpan.FromDays(2));
+
 		protected static DateTime EffectiveNow { get; } = new DateTime(2022, 1, 5, 00, 00, 00);
+		protected static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
+		protected static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
 
 		protected Scenario CreateScenario(Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> createDb) {
 			return new Scenario(createDb);
@@ -312,12 +103,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					chunkTimeStampRangesStorage,
 					chunkWeightStorage);
 
-				//qq we presumably want to actually get this from the log.
-				var scavengePoint = new ScavengePoint {
-					EffectiveNow = EffectiveNow,
-					Position = 123_000, //qq
-				};
-
 				var indexScavenger = new ScaffoldStuffForIndexExecutor(originalLog, hasher);
 				var sut = new Scavenger<string>(
 					scavengeState,
@@ -338,7 +123,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					new IndexExecutor<string>(
 						indexScavenger: indexScavenger,
 						streamLookup: new ScaffoldChunkReaderForIndexExecutor(log)),
-					new ScaffoldScavengePointSource(scavengePoint));
+					new ScaffoldScavengePointSource(log, EffectiveNow));
 
 				sut.Start(new FakeTFScavengerLog()); //qq irl how do we know when its done
 
@@ -451,8 +236,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				//qq should also check that we dont have any extras
 				var compareOnlyMetadata = new CompareOnlyMetadataAndTombstone();
 				foreach (var kvp in expectedOriginalStreamDatas) {
-					if (!scavengeState.TryGetOriginalStreamData(kvp.Key, out var originalStreamData))
-						originalStreamData = OriginalStreamData.Empty;
+					Assert.True(
+						scavengeState.TryGetOriginalStreamData(kvp.Key, out var originalStreamData),
+						$"could not find metadata for stream {kvp.Key}");
 					Assert.Equal(kvp.Value, originalStreamData, compareOnlyMetadata);
 				}
 
@@ -556,7 +342,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			private static void CheckIndex(LogRecord[][] expected, LogRecord[][] actual) {
 				Assert.True(
 					expected.Length == actual.Length,
-					"IndexCheck. Wrong number of chunks. " +
+					"IndexCheck. Wrong number of index-chunks. " +
 					$"Expected {expected.Length}. Actual {actual.Length}");
 
 				for (int i = 0; i < expected.Length; ++i) {
@@ -564,13 +350,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 					Assert.True(
 						expected[i].Length == chunkRecords.Length,
-						$"IndexCheck. Wrong number of records in chunk #{i}. " +
+						$"IndexCheck. Wrong number of records in index-chunk #{i}. " +
 						$"Expected {expected[i].Length}. Actual {chunkRecords.Length}");
 
 					for (int j = 0; j < expected[i].Length; ++j) {
 						Assert.True(
 							expected[i][j].Equals(chunkRecords[j]),
-							$"IndexCheck. Wrong log record #{j} read from chunk #{i}.\r\n" +
+							$"IndexCheck. Wrong log record #{j} read from index-chunk #{i}.\r\n" +
 							$"Expected {expected[i][j]}\r\n" +
 							$"Actual   {chunkRecords[j]}");
 					}
@@ -596,16 +382,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					throw new NotImplementedException();
 				}
 			}
-		}
-	}
-
-	public static class ArrayExtensions {
-		public static T[] KeepIndexes<T>(this T[] self, params int[] indexes) {
-			foreach (var i in indexes) {
-				Assert.True(i < self.Length, $"error in test: index {i} does not exist");
-			}
-
-			return self.Where((x, i) => indexes.Contains(i)).ToArray();
 		}
 	}
 

@@ -16,15 +16,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// memdb for rapid testing)
 
 	public class ScaffoldScavengePointSource : IScavengePointSource {
-		private readonly ScavengePoint _scavengePoint;
+		private readonly LogRecord[][] _log;
+		private readonly DateTime _effectiveNow;
 
-		public ScaffoldScavengePointSource(ScavengePoint scavengePoint) {
-			_scavengePoint = scavengePoint;
+		public ScaffoldScavengePointSource(
+			LogRecord[][] log,
+			DateTime effectiveNow) {
+
+			_log = log;
+			_effectiveNow = effectiveNow;
 		}
 
-		public ScavengePoint GetScavengePoint() {
-			return _scavengePoint;
-		}
+		public ScavengePoint GetScavengePoint() =>
+			//qq we presumably want to actually get this from the log.
+			new ScavengePoint {
+				EffectiveNow = _effectiveNow,
+				Position = _log.Length * 1 * 1024 * 1024,
+			};
 	}
 
 	public class ScaffoldChunkReaderForAccumulator : IChunkReaderForAccumulator<string> {

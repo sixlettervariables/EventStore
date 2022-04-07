@@ -57,7 +57,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return DiscardDecision.Keep;
 			}
 
-			//qqqqq some test should fail without this. in fact without any of these.
 			// for tombstoned streams, discard everything that isn't the last event
 			if (Stream.IsTombstoned) {
 				// we already know this is not the last event, so discard it.
