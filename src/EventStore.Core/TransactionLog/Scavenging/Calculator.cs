@@ -143,8 +143,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq although, the old scavenge might be capable of removing all the events
 					// after this scavenge point... which would produce this condition.
 					//
+					// so would not having any events in the stream
+					// or not having any events from 'fromEventNumber'
+					return;
 					// in these situatiosn what discard point should we return, or do we need to abort
-					throw new Exception("panic"); //qq dont panic really shouldn't
+					//throw new Exception("panic"); //qq dont panic really shouldn't
 				}
 
 				fromEventNumber += slice.Length;

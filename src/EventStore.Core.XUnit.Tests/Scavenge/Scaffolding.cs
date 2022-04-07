@@ -120,7 +120,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		public EventInfo[] ReadEventInfoForward(
-			StreamHandle<string> stream,
+			StreamHandle<string> handle,
 			long fromEventNumber,
 			int maxCount,
 			ScavengePoint scavengePoint) {
@@ -134,10 +134,28 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					if (record.LogPosition >= stopBefore)
 						goto Done;
 
+					if (result.Count >= maxCount)
+						goto Done;
+
 					if (!(record is PrepareLogRecord prepare))
 						continue;
 
-					//qqqqqqqqq filter according to stream
+					if (prepare.ExpectedVersion + 1 < fromEventNumber)
+						continue;
+
+					switch (handle.Kind) {
+						case StreamHandle.Kind.Hash:
+							if (_hasher.Hash(prepare.EventStreamId) == handle.StreamHash)
+								break;
+							continue;
+						case StreamHandle.Kind.Id:
+							if (prepare.EventStreamId == handle.StreamId)
+								break;
+							continue;
+						default:
+							throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
+					}
+
 					result.Add(new EventInfo(prepare.LogPosition, prepare.ExpectedVersion + 1));
 				}
 			}
