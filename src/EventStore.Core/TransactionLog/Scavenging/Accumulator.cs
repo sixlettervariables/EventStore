@@ -98,11 +98,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq there may be other cases... the 'empty write', the system record (epoch)
 					// which we might still want to get the timestamp of.
 					// oh and commit records which we probably want to handle the same as prepares
-					case RecordForAccumulator<TStreamId>.EventRecord x:
-						ProcessEvent(x, state);
+					case RecordForAccumulator<TStreamId>.OriginalStreamRecord x:
+						ProcessOriginalStreamRecord(x, state);
 						break;
-					case RecordForAccumulator<TStreamId>.MetadataRecord x:
-						ProcessMetadata(x, state);
+					case RecordForAccumulator<TStreamId>.MetadataStreamRecord x:
+						ProcessMetaStreamRecord(x, state);
 						break;
 					case RecordForAccumulator<TStreamId>.TombStoneRecord x:
 						ProcessTombstone(x, state);
@@ -115,7 +115,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return true;
 		}
 
-		// For every* event we need to see if its stream collides.
+		// For every* record in an original stream we need to see if its stream collides.
 		// its not so bad, because we have a cache
 		// * maybe not every.. beyond a certain point we only need to check records with eventnumber 0
 		//    (and perhaps -1 to cover transactions)
@@ -123,44 +123,46 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//      - have to identify the point at which we can switch to just checking 0s
 		//qq    - is it possible that a new stream starts at non-zero without already having been checked
 		//        before? seems unlikely.. 
-		private static void ProcessEvent(
-			RecordForAccumulator<TStreamId>.EventRecord record,
+		private static void ProcessOriginalStreamRecord(
+			RecordForAccumulator<TStreamId>.OriginalStreamRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
 			state.DetectCollisions(record.StreamId);
 		}
 
-		// For every metadata record
+		// For every record in a metadata stream
 		//   - check if the metastream or originalstream collide with anything
-		//   - cache the metadata against the original stream so the calculator can calculate the
+		//   - store the metadata against the original stream so the calculator can calculate the
 		//         discard point.
 		//   - update the discard point of the metadatastream
-		private void ProcessMetadata(
-			RecordForAccumulator<TStreamId>.MetadataRecord record,
+		// the actual type of the record isn't relevant. if it is in a metadata stream it affects
+		// the metadata. if its data parses to streammetadata then thats the metadata. if it doesn't
+		// parse, then it clears the metadata.
+		private void ProcessMetaStreamRecord(
+			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
-			if (!_metastreamLookup.IsMetaStream(record.StreamId)) {
-				// found metadata record that isn't in a metadata stream.
-				// treat it the same as a normal event.
-				state.DetectCollisions(record.StreamId);
-				return;
-			}
-
-			// Metadata record in a metadata stream
 			var originalStreamId = _metastreamLookup.OriginalStreamOf(record.StreamId);
 			state.DetectCollisions(originalStreamId);
 			state.DetectCollisions(record.StreamId);
+
+			if (_metastreamLookup.IsMetaStream(originalStreamId)) {
+				// record in a metadata stream of a metadata stream: $$$$xyz
+				// this does not set metadata for $$xyz (which is fixed at maxcount1)
+				// but it does, itself, have a fixed metadta of maxcount1, so move the discard point.
+			} else {
+				// record is in a standard metadata stream: $$xyz
+				// Update the Metadata for stream xyz
+				state.SetMetadataForOriginalStream(originalStreamId, record.Metadata);
+			}
 
 			if (record.EventNumber < 0)
 				throw new InvalidOperationException(
 					$"Found metadata in transaction in stream {record.StreamId}");
 
-			// Update the MetastreamData
+			// Update the discard point
 			var discardPoint = DiscardPoint.DiscardBefore(record.EventNumber);
 			state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
-
-			// Update the Metadata
-			state.SetMetadataForOriginalStream(originalStreamId, record.Metadata);
 		}
 
 		// For every tombstone

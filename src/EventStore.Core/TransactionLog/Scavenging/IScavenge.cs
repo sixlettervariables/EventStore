@@ -126,7 +126,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq note dont use allreader to implement this, it has logic to deal with transactions, skips
 	// epochs etc.
 	public interface IChunkReaderForAccumulator<TStreamId> {
-		//qq tombstones to be identified by their prepare flags
 		IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(int logicalChunkNumber);
 	}
 
@@ -138,26 +137,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		//qq make sure to recycle these.
 		//qq prolly have readonly interfaces to implement, perhaps a method to return them for reuse
-		//qq some of these are pretty similar, wil lthey end up being different in the end
-		public class EventRecord : RecordForAccumulator<TStreamId> {
-			public EventRecord() {}
+		// Record in Original Stream
+		public class OriginalStreamRecord : RecordForAccumulator<TStreamId> {
+			public OriginalStreamRecord() {}
 		}
 
-		//qq how do we tell its a tombstone record, detect and abort if the tombstone is in a transaction
+		// Record in metadata stream
+		public class MetadataStreamRecord : RecordForAccumulator<TStreamId> {
+			public MetadataStreamRecord() {}
+			public StreamMetadata Metadata { get; set; }
+			public long EventNumber { get; set; }
+		}
+
+		// tombstones are identified by their prepare flags
 		// if thats even possible
 		public class TombStoneRecord : RecordForAccumulator<TStreamId> {
 			public TombStoneRecord() {}
 			// old scavenge, index writer and index committer are set up to handle
 			// tombstones that have abitrary event numbers, so lets handle them here
 			// in case it used to be possible to create them.
-			public long EventNumber { get; set; }
-		}
-
-		//qq make sure we only instantiate these for metadata records in metadata streams
-		// or maybe rather check that this is the case in the Accumulator
-		public class MetadataRecord : RecordForAccumulator<TStreamId> {
-			public MetadataRecord() {}
-			public StreamMetadata Metadata { get; set; }
 			public long EventNumber { get; set; }
 		}
 	}

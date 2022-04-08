@@ -49,11 +49,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForCalculator<TStreamId> {
 		// Calculator iterates through the scavengable original streams and their metadata
 		// it doesn't need to do anything with the metadata streams, accumulator has done those.
-		//qq note we dont have to _store_ the metadatas for the metadatastreams internally, we could
-		// store them separately. (i think i meant e.g. store their address in the log)
 		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge { get; }
 
-		//qq we set a discard point for every relevant stream.
 		void SetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
 			OriginalStreamData data);
@@ -62,8 +59,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
 	}
 
-	//qq needs to work for metadata streams and also for original streams
-	// but that is easy enough because we can see if the streamid is for a metastream or not
 	public interface IScavengeStateForChunkExecutor<TStreamId> {
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
 		void ResetChunkWeight(int logicalChunkNumber);
@@ -71,11 +66,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
 	}
 
-	//qq needs to work for metadata streams and also for original streams
-	//qq which is awkward because if we only have the hash we don't know which it is
-	// we would need to check in both maps which is not ideal.
-	//qq ^ the index executor should be smart enough though to only call this once per
-	//non-colliding stream.
 	public interface IScavengeStateForIndexExecutor<TStreamId> {
 		bool IsCollision(ulong streamHash);
 		//qq precondition: the streamhandle must be of the correct kind.

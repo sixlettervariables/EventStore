@@ -108,7 +108,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					scavengeState,
 					new Accumulator<string>(
 						metastreamLookup: metastreamLookup,
-						chunkReader: new ScaffoldChunkReaderForAccumulator(log)),
+						chunkReader: new ScaffoldChunkReaderForAccumulator(log, metastreamLookup)),
 					new Calculator<string>(
 						hasher: hasher,
 						index: new ScaffoldIndexForScavenge(log, hasher),
@@ -184,50 +184,49 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 							continue;
 
 						if (metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
-							if (prepare.EventType == SystemEventTypes.StreamMetadata) {
-								// metadata in a metadatastream
-								var originalStreamId = metastreamLookup.OriginalStreamOf(
-									prepare.EventStreamId);
+							var originalStreamId = metastreamLookup.OriginalStreamOf(
+								prepare.EventStreamId);
 
-								if (!expectedOriginalStreamDatas.TryGetValue(
-									originalStreamId,
-									out var data)) {
+							if (metastreamLookup.IsMetaStream(originalStreamId))
+								continue;
 
-									data = OriginalStreamData.Empty;
-								}
+							// metadata in a metadatastream
+							if (!expectedOriginalStreamDatas.TryGetValue(
+								originalStreamId,
+								out var data)) {
 
-								var metadata = StreamMetadata.FromJsonBytes(prepare.Data);
-
-								data = new OriginalStreamData {
-									MaxAge = metadata.MaxAge,
-									MaxCount = metadata.MaxCount,
-									TruncateBefore = metadata.TruncateBefore,
-									IsTombstoned = data.IsTombstoned,
-									//qq need? DiscardPoint = ?,
-									//qq need? OriginalStreamHash = ?
-								};
-
-								expectedOriginalStreamDatas[originalStreamId] = data;
+								data = OriginalStreamData.Empty;
 							}
-						} else {
-							if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
-								// tombstone in an original stream
-								if (!expectedOriginalStreamDatas.TryGetValue(
-									prepare.EventStreamId,
-									out var data)) {
 
-									data = OriginalStreamData.Empty;
-								}
+							var metadata = StreamMetadata.TryFromJsonBytes(prepare);
 
-								data = new OriginalStreamData {
-									MaxAge = data.MaxAge,
-									MaxCount = data.MaxCount,
-									TruncateBefore = data.TruncateBefore,
-									IsTombstoned = true,
-								};
+							data = new OriginalStreamData {
+								MaxAge = metadata.MaxAge,
+								MaxCount = metadata.MaxCount,
+								TruncateBefore = metadata.TruncateBefore,
+								IsTombstoned = data.IsTombstoned,
+								//qq need? DiscardPoint = ?,
+								//qq need? OriginalStreamHash = ?
+							};
 
-								expectedOriginalStreamDatas[prepare.EventStreamId] = data;
+							expectedOriginalStreamDatas[originalStreamId] = data;
+						} else if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
+							// tombstone in an original stream
+							if (!expectedOriginalStreamDatas.TryGetValue(
+								prepare.EventStreamId,
+								out var data)) {
+
+								data = OriginalStreamData.Empty;
 							}
+
+							data = new OriginalStreamData {
+								MaxAge = data.MaxAge,
+								MaxCount = data.MaxCount,
+								TruncateBefore = data.TruncateBefore,
+								IsTombstoned = true,
+							};
+
+							expectedOriginalStreamDatas[prepare.EventStreamId] = data;
 						}
 					}
 				}

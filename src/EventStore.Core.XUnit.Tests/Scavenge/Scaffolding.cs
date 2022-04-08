@@ -6,6 +6,7 @@ using System.Threading;
 using EventStore.Core.Data;
 using EventStore.Core.Index;
 using EventStore.Core.Index.Hashes;
+using EventStore.Core.LogAbstraction;
 using EventStore.Core.Services;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
@@ -37,9 +38,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 	public class ScaffoldChunkReaderForAccumulator : IChunkReaderForAccumulator<string> {
 		private readonly LogRecord[][] _log;
+		private readonly IMetastreamLookup<string> _metastreamLookup;
 
-		public ScaffoldChunkReaderForAccumulator(LogRecord[][] log) {
+		public ScaffoldChunkReaderForAccumulator(
+			LogRecord[][] log,
+			IMetastreamLookup<string> metastreamLookup) {
+
 			_log = log;
+			_metastreamLookup = metastreamLookup;
 		}
 
 		public IEnumerable<RecordForAccumulator<string>> ReadChunk(int logicalChunkNumber) {
@@ -54,27 +60,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				if (!(record is PrepareLogRecord prepare))
 					continue;
 
-				//qq in each case what is the sufficient condition
-				// do we worry about whether a user might have created system events
-				// in the wrong place, or with the wrong event number, etc.
-
-				if (prepare.EventType == SystemEventTypes.StreamMetadata) {
-					yield return new RecordForAccumulator<string>.MetadataRecord {
-						EventNumber = prepare.ExpectedVersion + 1,
-						LogPosition = prepare.LogPosition,
-						Metadata = StreamMetadata.FromJsonBytes(prepare.Data),
-						StreamId = prepare.EventStreamId,
-						TimeStamp = prepare.TimeStamp,
-					};
-				} else if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
+				if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
 					yield return new RecordForAccumulator<string>.TombStoneRecord {
 						EventNumber = prepare.ExpectedVersion + 1,
 						LogPosition = prepare.LogPosition,
 						StreamId = prepare.EventStreamId,
 						TimeStamp = prepare.TimeStamp,
 					};
+				} else if (_metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
+					yield return new RecordForAccumulator<string>.MetadataStreamRecord {
+						EventNumber = prepare.ExpectedVersion + 1,
+						LogPosition = prepare.LogPosition,
+						Metadata = StreamMetadata.TryFromJsonBytes(prepare),
+						StreamId = prepare.EventStreamId,
+						TimeStamp = prepare.TimeStamp,
+					};
 				} else {
-					yield return new RecordForAccumulator<string>.EventRecord {
+					yield return new RecordForAccumulator<string>.OriginalStreamRecord {
 						LogPosition = prepare.LogPosition,
 						StreamId = prepare.EventStreamId,
 						TimeStamp = prepare.TimeStamp,

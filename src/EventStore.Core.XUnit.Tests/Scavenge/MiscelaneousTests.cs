@@ -60,7 +60,47 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
-		public void metadata_in_normal_stream_ignored() {
+		public void metadata_for_metadata_stream_gets_scavenged() {
+			CreateScenario(x => x
+				.Chunk(
+					Rec.Prepare(0, "$$$$ab-1", "$metadata", metadata: MaxCount1),
+					Rec.Prepare(1, "$$$$ab-1", "$metadata", metadata: MaxCount2))
+				.CompleteLastChunk())
+				.Run(x => new[] {
+						x.Recs[0].KeepIndexes(1)
+					});
+		}
+
+		[Fact]
+		public void metadata_for_metadata_stream_does_not_apply() {
+			// e.g. can't increase the maxcount to three
+			CreateScenario(x => x
+				.Chunk(
+					Rec.Prepare(0, "$$$$ab-1", "$metadata", metadata: MaxCount3),
+					Rec.Prepare(1, "$$ab-1"),
+					Rec.Prepare(2, "$$ab-1"),
+					Rec.Prepare(3, "$$ab-1"),
+					Rec.Prepare(4, "$$ab-1"))
+				.CompleteLastChunk())
+				.Run(x => new[] {
+						x.Recs[0].KeepIndexes(0, 4)
+					});
+		}
+
+		[Fact]
+		public void metadata_metadata_applies_to_any_type() {
+			CreateScenario(x => x
+				.Chunk(
+					Rec.Prepare(0, "$$ab-1"),
+					Rec.Prepare(1, "$$ab-1"))
+				.CompleteLastChunk())
+				.Run(x => new[] {
+						x.Recs[0].KeepIndexes(1)
+					});
+		}
+
+		[Fact]
+		public void metadata_in_normal_stream_is_ignored() {
 			CreateScenario(x => x
 				.Chunk(
 					Rec.Prepare(0, "ab-1", "$metadata", metadata: MaxCount1),
