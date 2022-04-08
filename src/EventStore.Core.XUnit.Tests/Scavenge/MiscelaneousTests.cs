@@ -1,4 +1,5 @@
-﻿using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+﻿using System;
+using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
@@ -44,6 +45,20 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.Run(x => new[] {
 						x.Recs[0].KeepIndexes(2, 3, 4, 5)
 					});
+		}
+
+		[Fact]
+		public void metadata_in_transaction_not_supported() {
+			var e = Assert.Throws<InvalidOperationException>(() => {
+				CreateScenario(x => x
+					.Chunk(
+						Rec.TransSt(0, "$$ab-1"),
+						Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount1))
+					.CompleteLastChunk())
+					.Run();
+			});
+
+			Assert.Equal("Found metadata in transaction in stream $$ab-1", e.Message);
 		}
 	}
 }

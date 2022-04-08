@@ -38,9 +38,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Delete(0, "$$ab-1"))
 					.CompleteLastChunk())
-					.Run(x => new[] {
-						x.Recs[0].KeepIndexes(0)
-					});
+					.Run();
 			});
 
 			Assert.Equal("Found Tombstone in metadata stream $$ab-1", e.Message);

@@ -319,6 +319,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						shouldKeep(
 							new IndexEntry(
 								stream: _hasher.Hash(prepare.EventStreamId),
+								//qq expected version -1 for transaction prepares
 								version: prepare.ExpectedVersion + 1,
 								position: prepare.LogPosition)))
 					.ToArray())

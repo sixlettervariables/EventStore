@@ -156,8 +156,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			state.DetectCollisions(originalStreamId);
 			state.DetectCollisions(record.StreamId);
 
+			if (record.EventNumber < 0)
+				throw new InvalidOperationException(
+					$"Found metadata in transaction in stream {record.StreamId}");
+
 			// Update the MetastreamData
-			//qq event number wont be set if this metadata is in a transaction,
 			var discardPoint = DiscardPoint.DiscardBefore(record.EventNumber);
 			state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
 

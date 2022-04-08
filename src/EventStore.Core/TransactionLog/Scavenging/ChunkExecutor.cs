@@ -116,7 +116,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					scavengePoint,
 					record);
 
-				//qq hmm events in transactions do not have an EventNumber
 				if (discard) {
 					//qq discard record
 				} else {
@@ -151,6 +150,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			ScavengePoint scavengePoint,
 			RecordForScavenge<TStreamId> record) {
+
+			if (record.EventNumber < 0) {
+				//qq we can discard from transactions sometimes, copy the logic from old scavenge.
+				return false;
+			}
 
 			//qq consider how/where to cache the this stuff per stream for quick lookups
 			GetStreamExecutionDetails(
