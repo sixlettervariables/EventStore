@@ -37,7 +37,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					logicalChunkNumber++;
 				}
 			}
-			catch {
+			catch (ArgumentOutOfRangeException) {
 				//qq once the tests have scavengepoints we can remove this try/catch
 				// because the scavengepoints will stop the enumeration instead of
 				// running off of the end of the log like this
@@ -177,18 +177,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			state.DetectCollisions(record.StreamId);
 
 			if (_metastreamLookup.IsMetaStream(record.StreamId)) {
-				// it is possible, though maybe very unusual, to find a tombstone in a metadata stream
-				//qq unusual enough that we can detect and abort?
-
-				//qqqqqq event number wont be set if this metadata is in a transaction,
-				var discardPoint = DiscardPoint.DiscardBefore(record.EventNumber);
-				state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
-
-				//qqqqqqqqq would presumably want to update the originalstreamdata to blank out the metadata
-
-			} else {
-				state.SetTombstoneForOriginalStream(record.StreamId);
+				// isn't possible to write a tombstone to a metadatastream, but spot it in case
+				// it ever was possible.
+				throw new InvalidOperationException(
+					$"Found Tombstone in metadata stream {record.StreamId}");
 			}
+
+			state.SetTombstoneForOriginalStream(record.StreamId);
 		}
 	}
 }
