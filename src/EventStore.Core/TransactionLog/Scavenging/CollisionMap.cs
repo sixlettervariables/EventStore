@@ -16,16 +16,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// for retrieval, if you have the key then you can always get the value
 	// if you have the hash then what? //qq
 	// and you can iterate through everything.
-
-
-	//qq rename
-	public class CollisionManager<TKey, TValue> {
+	public class CollisionMap<TKey, TValue> {
 		private readonly IScavengeMap<ulong, TValue> _nonCollisions;
 		private readonly IScavengeMap<TKey, TValue> _collisions;
 		private readonly ILongHasher<TKey> _hasher;
 		private readonly Func<TKey, bool> _isCollision;
 
-		public CollisionManager(
+		public CollisionMap(
 			ILongHasher<TKey> hasher,
 			Func<TKey, bool> isCollision,
 			IScavengeMap<ulong, TValue> nonCollisions,

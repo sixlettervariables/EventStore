@@ -34,11 +34,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.False(sut.TryGetValue("a-2", out _));
 		}
 
-		private static CollisionManager<string, string> GenSut(
+		private static CollisionMap<string, string> GenSut(
 			ILongHasher<string> hasher,
 			IScavengeMap<string, Unit> collisions) {
 
-			var sut = new CollisionManager<string, string>(
+			var sut = new CollisionMap<string, string>(
 				hasher,
 				x => collisions.TryGetValue(x, out _),
 				new InMemoryScavengeMap<ulong, string>(),

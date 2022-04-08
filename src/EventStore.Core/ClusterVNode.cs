@@ -591,12 +591,12 @@ namespace EventStore.Core {
 					metastreamLookup,
 					new InMemoryScavengeMap<string, Unit>(),
 					new InMemoryScavengeMap<ulong, string>(),
-					new InMemoryScavengeMap<ulong, MetastreamData>(),
-					new InMemoryScavengeMap<string, MetastreamData>(),
-					new InMemoryScavengeMap<ulong, OriginalStreamData>(),
-					new InMemoryScavengeMap<string, OriginalStreamData>(),
+					new InMemoryScavengeMap<ulong, DiscardPoint>(),
+					new InMemoryScavengeMap<string, DiscardPoint>(),
+					new InMemoryOriginalStreamScavengeMap<ulong>(),
+					new InMemoryOriginalStreamScavengeMap<string>(),
 					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
-					new InMemoryScavengeMap<int, float>());
+					new InMemoryChunkWeightScavengeMap());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,

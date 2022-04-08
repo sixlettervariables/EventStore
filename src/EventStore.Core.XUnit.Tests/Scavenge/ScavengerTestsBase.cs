@@ -82,12 +82,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 				var collisionStorage = new InMemoryScavengeMap<string, Unit>();
 				var hashesStorage = new InMemoryScavengeMap<ulong, string>();
-				var metaStorage = new InMemoryScavengeMap<ulong, MetastreamData>();
-				var metaCollisionStorage = new InMemoryScavengeMap<string, MetastreamData>();
-				var originalStorage = new InMemoryScavengeMap<ulong, OriginalStreamData>();
-				var originalCollisionStorage = new InMemoryScavengeMap<string, OriginalStreamData>();
+				var metaStorage = new InMemoryScavengeMap<ulong, DiscardPoint>();
+				var metaCollisionStorage = new InMemoryScavengeMap<string, DiscardPoint>();
+				var originalStorage = new InMemoryOriginalStreamScavengeMap<ulong>();
+				var originalCollisionStorage = new InMemoryOriginalStreamScavengeMap<string>();
 				var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
-				var chunkWeightStorage = new InMemoryScavengeMap<int, float>();
+				var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
 
 				//qq date storage
 

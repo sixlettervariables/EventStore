@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeState<TStreamId> :
@@ -37,13 +38,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// collision to save ourselves work later.
 		void DetectCollisions(TStreamId streamId);
 
-		void SetMetastreamData(TStreamId streamId, MetastreamData streamData);
+		void SetMetastreamDiscardPoint(TStreamId streamId, DiscardPoint discardPoint);
 
-		// no need for the accumulator to get the original stream data, all it does with it is sets it
-		// on tombstone, for which the previous value is not relevant.
-		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData data);
-		void SetOriginalStreamData(TStreamId streamId, OriginalStreamData data);
-		
+		void SetMetadataForOriginalStream(TStreamId originalStreamId, StreamMetadata metadata);
+		void SetTombstoneForOriginalStream(TStreamId streamId);
+
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
 	}
 
@@ -59,9 +58,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			StreamHandle<TStreamId> streamHandle,
 			OriginalStreamData data);
 
-		//qq consider api
-		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
-		void SetChunkWeight(int logicalChunkNumber, float weight);
+		void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight);
 		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
 	}
 
@@ -69,9 +66,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// but that is easy enough because we can see if the streamid is for a metastream or not
 	public interface IScavengeStateForChunkExecutor<TStreamId> {
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
-		void SetChunkWeight(int logicalChunkNumber, float weight);
+		void ResetChunkWeight(int logicalChunkNumber);
 		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData data);
-		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData data);
+		bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
 	}
 
 	//qq needs to work for metadata streams and also for original streams

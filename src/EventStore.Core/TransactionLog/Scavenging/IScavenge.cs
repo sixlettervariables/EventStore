@@ -382,42 +382,30 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public OriginalStreamData() {
 		}
 
+		// Populated by Accumulator. Read by Calculator.
+		// (MaxAge also read by ChunkExecutor)
 		public long? MaxCount { get; set; }
 		public TimeSpan? MaxAge { get; set; } //qq can have limited precision?
 		public long? TruncateBefore { get; set; }
-
-		public DiscardPoint DiscardPoint { get; set; }
-		public DiscardPoint MaybeDiscardPoint { get; set; }
-
 		public bool IsTombstoned { get; set; }
 
-		//qq probably dont need this, but we could easily populate it if it is useful later.
-		// its tempting because is would allow us to easily see which stream the metadata is for
-		//public long MetadataPosition { get; set; }
+		// Populated by Calculator. Read by Calculator and Executors.
+		public DiscardPoint DiscardPoint { get; set; }
+		public DiscardPoint MaybeDiscardPoint { get; set; }
 
 		//qq prolly at the others
 		public override string ToString() =>
 			$"MaxCount: {MaxCount} " +
 			$"MaxAge: {MaxAge} " +
 			$"TruncateBefore: {TruncateBefore} " +
+			$"IsTombstoned: {IsTombstoned} " +
 			$"DiscardPoint: {DiscardPoint} " +
 			$"MaybeDiscardPoint: {MaybeDiscardPoint} " +
-			$"IsTombstoned: {IsTombstoned} " +
 			"";
 	}
 
-	//qq go through the OriginalStreadmData and the MetastreamData and make sure we are clear
-	// about which pieces are data are set and relied upon by which components.
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
-	public struct MetastreamData {
-		public MetastreamData(DiscardPoint discardPoint) {
-			DiscardPoint = discardPoint;
-		}
-
-		public DiscardPoint DiscardPoint { get; }
-	}
-
 	// store a range per chunk so that the calculator can definitely get a timestamp range for each event
 	// that is guaranteed to to contain the real timestamp of that event.
 	// if we inferred the min from the previous chunk, its possible than an incorrect clock could

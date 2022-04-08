@@ -44,8 +44,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				ExecutePhysicalChunk(scavengePoint, state, physicalChunk);
 
 				foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
-					//qq perhaps removing the chunk weight rather than setting it to zero
-					state.SetChunkWeight(logicalChunkNumber, 0);
+					//qq when to commit/flush, immediately probably
+					state.ResetChunkWeight(logicalChunkNumber);
 				}
 			}
 		}
@@ -190,9 +190,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				maxAge = null;
 				maybeDiscardPoint = DiscardPoint.KeepAll;
 
-				if (state.TryGetMetastreamData(streamId, out var metaStreamData)) {
-					discardPoint = metaStreamData.DiscardPoint;
-				} else {
+				if (!state.TryGetMetastreamDiscardPoint(streamId, out discardPoint)) {
 					discardPoint = DiscardPoint.KeepAll;
 				}
 			} else {
