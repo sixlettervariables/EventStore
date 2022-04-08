@@ -1,5 +1,4 @@
 ﻿using System;
-using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -119,18 +118,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// For every* event we need to see if its stream collides.
 		// its not so bad, because we have a cache
 		// * maybe not every.. beyond a certain point we only need to check records with eventnumber 0
+		//    (and perhaps -1 to cover transactions)
 		//    but doing so has some complications
-		//      - events in transactions dont have an event number... we could just check all of these
 		//      - have to identify the point at which we can switch to just checking 0s
-		//      - is it possible that a new stream starts at non-zero without already having been checked
+		//qq    - is it possible that a new stream starts at non-zero without already having been checked
 		//        before? seems unlikely.. 
 		private static void ProcessEvent(
 			RecordForAccumulator<TStreamId>.EventRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
-			//qq hmm for transactions does this need to be the prepare log position,
-			// the commit log position, or, in fact, both? it would need to be the prepare position.
-			//qq can metadata be written as part of a transaction (decided will detect and abort as an
-			// unsupported case)
+
 			state.DetectCollisions(record.StreamId);
 		}
 
@@ -139,7 +135,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//   - cache the metadata against the original stream so the calculator can calculate the
 		//         discard point.
 		//   - update the discard point of the metadatastream
-		//qq definitely add a test that metadata records get scavenged though
 		private void ProcessMetadata(
 			RecordForAccumulator<TStreamId>.MetadataRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {

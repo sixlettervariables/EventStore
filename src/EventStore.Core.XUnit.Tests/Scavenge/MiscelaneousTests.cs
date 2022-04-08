@@ -48,6 +48,31 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public void metadata_gets_scavenged() {
+			CreateScenario(x => x
+				.Chunk(
+					Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount1),
+					Rec.Prepare(1, "$$ab-1", "$metadata", metadata: MaxCount2))
+				.CompleteLastChunk())
+				.Run(x => new[] {
+						x.Recs[0].KeepIndexes(1)
+					});
+		}
+
+		[Fact]
+		public void metadata_in_normal_stream_ignored() {
+			CreateScenario(x => x
+				.Chunk(
+					Rec.Prepare(0, "ab-1", "$metadata", metadata: MaxCount1),
+					Rec.Prepare(1, "ab-1"),
+					Rec.Prepare(2, "ab-1"))
+				.CompleteLastChunk())
+				.Run(x => new[] {
+						x.Recs[0]
+					});
+		}
+
+		[Fact]
 		public void metadata_in_transaction_not_supported() {
 			var e = Assert.Throws<InvalidOperationException>(() => {
 				CreateScenario(x => x
