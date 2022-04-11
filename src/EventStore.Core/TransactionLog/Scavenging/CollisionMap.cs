@@ -34,12 +34,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_collisions = collisions;
 		}
 
-		public bool TryGetValue(TKey key, out TValue value) {
-			//qq important precondition: the key must already be checked for whether it collides.
-			return _isCollision(key)
+		//qq important precondition: the key must already be checked for whether it collides.
+		public bool TryGetValue(TKey key, out TValue value) =>
+			_isCollision(key)
 				? _collisions.TryGetValue(key, out value)
 				: _nonCollisions.TryGetValue(_hasher.Hash(key), out value);
-		}
 
 		//qq
 		// perhaps the difference is when providing a handle we are saying we know how we want to look

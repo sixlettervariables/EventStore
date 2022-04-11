@@ -401,6 +401,23 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			"";
 	}
 
+	// For ChunkExecutor, which implements maxAge more accurately than the index executor
+	public struct StreamExecutionDetails {
+		public StreamExecutionDetails(
+			DiscardPoint discardPoint,
+			DiscardPoint maybeDiscardPoint,
+			TimeSpan? maxAge) {
+
+			DiscardPoint = discardPoint;
+			MaybeDiscardPoint = maybeDiscardPoint;
+			MaxAge = maxAge;
+		}
+
+		public DiscardPoint DiscardPoint { get; }
+		public DiscardPoint MaybeDiscardPoint { get; }
+		public TimeSpan? MaxAge { get; }
+	}
+
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
 	// store a range per chunk so that the calculator can definitely get a timestamp range for each event

@@ -85,6 +85,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return _collisionDetector.GetAllCollisions();
 		}
 
+		public bool TryGetOriginalStreamData(
+			TStreamId streamId,
+			out OriginalStreamData originalStreamData) =>
+
+			_originalStreamDatas.TryGetValue(streamId, out originalStreamData);
 
 
 
@@ -163,11 +168,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkWeights.TryRemove(chunkNumber, out _);
 		}
 
-		public bool TryGetOriginalStreamData(
+		public bool TryGetStreamExecutionDetails(
 			TStreamId streamId,
-			out OriginalStreamData originalStreamData) =>
+			out StreamExecutionDetails details) =>
 
-			_originalStreamDatas.TryGetValue(streamId, out originalStreamData);
+			_originalStreamDatas.TryGetStreamExecutionDetails(streamId, out details);
 
 
 		public bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint) =>

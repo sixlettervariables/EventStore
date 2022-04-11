@@ -68,7 +68,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForChunkExecutor<TStreamId> {
 		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
 		void ResetChunkWeight(int logicalChunkNumber);
-		bool TryGetOriginalStreamData(TStreamId streamId, out OriginalStreamData data);
+		bool TryGetStreamExecutionDetails(TStreamId streamId, out StreamExecutionDetails details);
 		bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
 	}
 

@@ -12,5 +12,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			TKey key,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint);
+
+		bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details);
 	}
 }

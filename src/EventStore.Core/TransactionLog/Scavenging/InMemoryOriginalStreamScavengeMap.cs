@@ -61,5 +61,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			};
 		}
 
+		public bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details) {
+			if (!TryGetValue(key, out var data)) {
+				details = default;
+				return false;
+			}
+
+			// sqlite implementation would just select these columns
+			details = new StreamExecutionDetails(
+				discardPoint: data.DiscardPoint,
+				maybeDiscardPoint: data.MaybeDiscardPoint,
+				maxAge: data.MaxAge);
+
+			return true;
+		}
 	}
 }

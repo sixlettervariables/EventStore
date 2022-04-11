@@ -157,56 +157,50 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			//qq consider how/where to cache the this stuff per stream for quick lookups
-			GetStreamExecutionDetails(
+			var details = GetStreamExecutionDetails(
 				state,
-				record.StreamId,
-				out var definitePoint,
-				out var maybeDiscardPoint,
-				out var maxAge);
+				record.StreamId);
 
 			// if definitePoint says discard then discard.
-			if (definitePoint.ShouldDiscard(record.EventNumber)) {
+			if (details.DiscardPoint.ShouldDiscard(record.EventNumber)) {
 				return true;
 			}
 
 			// if maybeDiscardPoint says discard then maybe we can discard - depends on maxage
-			if (!maybeDiscardPoint.ShouldDiscard(record.EventNumber)) {
+			if (!details.MaybeDiscardPoint.ShouldDiscard(record.EventNumber)) {
 				// both discard points said do not discard, so dont.
 				return false;
 			}
 
-			if (!maxAge.HasValue) {
+			if (!details.MaxAge.HasValue) {
 				return false;
 			}
 
-			return record.TimeStamp < scavengePoint.EffectiveNow - maxAge;
+			return record.TimeStamp < scavengePoint.EffectiveNow - details.MaxAge;
 		}
 
-		private void GetStreamExecutionDetails(
+		private StreamExecutionDetails GetStreamExecutionDetails(
 			IScavengeStateForChunkExecutor<TStreamId> state,
-			TStreamId streamId,
-			out DiscardPoint discardPoint,
-			out DiscardPoint maybeDiscardPoint,
-			out TimeSpan? maxAge) {
+			TStreamId streamId) {
 
 			if (_metastreamLookup.IsMetaStream(streamId)) {
-				
-				maxAge = null;
-				maybeDiscardPoint = DiscardPoint.KeepAll;
-
-				if (!state.TryGetMetastreamDiscardPoint(streamId, out discardPoint)) {
+				if (!state.TryGetMetastreamDiscardPoint(streamId, out var discardPoint)) {
 					discardPoint = DiscardPoint.KeepAll;
 				}
+
+				return new StreamExecutionDetails(
+					discardPoint: discardPoint,
+					maybeDiscardPoint: DiscardPoint.KeepAll,
+					maxAge: null);
 			} else {
 				// original stream
-				if (state.TryGetOriginalStreamData(streamId, out var originalStreamData)) {
-					discardPoint = originalStreamData.DiscardPoint;
-					maybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
-					maxAge = originalStreamData.MaxAge;
+				if (state.TryGetStreamExecutionDetails(streamId, out var details)) {
+					return details;
 				} else {
-					discardPoint = DiscardPoint.KeepAll;
-					maybeDiscardPoint = DiscardPoint.KeepAll;
-					maxAge = null;
+					return new StreamExecutionDetails(
+						discardPoint: DiscardPoint.KeepAll,
+						maybeDiscardPoint: DiscardPoint.KeepAll,
+						maxAge: null);
 				}
 			}
 		}
