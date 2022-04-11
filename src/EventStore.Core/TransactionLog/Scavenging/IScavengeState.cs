@@ -57,9 +57,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForCalculator<TStreamId> :
 		IScavengeStateForCalculatorReadOnly<TStreamId> {
 
-		void SetOriginalStreamData(
+		void SetOriginalStreamDiscardPoints(
 			StreamHandle<TStreamId> streamHandle,
-			OriginalStreamData data);
+			DiscardPoint discardPoint,
+			DiscardPoint maybeDiscardPoint);
 
 		void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight);
 	}

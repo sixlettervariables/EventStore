@@ -135,11 +135,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge =>
 			_originalStreamDatas.Enumerate();
 
-		public void SetOriginalStreamData(
+		public void SetOriginalStreamDiscardPoints(
 			StreamHandle<TStreamId> handle,
-			OriginalStreamData discardPoint) {
+			DiscardPoint discardPoint,
+			DiscardPoint maybeDiscardPoint) {
 
-			_originalStreamDatas[handle] = discardPoint;
+			_originalStreamDatas.SetDiscardPoints(handle, discardPoint, maybeDiscardPoint);
 		}
 
 		public void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight) {

@@ -79,17 +79,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					continue;
 				}
 
-				var newOriginalStreamData = new OriginalStreamData {
-					IsTombstoned = originalStreamData.IsTombstoned,
-					MaxAge = originalStreamData.MaxAge,
-					MaxCount = originalStreamData.MaxCount,
-					TruncateBefore = originalStreamData.TruncateBefore,
-
-					DiscardPoint = adjustedDiscardPoint,
-					MaybeDiscardPoint = adjustedMaybeDiscardPoint,
-				};
-
-				state.SetOriginalStreamData(originalStreamHandle, newOriginalStreamData);
+				state.SetOriginalStreamDiscardPoints(
+					streamHandle: originalStreamHandle,
+					discardPoint: adjustedDiscardPoint,
+					maybeDiscardPoint: adjustedMaybeDiscardPoint);
 			}
 		}
 

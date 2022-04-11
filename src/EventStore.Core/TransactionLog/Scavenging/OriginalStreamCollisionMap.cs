@@ -38,5 +38,29 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			else
 				_nonCollisions.SetMetadata(_hasher.Hash(streamId), metadata);
 		}
+
+		public void SetDiscardPoints(
+			StreamHandle<TStreamId> handle,
+			DiscardPoint discardPoint,
+			DiscardPoint maybeDiscardPoint) {
+
+			switch (handle.Kind) {
+				case StreamHandle.Kind.Hash:
+					_nonCollisions.SetDiscardPoints(
+						handle.StreamHash,
+						discardPoint,
+						maybeDiscardPoint);
+					break;
+				case StreamHandle.Kind.Id:
+					_collisions.SetDiscardPoints(
+						handle.StreamId,
+						discardPoint,
+						maybeDiscardPoint);
+					break;
+				default:
+					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
+			}
+		}
+
 	}
 }
