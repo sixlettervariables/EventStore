@@ -391,7 +391,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public DiscardPoint DiscardPoint { get; set; }
 		public DiscardPoint MaybeDiscardPoint { get; set; }
 
-		//qq prolly at the others
 		public override string ToString() =>
 			$"MaxCount: {MaxCount} " +
 			$"MaxAge: {MaxAge} " +

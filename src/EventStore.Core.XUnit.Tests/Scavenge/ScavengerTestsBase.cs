@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using EventStore.Core.Data;
 using EventStore.Core.LogV2;
-using EventStore.Core.Services;
 using EventStore.Core.Tests.TransactionLog;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.LogRecords;
@@ -88,8 +87,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				var originalCollisionStorage = new InMemoryOriginalStreamScavengeMap<string>();
 				var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
 				var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
-
-				//qq date storage
 
 				var scavengeState = new ScavengeState<string>(
 					hasher,

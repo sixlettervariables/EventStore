@@ -51,13 +51,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private float WeighPhysicalChunk(
-			IScavengeStateForChunkExecutor<TStreamId> scavengeState,
+			IScavengeStateForChunkExecutor<TStreamId> state,
 			IChunkReaderForExecutor<TStreamId> physicalChunk) {
 
 			// add together the weights of each of the logical chunks in this physical chunk.
 			var totalWeight = 0.0f;
 			foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
-				if (scavengeState.TryGetChunkWeight(logicalChunkNumber, out var weight)) {
+				if (state.TryGetChunkWeight(logicalChunkNumber, out var weight)) {
 					totalWeight += weight;
 				}
 			}

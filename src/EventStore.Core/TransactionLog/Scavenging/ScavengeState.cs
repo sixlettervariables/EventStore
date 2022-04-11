@@ -112,11 +112,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_metadatastreamDiscardPoints[streamId] = discardPoint;
 		}
 
-		public void SetMetadataForOriginalStream(TStreamId originalStreamId, StreamMetadata metadata) {
+		public void SetOriginalStreamMetadata(TStreamId originalStreamId, StreamMetadata metadata) {
 			_originalStreamDatas.SetMetadata(originalStreamId, metadata);
 		}
 
-		public void SetTombstoneForOriginalStream(TStreamId streamId) {
+		public void SetOriginalStreamTombstone(TStreamId streamId) {
 			_originalStreamDatas.SetTombstone(streamId);
 		}
 

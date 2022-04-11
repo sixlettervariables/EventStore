@@ -78,7 +78,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//             TICK
 
 		// Adds an item and detects if it collides with other items that were already added.
-		// collision is only defined when returning NewCollision.
+		// `collision` is only defined when returning NewCollision.
 		// in this way we can tell when anything that was not colliding becomes colliding.
 		public CollisionResult DetectCollisions(T item, out T collision) {
 			if (IsCollision(item)) {

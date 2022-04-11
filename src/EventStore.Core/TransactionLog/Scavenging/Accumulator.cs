@@ -153,7 +153,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			} else {
 				// record is in a standard metadata stream: $$xyz
 				// Update the Metadata for stream xyz
-				state.SetMetadataForOriginalStream(originalStreamId, record.Metadata);
+				state.SetOriginalStreamMetadata(originalStreamId, record.Metadata);
 			}
 
 			if (record.EventNumber < 0)
@@ -183,7 +183,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					$"Found Tombstone in metadata stream {record.StreamId}");
 			}
 
-			state.SetTombstoneForOriginalStream(record.StreamId);
+			state.SetOriginalStreamTombstone(record.StreamId);
 		}
 	}
 }

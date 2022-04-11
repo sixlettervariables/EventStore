@@ -113,13 +113,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// when a key that didn't used to be a collision, becomes a collision.
 		public void NotifyCollision(TKey key) {
 			var hash = _hasher.Hash(key);
-			//qq make sure this works even if crashing at unopportune time, coordinating between
-			// two persistent datastructures.
+			//qq the remove and the add must be performed atomically.
+			// but the overall operation is idempotent
 			if (_nonCollisions.TryRemove(hash, out var value)) {
 				_collisions[key] = value;
 			} else {
-				//qq we are notified that the key is a collision, but we dont have any entry for it
-				// so probably nothing to do
+				// we are notified that the key is a collision, but we dont have any entry for it
+				// so nothing to do
 			}
 		}
 

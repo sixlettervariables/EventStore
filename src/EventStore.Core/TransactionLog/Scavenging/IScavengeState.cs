@@ -40,23 +40,28 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		void SetMetastreamDiscardPoint(TStreamId streamId, DiscardPoint discardPoint);
 
-		void SetMetadataForOriginalStream(TStreamId originalStreamId, StreamMetadata metadata);
-		void SetTombstoneForOriginalStream(TStreamId streamId);
+		void SetOriginalStreamMetadata(TStreamId originalStreamId, StreamMetadata metadata);
+		void SetOriginalStreamTombstone(TStreamId streamId);
 
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
 	}
 
-	public interface IScavengeStateForCalculator<TStreamId> {
+	public interface IScavengeStateForCalculatorReadOnly<TStreamId> {
 		// Calculator iterates through the scavengable original streams and their metadata
 		// it doesn't need to do anything with the metadata streams, accumulator has done those.
 		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge { get; }
+
+		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
+	}
+
+	public interface IScavengeStateForCalculator<TStreamId> :
+		IScavengeStateForCalculatorReadOnly<TStreamId> {
 
 		void SetOriginalStreamData(
 			StreamHandle<TStreamId> streamHandle,
 			OriginalStreamData data);
 
 		void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight);
-		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
 	}
 
 	public interface IScavengeStateForChunkExecutor<TStreamId> {

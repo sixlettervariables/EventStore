@@ -5,7 +5,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public class EventCalculator<TStreamId> {
 		public EventCalculator(
 			int chunkSize,
-			IScavengeStateForCalculator<TStreamId> state,
+			IScavengeStateForCalculatorReadOnly<TStreamId> state,
 			ScavengePoint scavengePoint,
 			StreamCalculator<TStreamId> streamCalc) {
 
@@ -21,7 +21,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// State that doesn't change. scoped to the scavenge.
 		public int ChunkSize { get; }
-		public IScavengeStateForCalculator<TStreamId> State { get; }
+		public IScavengeStateForCalculatorReadOnly<TStreamId> State { get; }
 		public ScavengePoint ScavengePoint { get; }
 		public StreamCalculator<TStreamId> Stream { get; }
 
