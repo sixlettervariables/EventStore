@@ -101,16 +101,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public long ChunkEndPosition => _chunk.ChunkHeader.ChunkEndPosition;
 
-		public IEnumerable<int> LogicalChunkNumbers {
-			get {
-				for (var i = _chunk.ChunkHeader.ChunkStartNumber;
-					i < _chunk.ChunkHeader.ChunkEndNumber;
-					i++)
-
-					yield return i;
-			}
-		}
-
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			yield return new RecordForScavenge<string>() {
 				StreamId = "thestream",

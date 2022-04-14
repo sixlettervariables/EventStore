@@ -197,12 +197,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public long ChunkEndPosition => (_logicalChunkNumber + 1) * (long)_chunkSize;
 
-		public IEnumerable<int> LogicalChunkNumbers {
-			get {
-				yield return _logicalChunkNumber;
-			}
-		}
-
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			foreach (var record in _chunk) {
 				if (!(record is PrepareLogRecord prepare))

@@ -237,7 +237,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		int ChunkEndNumber { get; }
 		bool IsReadOnly { get; }
 		long ChunkEndPosition { get; }
-		IEnumerable<int> LogicalChunkNumbers { get; }
 		//qq this is probably just the prepares, rename accordingly?
 		IEnumerable<RecordForScavenge<TStreamId>> ReadRecords();
 	}

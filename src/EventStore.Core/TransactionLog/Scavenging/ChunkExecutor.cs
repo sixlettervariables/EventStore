@@ -44,7 +44,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.Position)) {
-				var physicalWeight = WeighPhysicalChunk(state, physicalChunk);
+				var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
 
 				//qq configurable threshold? in scavenge point?
 				var threshold = 0.0f;
@@ -55,33 +55,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
 
-				foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
-					//qq when to commit/flush, immediately probably
-					//qqq oh this clearly wants to take a min/max and delete the range
-					state.ResetChunkWeight(logicalChunkNumber);
-				}
+				//qq when to commit/flush, immediately probably
+				state.ResetChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
 
 				state.SetCheckpoint(
 					new ScavengeCheckpoint.ExecutingChunks(physicalChunk.ChunkEndNumber));
 
 				cancellationToken.ThrowIfCancellationRequested();
 			}
-		}
-
-		private float WeighPhysicalChunk(
-			IScavengeStateForChunkExecutor<TStreamId> state,
-			IChunkReaderForExecutor<TStreamId> physicalChunk) {
-
-			// add together the weights of each of the logical chunks in this physical chunk.
-			var totalWeight = 0.0f;
-			foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
-				//qqq this also wants to do a sum over the range.
-				if (state.TryGetChunkWeight(logicalChunkNumber, out var weight)) {
-					totalWeight += weight;
-				}
-			}
-
-			return totalWeight;
 		}
 
 		private IEnumerable<IChunkReaderForExecutor<TStreamId>> GetAllPhysicalChunks(

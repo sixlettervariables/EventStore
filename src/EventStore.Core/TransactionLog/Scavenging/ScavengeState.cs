@@ -187,11 +187,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//
 		// FOR CHUNK EXECUTOR
 		//
-		public bool TryGetChunkWeight(int chunkNumber, out float weight) =>
-			_chunkWeights.TryGetValue(chunkNumber, out weight);
+		public float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) =>
+			_chunkWeights.SumChunkWeights(startLogicalChunkNumber, endLogicalChunkNumber);
 
-		public void ResetChunkWeight(int chunkNumber) {
-			_chunkWeights.TryRemove(chunkNumber, out _);
+		public void ResetChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) {
+			_chunkWeights.ResetChunkWeights(startLogicalChunkNumber, endLogicalChunkNumber);
 		}
 
 		public bool TryGetStreamExecutionDetails(

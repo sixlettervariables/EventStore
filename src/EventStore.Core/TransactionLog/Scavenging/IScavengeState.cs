@@ -70,8 +70,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	public interface IScavengeStateForChunkExecutor<TStreamId> : IScavengeStateCommon {
-		bool TryGetChunkWeight(int logicalChunkNumber, out float weight);
-		void ResetChunkWeight(int logicalChunkNumber);
+		float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber);
+		void ResetChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber);
 		bool TryGetStreamExecutionDetails(TStreamId streamId, out StreamExecutionDetails details);
 		bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
 	}
