@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using EventStore.Core.Data;
 using EventStore.Core.Index;
 using EventStore.Core.TransactionLog.Chunks;
@@ -25,17 +26,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavenger {
 		//qq probably we want this to continue a previous scavenge if there is one going,
 		// or start a new one otherwise.
-		void Start(ITFChunkScavengerLog scavengerLogger);
+		Task RunAsync(ITFChunkScavengerLog scavengerLogger, CancellationToken cancellationToken);
 		//qq options
 		// - timespan, or datetime to autostop
 		// - chunk to scavenge up to
 		// - effective 'now'
 		// - remove open transactions : bool
-
-		//qq probably we want this to pause a scavenge if there is one going,
-		// otherwise probably do nothing.
-		// in this way the user sticks with the two controls that they had before: start and stop.
-		void Stop();
 	}
 
 	// The Accumulator reads through the log up to the scavenge point
@@ -49,7 +45,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//  4. discard points according to TombStones, MetadataMaxCount1, TruncateBefore.
 	//qq 5. data for maxage calculations - maybe that can be another IScavengeMap
 	public interface IAccumulator<TStreamId> {
-		void Accumulate(ScavengePoint scavengePoint, IScavengeStateForAccumulator<TStreamId> state);
+		void Accumulate(
+			ScavengePoint scavengePoint,
+			ScavengeCheckpoint.Accumulating checkpoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			CancellationToken cancellationToken);
 	}
 
 	// The Calculator calculates the DiscardPoints that depend on the ScavengePoint
@@ -87,7 +87,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// For streams that do not collide (which is ~all of them) the calculation can be done index-only.
 	// that is, without hitting the log at all.
 	public interface ICalculator<TStreamId> {
-		void Calculate(ScavengePoint scavengePoint, IScavengeStateForCalculator<TStreamId> source);
+		void Calculate(
+			ScavengePoint scavengePoint,
+			ScavengeCheckpoint.Calculating<TStreamId> checkpoint,
+			IScavengeStateForCalculator<TStreamId> source,
+			CancellationToken cancellationToken);
 	}
 
 	// the chunk executor performs the actual removal of the log records
@@ -95,13 +99,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IChunkExecutor<TStreamId> {
 		void Execute(
 			ScavengePoint scavengePoint,
-			IScavengeStateForChunkExecutor<TStreamId> state);
+			ScavengeCheckpoint.ExecutingChunks checkpoint,
+			IScavengeStateForChunkExecutor<TStreamId> state,
+			CancellationToken cancellationToken);
 	}
 
 	// the index executor performs the actual removal of the index entries
 	// should be very rare to do any further lookups at this point.
 	public interface IIndexExecutor<TStreamId> {
 		void Execute(
+			ScavengePoint scavengePoint,
+			ScavengeCheckpoint.ExecutingIndex checkpoint,
 			IScavengeStateForIndexExecutor<TStreamId> state,
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken);
@@ -179,9 +187,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq maxposition  / positionlimit instead of scavengepoint?
 		long GetLastEventNumber(StreamHandle<TStreamId> streamHandle, ScavengePoint scavengePoint);
 
-		//qq name min age or maxage or 
-		//long GetLastEventNumber(TStreamId streamId, DateTime age);
-
 		//qq maybe we can do better than allocating an array for the return
 		EventInfo[] ReadEventInfoForward(
 			StreamHandle<TStreamId> stream,
@@ -256,6 +261,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	public interface IIndexScavenger {
 		void ScavengeIndex(
+			long scavengePoint,
 			Func<IndexEntry, bool> shouldKeep,
 			IIndexScavengerLog log,
 			CancellationToken cancellationToken);
@@ -315,6 +321,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//}
 
 	// Refers to a stream by name or by hash
+	// This struct is json serialized, don't change the names naively
 	public struct StreamHandle {
 		//qq consider specifying byte if we are going to end up with a lot of these in memory
 		public enum Kind {
@@ -728,6 +735,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// it being part of a transaction
 	//qq make sure we never interact with index entries beyong the scavengepoint because we don't know
 	// whether they are collisions or not
+	
+	//qq add a test that covers a chunk becoming empty on scavenge
+
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp
 		// of the scavenge point itself? questions is whether there is any need to scavenge
@@ -738,5 +748,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public long Position { get; set; }
 		public DateTime EffectiveNow { get; set; }
+		//qqqqq public long ScavengePointNumber { get; set; }
 	}
 }

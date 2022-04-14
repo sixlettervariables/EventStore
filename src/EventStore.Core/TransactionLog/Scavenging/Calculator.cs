@@ -1,38 +1,50 @@
 ﻿using System;
-using EventStore.Core.Index.Hashes;
-using EventStore.Core.LogAbstraction;
+using System.Threading;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Calculator<TStreamId> : ICalculator<TStreamId> {
-		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IIndexReaderForCalculator<TStreamId> _index;
-		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly int _chunkSize;
+		private readonly int _cancellationCheckPeriod;
+		private readonly int _checkpointPeriod;
 
 		public Calculator(
-			ILongHasher<TStreamId> hasher,
 			IIndexReaderForCalculator<TStreamId> index,
-			IMetastreamLookup<TStreamId> metastreamLookup,
-			int chunkSize) {
+			int chunkSize,
+			int cancellationCheckPeriod,
+			int checkpointPeriod) {
 
-			_hasher = hasher;
 			_index = index;
-			_metastreamLookup = metastreamLookup;
 			_chunkSize = chunkSize;
+			_cancellationCheckPeriod = cancellationCheckPeriod;
+			_checkpointPeriod = checkpointPeriod;
 		}
 
 		public void Calculate(
 			ScavengePoint scavengePoint,
-			IScavengeStateForCalculator<TStreamId> state) {
+			ScavengeCheckpoint.Calculating<TStreamId> checkpoint,
+			IScavengeStateForCalculator<TStreamId> state,
+			CancellationToken cancellationToken) {
+
+			if (checkpoint == null) {
+				// checkpoint that we are on to calculating now
+				state.SetCheckpoint(new ScavengeCheckpoint.Calculating<TStreamId>(default));
+			}
 
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
 			var eventCalc = new EventCalculator<TStreamId>(_chunkSize, state, scavengePoint, streamCalc);
+
+			var checkpointCounter = 0;
+			var cancellationCheckCounter = 0;
 
 			// iterate through the original (i.e. non-meta) streams that need scavenging (i.e.
 			// those that have metadata or tombstones)
 			// - for each one use the accumulated data to set/update the discard points of the stream.
 			// - along the way add weight to the affected chunks.
-			foreach (var (originalStreamHandle, originalStreamData) in state.OriginalStreamsToScavenge) {
+			var originalStreamsToScavenge = state.OriginalStreamsToScavenge(
+				checkpoint: checkpoint?.DoneStreamHandle ?? default);
+
+			foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
 				//qqqqqqqqqqqqqqqqqqq
 				//qq it would be neat if this interface gave us some hint about the location of
 				// the DP so that we could set it in a moment cheaply without having to search.
@@ -74,15 +86,24 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
 					adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
-
 					// nothing to update for this stream
-					continue;
+				} else {
+					state.SetOriginalStreamDiscardPoints(
+						streamHandle: originalStreamHandle,
+						discardPoint: adjustedDiscardPoint,
+						maybeDiscardPoint: adjustedMaybeDiscardPoint);
 				}
 
-				state.SetOriginalStreamDiscardPoints(
-					streamHandle: originalStreamHandle,
-					discardPoint: adjustedDiscardPoint,
-					maybeDiscardPoint: adjustedMaybeDiscardPoint);
+				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
+					cancellationCheckCounter = 0;
+					cancellationToken.ThrowIfCancellationRequested();
+				}
+
+				if (++checkpointCounter == _checkpointPeriod) {
+					checkpointCounter = 0;
+					state.SetCheckpoint(
+						new ScavengeCheckpoint.Calculating<TStreamId>(originalStreamHandle));
+				}
 			}
 		}
 

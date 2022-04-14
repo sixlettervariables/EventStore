@@ -16,11 +16,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public void Execute(
+			ScavengePoint scavengePoint,
+			ScavengeCheckpoint.ExecutingIndex checkpoint,
 			IScavengeStateForIndexExecutor<TStreamId> state,
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
+			if (checkpoint == null) {
+				// checkpoint that we are on to index execution now
+				state.SetCheckpoint(new ScavengeCheckpoint.ExecutingIndex());
+			}
+
 			_indexScavenger.ScavengeIndex(
+				scavengePoint: scavengePoint.Position, //qq or maybe scavenge point number
 				shouldKeep: GenShouldKeep(state),
 				log: scavengerLogger,
 				cancellationToken: cancellationToken);
@@ -44,7 +52,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			bool ShouldKeep(IndexEntry indexEntry) {
 				//qq throttle?
-
+				//qqqq need to respect the scavenge point
 				if (currentHash != indexEntry.Stream || currentHashIsCollision) {
 					// currentHash != indexEntry.Stream || currentHashIsCollision
 					// we are on to a new stream, or the hash collides so we _might_ be on

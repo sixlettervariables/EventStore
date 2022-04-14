@@ -1,35 +1,47 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
+	//qq add logging to this and the other stages
 	public class ChunkExecutor<TStreamId, TChunk> : IChunkExecutor<TStreamId> {
 
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkManagerForChunkExecutor<TStreamId, TChunk> _chunkManager;
 		private readonly long _chunkSize;
+		private readonly int _cancellationCheckPeriod;
 
 		public ChunkExecutor(
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkManagerForChunkExecutor<TStreamId, TChunk> chunkManager,
-			long chunkSize) {
+			long chunkSize,
+			int cancellationCheckPeriod) {
 
 			_metastreamLookup = metastreamLookup;
 			_chunkManager = chunkManager;
 			_chunkSize = chunkSize;
+			_cancellationCheckPeriod = cancellationCheckPeriod;
 		}
 
 		public void Execute(
 			ScavengePoint scavengePoint,
-			IScavengeStateForChunkExecutor<TStreamId> state) {
+			ScavengeCheckpoint.ExecutingChunks checkpoint,
+			IScavengeStateForChunkExecutor<TStreamId> state,
+			CancellationToken cancellationToken) {
+
+			if (checkpoint == null) {
+				// checkpoint that we are on to chunk execution now
+				state.SetCheckpoint(new ScavengeCheckpoint.ExecutingChunks(null));
+			}
 
 			//qq would we want to run in parallel? (be careful with scavenge state interactions
-			// in that case, especially writes)
+			// in that case, especially writes and storing checkpoints)
 			//qq order by the weight? maybe just iterate backwards.
 
 			//qq there is no point scavenging beyond the scavenge point
-			// but we coul
-			var startFromChunk = 0; //qq necessarily zero?
+			//qqqq is +1 ok range wise? same for accumulator
+			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.Position)) {
 				var physicalWeight = WeighPhysicalChunk(state, physicalChunk);
@@ -41,12 +53,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return;
 				}
 
-				ExecutePhysicalChunk(scavengePoint, state, physicalChunk);
+				ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
 
 				foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
 					//qq when to commit/flush, immediately probably
+					//qqq oh this clearly wants to take a min/max and delete the range
 					state.ResetChunkWeight(logicalChunkNumber);
 				}
+
+				state.SetCheckpoint(
+					new ScavengeCheckpoint.ExecutingChunks(physicalChunk.ChunkEndNumber));
+
+				cancellationToken.ThrowIfCancellationRequested();
 			}
 		}
 
@@ -57,6 +75,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// add together the weights of each of the logical chunks in this physical chunk.
 			var totalWeight = 0.0f;
 			foreach (var logicalChunkNumber in physicalChunk.LogicalChunkNumbers) {
+				//qqq this also wants to do a sum over the range.
 				if (state.TryGetChunkWeight(logicalChunkNumber, out var weight)) {
 					totalWeight += weight;
 				}
@@ -86,7 +105,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private void ExecutePhysicalChunk(
 			ScavengePoint scavengePoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
-			IChunkReaderForExecutor<TStreamId> chunk) {
+			IChunkReaderForExecutor<TStreamId> chunk,
+			CancellationToken cancellationToken) {
 
 			//qq the other reason we might want to not scanvenge this chunk is if the posmap would make
 			// it bigger
@@ -110,6 +130,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				chunk.ChunkStartNumber,
 				chunk.ChunkEndNumber);
 
+			var cancellationCheckCounter = 0;
 			foreach (var record in chunk.ReadRecords()) {
 				var discard = ShouldDiscard(
 					state,
@@ -128,7 +149,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// what does the old scavenge use
 					// consider transactions
 				}
+
+				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
+					cancellationCheckCounter = 0;
+					cancellationToken.ThrowIfCancellationRequested();
+				}
 			}
+
 			// 2. read through it, keeping and discarding as necessary. probably no additional lookups at
 			// this point
 			// 3. write the posmap

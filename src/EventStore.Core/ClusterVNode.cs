@@ -563,23 +563,26 @@ namespace EventStore.Core {
 			if (newScavenge) {
 				var metastreamLookup = new LogV2SystemStreams();
 
+				var cancellationCheckPeriod = 1024; //qq sensible?
 				//qq iron this out, possibly more needs to be in the logformat, depending on what is
 				// affected by the log format ofc.
 				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
 				var accumulator = new Accumulator<string>(
-					metastreamLookup,
-					new ChunkReaderForAccumulator<string>());
+					metastreamLookup: metastreamLookup,
+					chunkReader: new ChunkReaderForAccumulator<string>(),
+					cancellationCheckPeriod: cancellationCheckPeriod);
 
 				var calculator = new Calculator<string>(
-					longHasher,
 					new IndexReaderForCalculator(readIndex),
-					metastreamLookup,
-					TFConsts.ChunkSize);
+					chunkSize: TFConsts.ChunkSize,
+					cancellationCheckPeriod: cancellationCheckPeriod,
+					checkpointPeriod: 32_768); //qq sensible?
 
 				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
 					metastreamLookup,
 					new ChunkManagerForScavenge(db.Manager, db.Config),
-					chunkSize: db.Config.ChunkSize);
+					chunkSize: db.Config.ChunkSize,
+					cancellationCheckPeriod: cancellationCheckPeriod);
 
 				//qq make sure the maxreaders for the pool is high enough to accommodate us
 				var indexExecutor = new IndexExecutor<string>(
@@ -595,6 +598,7 @@ namespace EventStore.Core {
 					new InMemoryScavengeMap<string, DiscardPoint>(),
 					new InMemoryOriginalStreamScavengeMap<ulong>(),
 					new InMemoryOriginalStreamScavengeMap<string>(),
+					new InMemoryScavengeMap<Unit, ScavengeCheckpoint>(),
 					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
 					new InMemoryChunkWeightScavengeMap());
 

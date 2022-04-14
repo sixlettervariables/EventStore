@@ -1,22 +1,28 @@
 ﻿using System;
+using System.Threading;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Accumulator<TStreamId> : IAccumulator<TStreamId> {
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
+		private readonly int _cancellationCheckPeriod;
 
 		public Accumulator(
 			IMetastreamLookup<TStreamId> metastreamLookup,
-			IChunkReaderForAccumulator<TStreamId> chunkReader) {
+			IChunkReaderForAccumulator<TStreamId> chunkReader,
+			int cancellationCheckPeriod) {
 
 			_metastreamLookup = metastreamLookup;
 			_chunkReader = chunkReader;
+			_cancellationCheckPeriod = cancellationCheckPeriod;
 		}
 
 		public void Accumulate(
 			ScavengePoint scavengePoint,
-			IScavengeStateForAccumulator<TStreamId> state) {
+			ScavengeCheckpoint.Accumulating checkpoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			CancellationToken cancellationToken) {
 
 			//qq todo finish in right place, which is at latest the last open chunk when we get there
 			// or the scavenge point.
@@ -24,15 +30,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// the chunk that has the scavenge point in because at the time the scavenge point is written
 			// that is as far as we can scavenge up to.
 
-			//qq todo start from right place
-			var logicalChunkNumber = 0;
+			if (checkpoint == null) {
+				// checkpoint that we are on to accumulating now
+				state.SetCheckpoint(new ScavengeCheckpoint.Accumulating(null));
+			}
+
+			var logicalChunkNumber = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
 
 			try {
 				while (AccumulateChunkAndRecordRange(
 						scavengePoint,
 						state,
-						logicalChunkNumber)) {
+						logicalChunkNumber,
+						cancellationToken)) {
 
+					cancellationToken.ThrowIfCancellationRequested();
 					logicalChunkNumber++;
 				}
 			}
@@ -47,12 +59,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private bool AccumulateChunkAndRecordRange(
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
-			int logicalChunkNumber) {
+			int logicalChunkNumber,
+			CancellationToken cancellationToken) {
 
 			var ret = AccumulateChunk(
 				scavengePoint,
 				state,
 				logicalChunkNumber,
+				cancellationToken,
 				out var chunkMinTimeStamp,
 				out var chunkMaxTimeStamp);
 
@@ -66,6 +80,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// empty range, no need to store it.
 			}
 
+			state.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
+				doneLogicalChunkNumber: logicalChunkNumber));
+
 			return ret;
 		}
 
@@ -75,6 +92,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			int logicalChunkNumber,
+			CancellationToken cancellationToken,
 			out DateTime chunkMinTimeStamp,
 			out DateTime chunkMaxTimeStamp) {
 
@@ -83,6 +101,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			chunkMaxTimeStamp = DateTime.MinValue;
 
 			var stopBefore = scavengePoint.Position;
+			var cancellationCheckCounter = 0;
 			foreach (var record in _chunkReader.ReadChunk(logicalChunkNumber)) {
 				if (record.LogPosition >= stopBefore) {
 					return false;
@@ -102,13 +121,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						ProcessOriginalStreamRecord(x, state);
 						break;
 					case RecordForAccumulator<TStreamId>.MetadataStreamRecord x:
-						ProcessMetaStreamRecord(x, state);
+						ProcessMetastreamRecord(x, state);
 						break;
 					case RecordForAccumulator<TStreamId>.TombStoneRecord x:
 						ProcessTombstone(x, state);
 						break;
 					default:
 						throw new NotImplementedException(); //qq
+				}
+
+				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
+					cancellationCheckCounter = 0;
+					cancellationToken.ThrowIfCancellationRequested();
 				}
 			}
 
@@ -138,7 +162,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// the actual type of the record isn't relevant. if it is in a metadata stream it affects
 		// the metadata. if its data parses to streammetadata then thats the metadata. if it doesn't
 		// parse, then it clears the metadata.
-		private void ProcessMetaStreamRecord(
+		private void ProcessMetastreamRecord(
 			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
 			IScavengeStateForAccumulator<TStreamId> state) {
 
