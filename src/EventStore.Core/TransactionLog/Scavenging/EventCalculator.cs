@@ -1,4 +1,5 @@
 ﻿using System;
+using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq might be overkill in the end, but lets create it for now to help write the code

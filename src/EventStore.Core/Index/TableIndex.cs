@@ -552,7 +552,7 @@ namespace EventStore.Core.Index {
 
 		private bool TryGetLatestEntryInternal(ulong stream, out IndexEntry entry) {
 			var awaiting = _awaitingMemTables;
-			
+
 			foreach (var t in awaiting) {
 				if(t.IsFromIndexMap) continue;
 				if (t.Table.TryGetLatestEntry(stream, out entry))
@@ -569,8 +569,53 @@ namespace EventStore.Core.Index {
 			return false;
 		}
 
+		public bool TryGetLatestEntry(ulong stream, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry) {
+			var counter = 0;
+			while (counter < 5) {
+				counter++;
+				try {
+					return TryGetLatestEntryInternal(stream, beforePosition, isForThisStream, out entry);
+				} catch (FileBeingDeletedException) {
+					Log.Trace("File being deleted.");
+				} catch (MaybeCorruptIndexException e) {
+					ForceIndexVerifyOnNextStartup();
+					throw e;
+				}
+			}
+
+			throw new InvalidOperationException("Files are locked.");
+		}
+
+		public bool TryGetLatestEntry(string streamId, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry) {
+			ulong stream = CreateHash(streamId);
+			return TryGetLatestEntry(stream, beforePosition, isForThisStream, out entry);
+		}
+
+		private bool TryGetLatestEntryInternal(ulong stream, long beforePosition, Func<IndexEntry,bool> isForThisStream, out IndexEntry entry) {
+			var awaiting = _awaitingMemTables;
+
+			foreach (var t in awaiting) {
+				if(t.IsFromIndexMap) continue;
+				if (t.Table.TryGetLatestEntry(stream, beforePosition, isForThisStream, out entry))
+					return true;
+			}
+
+			var map = _indexMap;
+			foreach (var table in map.InOrder()) {
+				if (table.TryGetLatestEntry(stream, beforePosition, isForThisStream, out entry))
+					return true;
+			}
+
+			entry = InvalidIndexEntry;
+			return false;
+		}
+
 		public bool TryGetOldestEntry(string streamId, out IndexEntry entry) {
 			ulong stream = CreateHash(streamId);
+			return TryGetOldestEntry(stream, out entry);
+		}
+
+		public bool TryGetOldestEntry(ulong stream, out IndexEntry entry) {
 			var counter = 0;
 			while (counter < 5) {
 				counter++;
@@ -611,13 +656,14 @@ namespace EventStore.Core.Index {
 		// which might override records that we would have returned with limit set lower.
 		//qq which probably means we need to look at the calls with limit really carefully - dont do something like pass maxcount from the client in as the limit.
 		public IEnumerable<IndexEntry> GetRange(string streamId, long startVersion, long endVersion,
-			int? limit = null) {
-			ulong hash = CreateHash(streamId);
+			int? limit = null) => GetRange(CreateHash(streamId), startVersion, endVersion, limit);
+
+		public IEnumerable<IndexEntry> GetRange(ulong stream, long startVersion, long endVersion, int? limit = null) {
 			var counter = 0;
 			while (counter < 5) {
 				counter++;
 				try {
-					return GetRangeInternal(hash, startVersion, endVersion, limit);
+					return GetRangeInternal(stream, startVersion, endVersion, limit);
 				} catch (FileBeingDeletedException) {
 					Log.Trace("File being deleted.");
 				} catch (MaybeCorruptIndexException e) {

@@ -56,6 +56,10 @@ namespace EventStore.Core.Tests.TransactionLog {
 			throw new NotImplementedException();
 		}
 
+		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
+			throw new NotImplementedException();
+		}
+
 		public IndexReadAllResult ReadAllEventsForward(TFPos pos, int maxCount) {
 			throw new NotImplementedException();
 		}
@@ -72,6 +76,14 @@ namespace EventStore.Core.Tests.TransactionLog {
 			if (SystemStreams.IsMetastream(streamId))
 				return GetStreamLastEventNumber(SystemStreams.OriginalStreamOf(streamId));
 			return _isStreamDeleted(streamId) ? EventNumber.DeletedStream : 1000000;
+		}
+
+		public long GetStreamLastEventNumber_KnownCollisions(string streamId, long beforePosition) {
+			throw new NotImplementedException();
+		}
+
+		public long GetStreamLastEventNumber_NoCollisions(ulong stream, Func<ulong, string> getStreamId, long beforePosition) {
+			throw new NotImplementedException();
 		}
 
 		public string GetEventStreamIdByTransactionId(long transactionId) {

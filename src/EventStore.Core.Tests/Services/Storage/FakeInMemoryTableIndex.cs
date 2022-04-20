@@ -44,6 +44,10 @@ namespace EventStore.Core.Tests.Services.Storage {
 			return entries;
 		}
 
+		public IEnumerable<IndexEntry> GetRange(ulong stream, long startVersion, long endVersion, int? limit = null) {
+			throw new NotImplementedException();
+		}
+
 		public void Initialize(long chaserCheckpoint)
 		{
 		}
@@ -80,8 +84,20 @@ namespace EventStore.Core.Tests.Services.Storage {
 			}
 		}
 
+		public bool TryGetLatestEntry(ulong stream, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry) {
+			throw new NotImplementedException();
+		}
+
+		public bool TryGetLatestEntry(string streamId, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry) {
+			throw new NotImplementedException();
+		}
+
 		public bool TryGetOldestEntry(string streamId, out IndexEntry entry)
 		{
+			throw new NotImplementedException();
+		}
+
+		public bool TryGetOldestEntry(ulong stream, out IndexEntry indexEntry) {
 			throw new NotImplementedException();
 		}
 

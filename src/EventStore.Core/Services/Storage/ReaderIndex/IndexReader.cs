@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Principal;
 using System.Threading;
@@ -18,6 +19,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 		IndexReadEventResult ReadEvent(string streamId, long eventNumber);
 		IndexReadStreamResult ReadStreamEventsForward(string streamId, long fromEventNumber, int maxCount);
 		IndexReadStreamResult ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount);
+		IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition);
 
 		/// <summary>
 		/// Doesn't filter $maxAge, $maxCount, $tb(truncate before), doesn't check stream deletion, etc.
@@ -29,6 +31,8 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 
 		StreamMetadata GetStreamMetadata(string streamId);
 		long GetStreamLastEventNumber(string streamId);
+		long GetStreamLastEventNumber_KnownCollisions(string streamId, long beforePosition);
+		long GetStreamLastEventNumber_NoCollisions(ulong stream, Func<ulong, string> getStreamId, long beforePosition);
 	}
 
 	public class IndexReader : IIndexReader {
@@ -237,6 +241,18 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
+		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
+			var entries = _tableIndex.GetRange(stream, fromEventNumber, fromEventNumber + maxCount - 1);
+			var eventInfos = new List<EventInfo>();
+			foreach (var entry in entries) {
+				if (entry.Position < beforePosition) {
+					eventInfos.Add(new EventInfo(entry.Position, entry.Version));
+				}
+			}
+
+			return new IndexReadEventInfoResult(eventInfos.ToArray());
+		}
+
 		IndexReadStreamResult IIndexReader.
 			ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount) {
 			return ReadStreamEventsBackwardInternal(streamId, fromEventNumber, maxCount, _skipIndexScanOnRead);
@@ -398,6 +414,68 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 				return GetStreamLastEventNumberCached(reader, streamId);
 			}
 		}
+
+		public long GetStreamLastEventNumber_KnownCollisions(string streamId, long beforePosition) {
+			Ensure.NotNullOrEmpty(streamId, "streamId");
+			using (var reader = _backend.BorrowReader()) {
+				return GetStreamLastEventNumber_KnownCollisions(streamId, beforePosition, reader);
+			}
+		}
+
+		private long GetStreamLastEventNumber_KnownCollisions(string streamId, long beforePosition, TFReaderLease reader) {
+			bool IsForThisStream(IndexEntry indexEntry) {
+				// we know that collisions have occurred for this stream's hash prior to "beforePosition" in the log
+				// we just fetch the stream name from the log to make sure this index entry is for the correct stream
+				var prepare = ReadPrepareInternal(reader, indexEntry.Position);
+				return prepare.EventStreamId == streamId;
+			}
+
+			if (!_tableIndex.TryGetLatestEntry(streamId, beforePosition, IsForThisStream, out var entry))
+				return ExpectedVersion.NoStream;
+
+			return entry.Version;
+		}
+
+		public long GetStreamLastEventNumber_NoCollisions(ulong stream, Func<ulong,string> getStreamId, long beforePosition) {
+			using (var reader = _backend.BorrowReader()) {
+				return GetStreamLastEventNumber_NoCollisions(stream, getStreamId, beforePosition, reader);
+			}
+		}
+
+		private long GetStreamLastEventNumber_NoCollisions(ulong stream, Func<ulong,string> getStreamId, long beforePosition, TFReaderLease reader) {
+			string streamId = null;
+
+			bool IsForThisStream(IndexEntry indexEntry) {
+				// we know that there are no collisions for this hash prior to "beforePosition" in the log
+				if (indexEntry.Position < beforePosition)
+					return true;
+
+				// fetch the correct stream name from the log if we haven't yet
+				if (streamId == null)
+					streamId = GetStreamId(stream, getStreamId, beforePosition, reader);
+
+				// compare the correct stream name against this index entry's stream name fetched from the log
+				var prepare = ReadPrepareInternal(reader, indexEntry.Position);
+				return prepare.EventStreamId == streamId;
+			}
+
+			if (!_tableIndex.TryGetLatestEntry(stream, beforePosition, IsForThisStream, out var entry))
+				return ExpectedVersion.NoStream;
+
+			return entry.Version;
+		}
+
+		private string GetStreamId(ulong stream, Func<ulong,string> getStreamId, long beforePosition, TFReaderLease reader) {
+			// TODO: we can call getStreamId() directly if it's faster than TryGetOldestEntry()
+			if (_tableIndex.TryGetOldestEntry(stream, out var indexEntry) &&
+			    indexEntry.Position < beforePosition) {
+				var prepare = ReadPrepareInternal(reader, indexEntry.Position);
+				return prepare.EventStreamId;
+			}
+
+			return getStreamId(stream);
+		}
+
 
 		StreamMetadata IIndexReader.GetStreamMetadata(string streamId) {
 			Ensure.NotNullOrEmpty(streamId, "streamId");

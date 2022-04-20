@@ -16,9 +16,13 @@ namespace EventStore.Core.Index {
 
 		bool TryGetOneValue(string streamId, long version, out long position);
 		bool TryGetLatestEntry(string streamId, out IndexEntry entry);
+		bool TryGetLatestEntry(ulong stream, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry);
+		bool TryGetLatestEntry(string streamId, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry);
 		bool TryGetOldestEntry(string streamId, out IndexEntry entry);
+		bool TryGetOldestEntry(ulong stream, out IndexEntry indexEntry);
 
 		IEnumerable<IndexEntry> GetRange(string streamId, long startVersion, long endVersion, int? limit = null);
+		IEnumerable<IndexEntry> GetRange(ulong stream, long startVersion, long endVersion, int? limit = null);
 
 		// this overload keeps IndexEntries that exist in the log
 		void Scavenge(IIndexScavengerLog log, CancellationToken ct);

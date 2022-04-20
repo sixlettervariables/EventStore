@@ -8,7 +8,7 @@ using EventStore.Core.Exceptions;
 
 namespace EventStore.Core.Index {
 	public class HashListMemTable : IMemTable, ISearchTable {
-		private static readonly IComparer<Entry> MemTableComparer = new EntryComparer();
+		private static readonly IComparer<Entry> MemTableComparer = new EventNumberComparer();
 
 		public long Count {
 			get { return _count; }
@@ -130,6 +130,44 @@ namespace EventStore.Core.Index {
 			return false;
 		}
 
+		public bool TryGetLatestEntry(ulong stream, long beforePosition, Func<IndexEntry, bool> isForThisStream, out IndexEntry entry) {
+			if (beforePosition < 0)
+				throw new ArgumentOutOfRangeException(nameof(beforePosition));
+
+			ulong hash = GetHash(stream);
+			entry = TableIndex.InvalidIndexEntry;
+
+			if (!_hash.TryGetValue(hash, out var list))
+				return false;
+
+			if (!Monitor.TryEnter(list, 10000)) throw new UnableToAcquireLockInReasonableTimeException();
+			try {
+				int endIdx = list.UpperBound(
+					key: new Entry(long.MaxValue, beforePosition - 1),
+					comparer: new LogPositionComparer(),
+					continueSearch: e=> isForThisStream(new IndexEntry(hash, e.EvNum, e.LogPos)));
+
+				if (endIdx == -1)
+					return false;
+
+				var latestBeforePosition = list.Keys[endIdx];
+				entry = new IndexEntry(hash, latestBeforePosition.EvNum, latestBeforePosition.LogPos);
+				return true;
+			} catch (SearchStoppedException) {
+				// fall back to linear search if there was a hash collision
+				int maxIdx = list.FindMax(e => e.LogPos < beforePosition);
+
+				if (maxIdx == -1)
+					return false;
+
+				var latestBeforePosition = list.Keys[maxIdx];
+				entry = new IndexEntry(hash, latestBeforePosition.EvNum, latestBeforePosition.LogPos);
+				return true;
+			} finally {
+				Monitor.Exit(list);
+			}
+		}
+
 		public bool TryGetOldestEntry(ulong stream, out IndexEntry entry) {
 			ulong hash = GetHash(stream);
 			entry = TableIndex.InvalidIndexEntry;
@@ -213,10 +251,18 @@ namespace EventStore.Core.Index {
 			}
 		}
 
-		private class EntryComparer : IComparer<Entry> {
+		private class EventNumberComparer : IComparer<Entry> {
 			public int Compare(Entry x, Entry y) {
 				if (x.EvNum < y.EvNum) return -1;
 				if (x.EvNum > y.EvNum) return 1;
+				if (x.LogPos < y.LogPos) return -1;
+				if (x.LogPos > y.LogPos) return 1;
+				return 0;
+			}
+		}
+
+		private class LogPositionComparer : IComparer<Entry> {
+			public int Compare(Entry x, Entry y) {
 				if (x.LogPos < y.LogPos) return -1;
 				if (x.LogPos > y.LogPos) return 1;
 				return 0;
