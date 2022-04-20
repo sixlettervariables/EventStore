@@ -47,5 +47,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			Assert.Equal("Found Tombstone in metadata stream $$ab-1", e.Message);
 		}
+
+		[Fact]
+		public async Task tombstone_in_transaction_not_supported() {
+			// if we wanted to support this we would have to apply the tombstone at the point that it
+			// gets committed. also chunkexecutor would have to be careful not to discard the tombstone
+			// of a tombstoned stream even though it can discard pretty much everything in transactions
+			// in that case
+			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
+				await new Scenario()
+					.WithDb(x => x
+						.Chunk(
+							Rec.TransSt(0, "ab-1"),
+							Rec.Delete(0, "ab-1"))
+						.CompleteLastChunk())
+					.RunAsync();
+			});
+
+			Assert.Equal("Found Tombstone in transaction in stream ab-1", e.Message);
+		}
 	}
 }

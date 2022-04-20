@@ -195,8 +195,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// For every tombstone
 		//   - check if the stream collides
-		//   - set the discard point for the stream that the tombstone was found in to discard
-		//     everything before the tombstone
 		//   - set the istombstoned flag to true
 		private void ProcessTombstone(
 			RecordForAccumulator<TStreamId>.TombStoneRecord record,
@@ -210,6 +208,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				throw new InvalidOperationException(
 					$"Found Tombstone in metadata stream {record.StreamId}");
 			}
+
+			if (record.EventNumber < 0)
+				throw new InvalidOperationException(
+					$"Found Tombstone in transaction in stream {record.StreamId}");
 
 			state.SetOriginalStreamTombstone(record.StreamId);
 		}
