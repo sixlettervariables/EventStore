@@ -600,7 +600,8 @@ namespace EventStore.Core {
 					new InMemoryOriginalStreamScavengeMap<string>(),
 					new InMemoryScavengeMap<Unit, ScavengeCheckpoint>(),
 					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
-					new InMemoryChunkWeightScavengeMap());
+					new InMemoryChunkWeightScavengeMap(),
+					new InMemoryTransactionBackend());
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,

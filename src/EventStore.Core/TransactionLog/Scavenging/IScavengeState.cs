@@ -12,6 +12,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint);
 	}
 
+	// all the components use these
+	public interface IScavengeStateCommon {
+		// start a batch, returns the batch so that it can be committed or rolled back
+		ITransaction BeginTransaction();
+	}
+
+	// on dispose rollback the transaction if it has not been committed
+	public interface ITransaction : IDisposable {
+		void Rollback();
+		void Commit(ScavengeCheckpoint checkpoint);
+	}
+
+	// abstraction for the backing store. memory, sqlite etc.
+	public interface ITransactionBackend {
+		void Begin();
+		void Rollback();
+		void Commit();
+	}
+
 	//qq this summary comment will explain the general shape of the scavenge state - what it needs to be
 	// able to store and retrieve and why.
 	//
@@ -38,6 +57,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForAccumulator<TStreamId> : IScavengeStateCommon {
 		// call this for each record as we accumulate through the log so that we can spot every hash
 		// collision to save ourselves work later.
+		// this affects multiple parts of the scavengestate and must be called within a transaction so
+		// that its effect is atomic
 		void DetectCollisions(TStreamId streamId);
 
 		void SetMetastreamDiscardPoint(TStreamId streamId, DiscardPoint discardPoint);
@@ -82,14 +103,5 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetDiscardPoint(
 			StreamHandle<TStreamId> streamHandle,
 			out DiscardPoint discardPoint);
-	}
-
-	// all the components use these
-	public interface IScavengeStateCommon {
-		void SetCheckpoint(ScavengeCheckpoint checkpoint);
-
-		//qqqqqqq not sure about these, expose to the components, or let the scavenge state handle them internally.
-		//void BeginTransaction();
-		//void CommitTransaction();
 	}
 }

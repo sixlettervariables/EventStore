@@ -24,7 +24,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			if (checkpoint == null) {
 				// checkpoint that we are on to index execution now
-				state.SetCheckpoint(new ScavengeCheckpoint.ExecutingIndex());
+				state.BeginTransaction().Commit(new ScavengeCheckpoint.ExecutingIndex());
 			}
 
 			_indexScavenger.ScavengeIndex(

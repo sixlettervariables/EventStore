@@ -163,7 +163,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//     - chunk weights
 				//          - after executing a chunk (chunk executor will do this)
 
-				_state.SetCheckpoint(new ScavengeCheckpoint.Done());
+				_state.BeginTransaction().Commit(new ScavengeCheckpoint.Done());
 			}
 		}
 	}

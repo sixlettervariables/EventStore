@@ -32,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			if (checkpoint == null) {
 				// checkpoint that we are on to accumulating now
-				state.SetCheckpoint(new ScavengeCheckpoint.Accumulating(null));
+				state.BeginTransaction().Commit(new ScavengeCheckpoint.Accumulating(null));
 			}
 
 			var logicalChunkNumber = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
@@ -62,28 +62,32 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			int logicalChunkNumber,
 			CancellationToken cancellationToken) {
 
-			var ret = AccumulateChunk(
-				scavengePoint,
-				state,
-				logicalChunkNumber,
-				cancellationToken,
-				out var chunkMinTimeStamp,
-				out var chunkMaxTimeStamp);
+			// for correctness it is important that any particular DetectCollisions call is contained
+			// within a transaction.
+			using (var transaction = state.BeginTransaction()) {
+				var ret = AccumulateChunk(
+					scavengePoint,
+					state,
+					logicalChunkNumber,
+					cancellationToken,
+					out var chunkMinTimeStamp,
+					out var chunkMaxTimeStamp);
 
-			if (chunkMinTimeStamp <= chunkMaxTimeStamp) {
-				state.SetChunkTimeStampRange(
-					logicalChunkNumber: logicalChunkNumber,
-					new ChunkTimeStampRange(
-						min: chunkMinTimeStamp,
-						max: chunkMaxTimeStamp));
-			} else {
-				// empty range, no need to store it.
+				if (chunkMinTimeStamp <= chunkMaxTimeStamp) {
+					state.SetChunkTimeStampRange(
+						logicalChunkNumber: logicalChunkNumber,
+						new ChunkTimeStampRange(
+							min: chunkMinTimeStamp,
+							max: chunkMaxTimeStamp));
+				} else {
+					// empty range, no need to store it.
+				}
+
+				transaction.Commit(new ScavengeCheckpoint.Accumulating(
+					doneLogicalChunkNumber: logicalChunkNumber));
+
+				return ret;
 			}
-
-			state.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
-				doneLogicalChunkNumber: logicalChunkNumber));
-
-			return ret;
 		}
 
 		// returns true to continue

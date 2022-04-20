@@ -28,7 +28,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			if (checkpoint == null) {
 				// checkpoint that we are on to calculating now
-				state.SetCheckpoint(new ScavengeCheckpoint.Calculating<TStreamId>(default));
+				state.BeginTransaction().Commit(new ScavengeCheckpoint.Calculating<TStreamId>(default));
 			}
 
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
@@ -44,66 +44,74 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var originalStreamsToScavenge = state.OriginalStreamsToScavenge(
 				checkpoint: checkpoint?.DoneStreamHandle ?? default);
 
-			foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
-				//qqqqqqqqqqqqqqqqqqq
-				//qq it would be neat if this interface gave us some hint about the location of
-				// the DP so that we could set it in a moment cheaply without having to search.
-				// although, if its a wal that'll be cheap anyway.
-				//qq if the scavengemap supports RMW that might have a bearing too, but for now maybe
-				// this is just overcomplicating things.
+			// for determinism it is important that IncreaseChunkWeight is called in a transaction with
+			// its calculation and checkpoint, otherwise the weight could be increased again on recovery
+			var transaction = state.BeginTransaction();
+			try {
+				foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
+					//qqqqqqqqqqqqqqqqqqq
+					//qq it would be neat if this interface gave us some hint about the location of
+					// the DP so that we could set it in a moment cheaply without having to search.
+					// although, if its a wal that'll be cheap anyway.
+					//qq if the scavengemap supports RMW that might have a bearing too, but for now maybe
+					// this is just overcomplicating things.
 
-				//qqqq consider, for subsequent scavenge purposes, how the discard points from the
-				// previous, should be accounted for.
-				// bear in mind the metadata may have been expanded since the previous disacrdpoints
-				// were calculated. should the discard points be allowed to move backwards?
-				// suspecting probably not. suspect when you drop a scavengepoint that closes your window
-				// to expand the metadata again.... although reads don't know that. hmm.
-				// - bear in mind we want it to be deterministic so it might be _necessary_ that we don't
-				//   allow the discardpoint to move backwards here
-				// - but if we do want to allow it to move backwards we could possibly record more data
-				//   here to indicate to the calculator that it has extra work to do
-				// - bear in mind that we ought to have discarded data with respect to the old discard
-				//   points already so perhaps there isn't harm in moving them backwards
-				//
-				//qq there is probably scope for a few optimisations here eg, we could store on the
-				// originalstreamdata what the lasteventnumber was at the point of calculating the 
-				// discard points. then we could spot here that if the last event number hasn't moved
-				// and the the metadata hasn't changed, then the DP wont have moved for maxcount.
-				// consider the equivalent for the other discard criteria, and see whether the time/space
-				// tradeoff is worth it.
-				//
-				//qq we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
-				// is completely spent, which might have a bearing on the above.
-				streamCalc.SetStream(originalStreamHandle, originalStreamData);
+					//qqqq consider, for subsequent scavenge purposes, how the discard points from the
+					// previous, should be accounted for.
+					// bear in mind the metadata may have been expanded since the previous disacrdpoints
+					// were calculated. should the discard points be allowed to move backwards?
+					// suspecting probably not. suspect when you drop a scavengepoint that closes your window
+					// to expand the metadata again.... although reads don't know that. hmm.
+					// - bear in mind we want it to be deterministic so it might be _necessary_ that we don't
+					//   allow the discardpoint to move backwards here
+					// - but if we do want to allow it to move backwards we could possibly record more data
+					//   here to indicate to the calculator that it has extra work to do
+					// - bear in mind that we ought to have discarded data with respect to the old discard
+					//   points already so perhaps there isn't harm in moving them backwards
+					//
+					//qq there is probably scope for a few optimisations here eg, we could store on the
+					// originalstreamdata what the lasteventnumber was at the point of calculating the 
+					// discard points. then we could spot here that if the last event number hasn't moved
+					// and the the metadata hasn't changed, then the DP wont have moved for maxcount.
+					// consider the equivalent for the other discard criteria, and see whether the time/space
+					// tradeoff is worth it.
+					//
+					//qq we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
+					// is completely spent, which might have a bearing on the above.
+					streamCalc.SetStream(originalStreamHandle, originalStreamData);
 
-				CalculateDiscardPointForOriginalStream(
-					eventCalc,
-					state,
-					originalStreamHandle,
-					scavengePoint,
-					out var adjustedDiscardPoint,
-					out var adjustedMaybeDiscardPoint);
+					CalculateDiscardPointForOriginalStream(
+						eventCalc,
+						state,
+						originalStreamHandle,
+						scavengePoint,
+						out var adjustedDiscardPoint,
+						out var adjustedMaybeDiscardPoint);
 
-				if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
-					adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
-					// nothing to update for this stream
-				} else {
-					state.SetOriginalStreamDiscardPoints(
-						streamHandle: originalStreamHandle,
-						discardPoint: adjustedDiscardPoint,
-						maybeDiscardPoint: adjustedMaybeDiscardPoint);
+					if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
+						adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
+						// nothing to update for this stream
+					} else {
+						state.SetOriginalStreamDiscardPoints(
+							streamHandle: originalStreamHandle,
+							discardPoint: adjustedDiscardPoint,
+							maybeDiscardPoint: adjustedMaybeDiscardPoint);
+					}
+
+					if (++cancellationCheckCounter == _cancellationCheckPeriod) {
+						cancellationCheckCounter = 0;
+						cancellationToken.ThrowIfCancellationRequested();
+					}
+
+					if (++checkpointCounter == _checkpointPeriod) {
+						checkpointCounter = 0;
+						transaction.Commit(
+							new ScavengeCheckpoint.Calculating<TStreamId>(originalStreamHandle));
+						transaction = state.BeginTransaction();
+					}
 				}
-
-				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
-					cancellationCheckCounter = 0;
-					cancellationToken.ThrowIfCancellationRequested();
-				}
-
-				if (++checkpointCounter == _checkpointPeriod) {
-					checkpointCounter = 0;
-					state.SetCheckpoint(
-						new ScavengeCheckpoint.Calculating<TStreamId>(originalStreamHandle));
-				}
+			} finally {
+				transaction.Dispose();
 			}
 		}
 

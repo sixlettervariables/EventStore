@@ -35,6 +35,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 			var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
 			var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
+			var transactionBackend = new InMemoryTransactionBackend();
 
 			var scavengeState = new ScavengeState<string>(
 				_hasher,
@@ -47,7 +48,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				originalCollisionStorage,
 				checkpointStorage,
 				chunkTimeStampRangesStorage,
-				chunkWeightStorage);
+				chunkWeightStorage,
+				transactionBackend);
 
 			return scavengeState;
 		}

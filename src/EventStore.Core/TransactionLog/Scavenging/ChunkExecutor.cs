@@ -32,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			if (checkpoint == null) {
 				// checkpoint that we are on to chunk execution now
-				state.SetCheckpoint(new ScavengeCheckpoint.ExecutingChunks(null));
+				state.BeginTransaction().Commit(new ScavengeCheckpoint.ExecutingChunks(null));
 			}
 
 			//qq would we want to run in parallel? (be careful with scavenge state interactions
@@ -44,24 +44,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.Position)) {
-				var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
+				using (var transaction = state.BeginTransaction()) {
+					var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
 
-				//qq configurable threshold? in scavenge point?
-				var threshold = 0.0f;
-				if (physicalWeight < threshold) {
-					// they'll still (typically) be removed from the index
-					return;
+					//qq configurable threshold? in scavenge point?
+					var threshold = 0.0f;
+					if (physicalWeight < threshold) {
+						// they'll still (typically) be removed from the index
+						return;
+					}
+
+					ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
+
+					//qq when to commit/flush, immediately probably
+					state.ResetChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
+
+					transaction.Commit(
+						new ScavengeCheckpoint.ExecutingChunks(physicalChunk.ChunkEndNumber));
+
+					cancellationToken.ThrowIfCancellationRequested();
 				}
-
-				ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
-
-				//qq when to commit/flush, immediately probably
-				state.ResetChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
-
-				state.SetCheckpoint(
-					new ScavengeCheckpoint.ExecutingChunks(physicalChunk.ChunkEndNumber));
-
-				cancellationToken.ThrowIfCancellationRequested();
 			}
 		}
 
