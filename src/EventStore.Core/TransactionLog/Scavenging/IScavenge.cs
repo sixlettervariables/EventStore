@@ -451,10 +451,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq consider, if we were happy to not scavenge streams that collide, at least for now, we could
 	// get away with only storing data for non-colliding keys in the magic map.
 
-	//qq talk to Shaan about possible mono limitations
-
 	//qq incidentally, could any of the scavenge state maps do with bloom filters for quickly skipping
 	// streams that dont need to be scavenged
+
+	//qq some events, like empty writes, do not contain data, presumably dont take up any numbering
+	// see what old scavenge does with those and what we should do with them
+
+
+
+
+
 
 	//qqqq SUBSEQUENT SCAVENGES AND RELATED QUESTIONS
 	// we dont run the next scavenge until the previous one has finished
@@ -485,46 +491,28 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// as long as the tb was fully executed.
 
 
-	//qq some events, like empty writes, do not contain data, presumably dont take up any numbering
-	// see what old scavenge does with those and what we should do with them
 
-	//qqqq TRANSACTIONS. these look ok
-	// - is it possible that an uncommitted transaction could have a hash collision in
-	// a way that we wouldn't detect but would be important? nah, because there is no such thing as a
-	// collision except in the index. but we should have a tests that makes sure its ok when we have
-	// uncommitted transactions that "collide"
-	// - We don't need to support Metadata or Tombstones committed in transactions.
-	//    we will detect it and abort with an error. //qq but do detect it and test this
-	// So we are only concerned with prepares in transactions.
-	//
-	// Accumulator: all we do with these is
-	// - check for collisions (which we can do regardless of whether the record is in a transaction
-	//   or not)
-	// - accumulate timestamps - and these are the timestamps of the preparation not the commit
-	//   so we can just look at the timestamp of the record regardless of what it is and
-	//   whether it is in the transaction.
-	// so the Accumulator is fine just reading the chunk without resorting to the allreader
-	//
-	// Calculator:
-	// - This reads EventInfo from the index, which by its nature does not know about uncommitted events
-	//   or commit records
-	// - So it wont account for uncommited events or commit records in the 'count to be scavenged'
-	// - But the DP should, i think, be calculated correctly.
-	// so i think the calculator is fine too.
-	//
-	// ChunkExecutor:
-	// - we can only scavenge a record if we know what event number it is, for which we need the commit
-	//   record. so perhaps we only scavenge the events in a transaction (and the commit record)
-	//   if the transaction was committed in the same chunk that it was started. this is pretty much
-	//   what the old scavenge does too.
-	//
-	// IndexExecutor:
-	// - i think this is fine by virtue of only having any knowledge of committed things
-	//
-	//  TRANSACTIONS IN OLD SCAVENGE
-	//   - looks like uncommitted prepares are generally kept, maybe unless the stream is hard deleted
-	//   - looks like even committed prepares are only removed if the commit is in the same chunk
-	// - uncommitted transactions are not present in the index, neither are commit records
+
+
+
+
+
+
+
+	// GDPR
+	// the chunk weights are only approximate because
+	//   - they dont include metadata records (there arent usually many of these per stream though)
+	//   - they don't include uncommitted transactions
+	// 
+	// therefore gdpr limitations
+	//   - dont put personal data in metadata, cant guarnatee it will get scavenged
+	//   - dont put personal data in transactions, it wont (and never was) be scavenged if the
+	//     transaction is committed in a different chunk to when it was opened, or if it was left open
+	//     because that information is not local to the chunk we are scavenging.
+	//       - although we _could_ accumulate a list of open transactions it seems like its an occasional
+	//         batch operation that isn't quite the same thing as the scavenge, especially as
+	//         transactions are legacy and not an ongoing concern.
+
 
 
 	//qq perhaps scavenge points go in a scavenge point stream so they can be easily found
@@ -544,33 +532,23 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//    - bump the chunk schema version
 	//    - have old scavenge check for scavengepoints and abort?
 
-	//qq RESUMING SCAVENGE
-	// need some comments about this. consider what checkpoints we need to store in the scavenge state
-	//  - accumulated up to
-	//  - calculated up to
-	//  - executed up to?
-	// and also recovery from crashing during a flush. idempotency
-
 	//qqqq need comment/plan about EXPANDING metadatas.
 	//   probably we want to follow the same behaviour as reads so that the visible data doesn't
 	//   change when you run a scavenge.
 	//qqqq need comment/plan about that flag that allows the last event to be removed.
 	//qqqq need comment/plan on out of order and duplicate events
 
-	//qq can you tombstone a metadata stream
-	//qq if you tombstone a stream does it probably has no effect on the metadtaa stream since we
-	// already scavenge all but the last event, and we want to keep the last event.
-
-	//qq to consider in CollisionDetector any complications from previous index entries having been
-	// scavenged.
-
 	//qq note, probably need to complain if the ptable is a 32bit table
 
-	//qq backup strategy: same as current, only take a backup while scavenge is not running. this is
-	// point towards not having the accumulator running continuall too
+	//qq BACKUP STRATEGY: same as current, only take a backup while scavenge is not running. this is
+	// point towards not having the accumulator running continuall too. see if the backup instrutions
+	// will work, and see if the cli needs modifying
 
 	//qq dont forget about chunk merging.. maybe is that another phase after execution, or part of
 	// execution.
+
+
+
 
 	//qq DETERMINISTIC SCAVENGE
 	// there are some interesting things to note/decide about this
@@ -618,12 +596,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 
 
-	//qq the hash collision detection is pretty key. it is how we efficiently scavenge the index.
-	// if we don't spot what collisions there are, and simply calculate DiscardPoints and store them
-	// against stream names, then (aside from the additional disk space, iops to read and write, seach
-	// time to traverse that structure) we wouldn't be able to tell what the discard point is for any
-	// given indexentry without looking up the log record to see what stream it is for. repeat for
-	// _every_ indexentry.
+
+
+
 	//
 	// todo:
 	// - start creating high level tests to test the scavenger (see how the old scavenge tests work, we
@@ -631,10 +606,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//   user but the effect on the log will be different so may not be able to use exactly the same
 	//   tests (e.g. we will drop in scavenge points, might not scavenge the same things exactly that
 	//   are done on a best effort basis like commit records)
-	// - once we have an idea or two from v20, port the code over to v5.
 	// - port the ScavengeState tests over to the higher level tests
 	// - pass through the doc in case there are more things to think about
-	// - diagram out the components so we can get the big picture
 	// - want the same unit tests to run against mock implementations and real implementations of
 	//      the adapter interfaces ideally
 	// - implement/test the rest of the logic in the scavenge (tdd)
@@ -673,16 +646,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//   - ...
 	//
 	//
-	//qq we can split the scavenge state by
-	// - metadata vs original stream
-	//    - downside, index executor doesn't know which map to look in. double lookup.
-	// - metastreamdata vs discard point
-	//    - i.e. store allll the discard points in one map
-	// - all in one map
-	//    - downside: wasted space, or complexity of variable length values
 	//
 	//qq REDACTION
 	//  needs notes
+
+
+
+
 
 	//qq TOMBSTONES
 	// tldr: tombstones do not necessarily have eventnumber int.maxvalue or long.maxvalue.
@@ -695,6 +665,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//       set by the accumulator accurately describes the required effect, and there are no
 	//       complications of having other metadata affect it for metadata streams.
 	// 
+	// Note Metadata streams cannot be tombstoned abort if we find something like this.
 	//
 	// Although the StorageWriterService does, these days, create tombstones with
 	// EventNumber = EventNumber.DeletedStream the TFChunkScavenger, IndexComitter, and IndexWriter are
@@ -706,19 +677,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// Note, if there is such a tombstone whose eventnumber is not long.max, then that means that its
 	// event number in its indexentry would be different to its event number in the log.
 	//
-	// So, have done this:
-	//  - go back to having a 'is tombstoned' flag
-	//  - get rid of the 'tombstone' discard point. i.e. we keep them separate again.
-	//  then
-	//  - we can probably persist it in the sign bit of the discard point itself
-	//  - then we have an explicit representation of tombstoning seprate to the discard point, which
-	//    helps to simplify things
-	//  - saves us from needing to spot tombtones (via their prepare flags) in the chunk executor,
-	//    just obey the DP.
+	// Therefore we can't just have the Accumulator set the DP to max on tombstone - because that might
+	// discard the tombstone itself. The accumulator would have to set the DP to discard before the
+	// tombstones actual position. But then it wouldn't be obvious that the DP represents a tombstone.
 	//
-	//qq tempting to 'optimise' this to a smaller size by storing the the 'IsTombstoned' and maybe
-	// the TruncateBefore _in_ the DiscardPoint, but it would make the semantics less clear, the code
-	// less obvious and probably less flexible. dont optimise this yet.
+	// For original streams lets keep it simple and set an explicit IsTombstoned flag. The calculator
+	// can take that into account when calculating the discard points. Its possible we could have the
+	// accumulator bake the tombstone into the DP instead to save us storing the flag, but we would then
+	// have two places setting the discard points for normal streams so be careful. come back to this
+	// later and we can check what places are accessing the IsTombstoned flag. Similarly for TB
+	//
+	//  - we can probably persist the flag in the sign bit of the discard point itself
+
+
+
 
 	//qq OLD INDEX SCAVENGE TESTS
 	// - there is no need to run these tests against new scavenge.
@@ -734,7 +706,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// it being part of a transaction
 	//qq make sure we never interact with index entries beyong the scavengepoint because we don't know
 	// whether they are collisions or not
-	
+
 	//qq add a test that covers a chunk becoming empty on scavenge
 
 	public class ScavengePoint {

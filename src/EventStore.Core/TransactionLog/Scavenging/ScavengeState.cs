@@ -35,6 +35,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IScavengeMap<TStreamId, Unit> collisionStorage,
 			IScavengeMap<ulong, TStreamId> hashes,
+			//qq consider combining the meta and original together.. this would save the index having to check both
+			// but would make it less efficient for the calculator to iterate unless we had something like an index on it
 			IScavengeMap<ulong, DiscardPoint> metaStorage,
 			IScavengeMap<TStreamId, DiscardPoint> metaCollisionStorage,
 			IOriginalStreamScavengeMap<ulong> originalStorage,

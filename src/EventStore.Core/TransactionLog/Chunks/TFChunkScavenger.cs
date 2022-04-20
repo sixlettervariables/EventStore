@@ -562,6 +562,7 @@ namespace EventStore.Core.TransactionLog.Chunks {
 				// we can safely delete both prepares and commit.
 				// Even if this prepare is not committed, but its stream is deleted, then as long as it is
 				// not TransactionBegin prepare we can remove it, because any transaction should fail either way on commit stage.
+				// (see comments in previous section for TransactionBegin)
 				commitInfo.TryNotToKeep();
 				return false;
 			}
@@ -594,6 +595,7 @@ namespace EventStore.Core.TransactionLog.Chunks {
 
 			var eventNumber = prepare.Flags.HasAnyOf(PrepareFlags.IsCommitted)
 				? prepare.ExpectedVersion + 1 // IsCommitted prepares always have explicit expected version
+				// we always have commitInfo.EventNumber here because we early returned if isCommitted is false
 				: commitInfo.EventNumber + prepare.TransactionOffset;
 
 			if (DiscardBecauseDuplicate(prepare, eventNumber)) {

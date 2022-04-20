@@ -108,6 +108,29 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// hopefully we can account for that here? although maybe it means our count of
 			// records to scavenge that was calculated index only might end up being approximate.
 
+			//qqqq TRANSACTIONS
+			//qq add tests that makes sure its ok when we have uncommitted transactions that "collide"
+			//
+			// ChunkExecutor:
+			// - we can only scavenge a record if we know what event number it is, for which we need the commit
+			//   record. so perhaps we only scavenge the events in a transaction (and the commit record)
+			//   if the transaction was committed in the same chunk that it was started. this is pretty much
+			//   what the old scavenge does too.
+			//
+			//  TRANSACTIONS IN OLD SCAVENGE
+			//   - looks like uncommitted prepares are generally kept, maybe unless the stream is hard deleted
+			//   - looks like even committed prepares are only removed if the commit is in the same chunk
+			// - uncommitted transactions are not present in the index, neither are commit records
+			//
+			//qq what if the lastevent in a stream is in a transaction?
+			//     we need to make sure we keep it, even though it doesn't have a expectedversion
+			//     so we can do just like old scavenge. if we cant establish the expectedversion then just keep it
+			//     if we can establish the expected version then we can compare it to the discard point.
+			//qq can we scavenge stuff better if the stream is known to be hard deleted - yes, we can get rid of
+			// everything except the begin records (just like old scavenge)
+			//   note in this case the lasteventnumber is the tombstone, which is not in a transaction.
+
+
 			// 1. open the chunk, probably with the bulk reader
 			var newChunk = _chunkManager.CreateChunkWriter(
 				chunk.ChunkStartNumber,
