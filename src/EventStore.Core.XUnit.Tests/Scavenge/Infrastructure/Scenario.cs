@@ -147,6 +147,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var sut = new Scavenger<string>(
 				scavengeState,
 				new Accumulator<string>(
+					chunkSize: dbConfig.ChunkSize,
 					metastreamLookup: accumulatorMetastreamLookup,
 					chunkReader: new ScaffoldChunkReaderForAccumulator(log, metastreamLookup),
 					cancellationCheckPeriod: cancellationCheckPeriod),

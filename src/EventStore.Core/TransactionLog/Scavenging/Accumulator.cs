@@ -4,38 +4,55 @@ using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Accumulator<TStreamId> : IAccumulator<TStreamId> {
+		private readonly int _chunkSize;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
 		private readonly int _cancellationCheckPeriod;
 
 		public Accumulator(
+			int chunkSize,
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkReaderForAccumulator<TStreamId> chunkReader,
 			int cancellationCheckPeriod) {
 
+			_chunkSize = chunkSize;
 			_metastreamLookup = metastreamLookup;
 			_chunkReader = chunkReader;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
 		}
 
+		// Start a new accumulation
 		public void Accumulate(
+			long completedScavengePointPosition,
 			ScavengePoint scavengePoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			CancellationToken cancellationToken) {
+
+			//qqqqqqqqqqqqq check the boundary here.
+			var completedScavengePointChunk = (int)(completedScavengePointPosition / _chunkSize);
+
+			//qqqqqqqqqqqqq check this
+			var doneLogicalChunkNumber = completedScavengePointChunk <= 0
+				? (int?)null
+				: completedScavengePointChunk - 1;
+
+			var checkpoint = new ScavengeCheckpoint.Accumulating(
+					scavengePoint,
+					doneLogicalChunkNumber);
+
+			state.BeginTransaction().Commit(checkpoint);
+			Accumulate(checkpoint, state, cancellationToken);
+		}
+
+		// Continue accumulation for a particular scavenge point
+		public void Accumulate(
 			ScavengeCheckpoint.Accumulating checkpoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			//qq todo finish in right place, which is at latest the last open chunk when we get there
-			// or the scavenge point.
-			//qq stop before the scavenge point, or perhaps more likely at the end of the chunk before
-			// the chunk that has the scavenge point in because at the time the scavenge point is written
-			// that is as far as we can scavenge up to.
-
-			if (checkpoint == null) {
-				// checkpoint that we are on to accumulating now
-				state.BeginTransaction().Commit(new ScavengeCheckpoint.Accumulating(null));
-			}
-
-			var logicalChunkNumber = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
+			//qq is the plus 1 necessaryily ok, bounds?
+			var logicalChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
+			var scavengePoint = checkpoint.ScavengePoint;
 
 			try {
 				while (AccumulateChunkAndRecordRange(
@@ -84,6 +101,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				}
 
 				transaction.Commit(new ScavengeCheckpoint.Accumulating(
+					scavengePoint,
 					doneLogicalChunkNumber: logicalChunkNumber));
 
 				return ret;

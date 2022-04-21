@@ -22,15 +22,22 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void Calculate(
 			ScavengePoint scavengePoint,
+			IScavengeStateForCalculator<TStreamId> state,
+			CancellationToken cancellationToken) {
+
+			var checkpoint = new ScavengeCheckpoint.Calculating<TStreamId>(
+				scavengePoint: scavengePoint,
+				doneStreamHandle: default);
+			state.BeginTransaction().Commit(checkpoint);
+			Calculate(checkpoint, state, cancellationToken);
+		}
+
+		public void Calculate(
 			ScavengeCheckpoint.Calculating<TStreamId> checkpoint,
 			IScavengeStateForCalculator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			if (checkpoint == null) {
-				// checkpoint that we are on to calculating now
-				state.BeginTransaction().Commit(new ScavengeCheckpoint.Calculating<TStreamId>(default));
-			}
-
+			var scavengePoint = checkpoint.ScavengePoint;
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
 			var eventCalc = new EventCalculator<TStreamId>(_chunkSize, state, scavengePoint, streamCalc);
 
@@ -105,8 +112,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					if (++checkpointCounter == _checkpointPeriod) {
 						checkpointCounter = 0;
-						transaction.Commit(
-							new ScavengeCheckpoint.Calculating<TStreamId>(originalStreamHandle));
+						transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
+							scavengePoint,
+							originalStreamHandle));
 						transaction = state.BeginTransaction();
 					}
 				}

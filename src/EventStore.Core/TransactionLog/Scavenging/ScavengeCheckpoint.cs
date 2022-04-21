@@ -1,18 +1,20 @@
 ﻿using System;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	// null checkpoint means no checkpoint
-	// Accumulating with null done means we are accumulating now but havent accumulated anything.
+	// The checkpoint stores which scavengepoint we are processing and where we are up to with it.
 
 	public abstract class ScavengeCheckpoint {
-		//qqqq need the scavengepoint number in here so we know which scavenge point we are
-		// working on. this node can be several scavenge points behind, and other nodes can
-		// even add new scavenge points while we are working on a different one
-		protected ScavengeCheckpoint() {
+		protected ScavengeCheckpoint(ScavengePoint scavengePoint) {
+			ScavengePoint = scavengePoint;
 		}
 
+		public ScavengePoint ScavengePoint { get; }
+
 		public class Accumulating : ScavengeCheckpoint {
-			public Accumulating(int? doneLogicalChunkNumber) {
+			// Accumulating with null doneLogicalChunkNumber means we are accumulating now but havent
+			// accumulated anything.
+			public Accumulating(ScavengePoint scavengePoint, int? doneLogicalChunkNumber)
+				: base(scavengePoint) {
 				DoneLogicalChunkNumber = doneLogicalChunkNumber;
 			}
 
@@ -20,7 +22,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public class Calculating<TStreamId> : ScavengeCheckpoint {
-			public Calculating(StreamHandle<TStreamId> doneStreamHandle) {
+			public Calculating(ScavengePoint scavengePoint, StreamHandle<TStreamId> doneStreamHandle)
+				: base(scavengePoint) {
 				DoneStreamHandle = doneStreamHandle;
 			}
 
@@ -30,28 +33,35 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public class ExecutingChunks : ScavengeCheckpoint {
 			public int? DoneLogicalChunkNumber { get; }
 
-			public ExecutingChunks(int? doneLogicalChunkNumber) {
+			public ExecutingChunks(ScavengePoint scavengePoint, int? doneLogicalChunkNumber)
+				: base(scavengePoint) {
 				DoneLogicalChunkNumber = doneLogicalChunkNumber;
 			}
 		}
 
 		public class ExecutingIndex : ScavengeCheckpoint {
-			public ExecutingIndex() {
+			public ExecutingIndex(ScavengePoint scavengePoint)
+				: base(scavengePoint) {
 			}
 		}
 
 		public class Merging : ScavengeCheckpoint {
-			public Merging() {
+			public Merging(ScavengePoint scavengePoint)
+				: base(scavengePoint) {
 			}
 		}
 
 		//qq name. if this is a phase at all.
 		public class Tidying : ScavengeCheckpoint {
-			public Tidying() {
+			public Tidying(ScavengePoint scavengePoint)
+				: base(scavengePoint) {
 			}
 		}
 
 		public class Done : ScavengeCheckpoint {
+			public Done(ScavengePoint scavengePoint)
+				: base(scavengePoint) {
+			}
 		}
 	}
 }

@@ -20,6 +20,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			Done,
 		}
 
+		public ScavengePoint ScavengePoint { get; set; }
 		public Version SchemaVersion { get; set; }
 		public Stage CheckpointStage { get; set; }
 		public int? DoneLogicalChunkNumber { get; set; }
@@ -28,15 +29,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public ScavengeCheckpoint ToDomain() {
 			switch (CheckpointStage) {
 				case Stage.Accumulating:
-					return new ScavengeCheckpoint.Accumulating(DoneLogicalChunkNumber);
+					return new ScavengeCheckpoint.Accumulating(ScavengePoint, DoneLogicalChunkNumber);
 				case Stage.Calculating:
-					return new ScavengeCheckpoint.Calculating<TStreamId>(DoneStreamHandle);
+					return new ScavengeCheckpoint.Calculating<TStreamId>(ScavengePoint, DoneStreamHandle);
 				case Stage.ExecutingChunks:
-					return new ScavengeCheckpoint.ExecutingChunks(DoneLogicalChunkNumber);
+					return new ScavengeCheckpoint.ExecutingChunks(ScavengePoint, DoneLogicalChunkNumber);
 				case Stage.ExecutingIndex:
-					return new ScavengeCheckpoint.ExecutingIndex();
+					return new ScavengeCheckpoint.ExecutingIndex(ScavengePoint);
 				case Stage.Done:
-					return new ScavengeCheckpoint.Done();
+					return new ScavengeCheckpoint.Done(ScavengePoint);
 				//qqqqqq add other cases
 				default:
 					throw new ArgumentOutOfRangeException(); //qq detail
@@ -46,6 +47,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private static ScavengeCheckpointJsonPersistence<TStreamId> ToDto(ScavengeCheckpoint checkpoint) {
 			var dto = new ScavengeCheckpointJsonPersistence<TStreamId> {
 				SchemaVersion = Version.V0,
+				ScavengePoint = checkpoint.ScavengePoint,
 			};
 
 			switch (checkpoint) {

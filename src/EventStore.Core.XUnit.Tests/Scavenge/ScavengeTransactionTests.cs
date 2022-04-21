@@ -30,7 +30,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				backend,
 				onCompleting: cp => actualCheckpoint = cp);
 
-			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(5);
+			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(new ScavengePoint(), 5);
 
 			Assert.Equal(0, backend.BeginCount);
 			Assert.Equal(0, backend.CommitCount);

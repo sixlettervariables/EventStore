@@ -46,7 +46,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq 5. data for maxage calculations - maybe that can be another IScavengeMap
 	public interface IAccumulator<TStreamId> {
 		void Accumulate(
+			long completedScavengePointPosition,
 			ScavengePoint scavengePoint,
+			IScavengeStateForAccumulator<TStreamId> state,
+			CancellationToken cancellationToken);
+
+		void Accumulate(
 			ScavengeCheckpoint.Accumulating checkpoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken);
@@ -89,6 +94,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface ICalculator<TStreamId> {
 		void Calculate(
 			ScavengePoint scavengePoint,
+			IScavengeStateForCalculator<TStreamId> source,
+			CancellationToken cancellationToken);
+
+		void Calculate(
 			ScavengeCheckpoint.Calculating<TStreamId> checkpoint,
 			IScavengeStateForCalculator<TStreamId> source,
 			CancellationToken cancellationToken);
@@ -99,6 +108,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IChunkExecutor<TStreamId> {
 		void Execute(
 			ScavengePoint scavengePoint,
+			IScavengeStateForChunkExecutor<TStreamId> state,
+			CancellationToken cancellationToken);
+
+		void Execute(
 			ScavengeCheckpoint.ExecutingChunks checkpoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			CancellationToken cancellationToken);
@@ -109,6 +122,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IIndexExecutor<TStreamId> {
 		void Execute(
 			ScavengePoint scavengePoint,
+			IScavengeStateForIndexExecutor<TStreamId> state,
+			IIndexScavengerLog scavengerLogger,
+			CancellationToken cancellationToken);
+
+		void Execute(
 			ScavengeCheckpoint.ExecutingIndex checkpoint,
 			IScavengeStateForIndexExecutor<TStreamId> state,
 			IIndexScavengerLog scavengerLogger,
@@ -471,7 +489,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	// 1. what happens to the discard points, can we reuse them, do we need to recalculate them
 	//    do we need to be careful when we recalculate them to take account of what was there before?
-	// 2. in fact as this^ question of each part of the scavengestate.
+	// 2. in fact ask this^ question of each part of the scavengestate.
 	//
 	//qq in the accumulator consider what should happen if the metadata becomes less restrictive
 	// should we allow events that were previously excluded to re-appear.
@@ -488,7 +506,36 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	//qq after a scavenge there are probaly some entries in the scavenge state that we can forget about
 	// to save us having to iterate them next time. for example if it was tombtoned. and perhaps tb
-	// as long as the tb was fully executed.
+	// as long as the tb was fully executed. but we need to keep the discard points because the chunks
+	// might not all have been executed.
+	//
+	// ACCUMULATOR
+	// We previously accumulated up to the previous scavenge point.
+	// We need to start from there and accumulate up to the new scavenge point.
+	// So we just need to know where we accumulated up to.
+	// Can we skip scavenge points? if so we can't tell where we accumulated up to from the previous scavenge point
+	// we need to store it in the checkpoint.
+
+	// CALCULATOR
+	// ???
+	// does something happen in the calculator to add weight to the chunk when some time has passed? yeah surely
+
+	// CHUNK EXECUTOR
+	// probably nothing too scary in here
+
+	// INDEX EXECUTOR
+	// probably reasonable
+
+	// MERGE/TIDYUP
+
+	// THEREFORE:
+	// - checkpoints should contain the scavengepoint
+	// - we dont pass the scavengepoint to the methods, we get it from the checkpoint
+	// - the checkpoint can be passed to the components, or they could look it up from the state
+	//    - we dont really want the compoennts to know where they come in the order wrt each other
+	//          we want the scavenger to manage that.
+	//    - SO we want to pass it in.
+	//   - what do we want to pass in exactly, 
 
 
 
@@ -528,6 +575,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// you definitely have to be able to run old scavenge first, thats typical.
 	// will it work to run old scavenge after new scavenge? don't see why not
 	// will it work to interleave them?
+	/*
+	 * > is it true that a stream's last event number before the scavenge point will not be scavenged?
+		actually there is something to consider here
+		if they put a scavenge point, wrote some more events, and then run an old scavenge and then run a new scavenge, it might not be true
+		so if we need this property, we might need to add some limitation about how old/new scavenges can be run with respect to each other
+	 */
 	// if we want to disable the old scavenge after running the new we could
 	//    - bump the chunk schema version
 	//    - have old scavenge check for scavengepoints and abort?
@@ -708,7 +761,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// whether they are collisions or not
 
 	//qq add a test that covers a chunk becoming empty on scavenge
-
+	// these are json serialized in the checkpoint
 	public class ScavengePoint {
 		//qq do we want these to be explicit, or implied from the position/timestamp
 		// of the scavenge point itself? questions is whether there is any need to scavenge

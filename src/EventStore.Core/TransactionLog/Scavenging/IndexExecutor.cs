@@ -17,18 +17,24 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void Execute(
 			ScavengePoint scavengePoint,
+			IScavengeStateForIndexExecutor<TStreamId> state,
+			IIndexScavengerLog scavengerLogger,
+			CancellationToken cancellationToken) {
+
+			var checkpoint = new ScavengeCheckpoint.ExecutingIndex(scavengePoint);
+			state.BeginTransaction().Commit(checkpoint);
+			Execute(checkpoint, state, scavengerLogger, cancellationToken);
+		}
+
+		public void Execute(
 			ScavengeCheckpoint.ExecutingIndex checkpoint,
 			IScavengeStateForIndexExecutor<TStreamId> state,
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			if (checkpoint == null) {
-				// checkpoint that we are on to index execution now
-				state.BeginTransaction().Commit(new ScavengeCheckpoint.ExecutingIndex());
-			}
-
 			_indexScavenger.ScavengeIndex(
-				scavengePoint: scavengePoint.Position, //qq or maybe scavenge point number
+				//qq get the ptables to take account of this
+				scavengePoint: checkpoint.ScavengePoint.Position,
 				shouldKeep: GenShouldKeep(state),
 				log: scavengerLogger,
 				cancellationToken: cancellationToken);

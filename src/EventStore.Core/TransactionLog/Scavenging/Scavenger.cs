@@ -80,76 +80,73 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			//qq not sure, might want to do some sanity checking out here about the checkpoint in
-			// relation to the scavengepoint
-			if (!_state.TryGetCheckpoint(out var checkpoint))
-				checkpoint = null;
-
 			//qq consider exceptions (cancelled, and others)
-			//qq old scavenge starts a longrunning task prolly do that
-			//qq this would come from the log so that we can stop/resume it.
-			//qq need to get the scavenge point for our current checkpoint if we have one
-			var scavengePoint = _scavengePointSource.GetScavengePoint();
+			//qq this would come from the log so that we can stop/resume it. //qq what would :S
+			//qq probably want tests for skipping over scavenge points.
 
-			if (checkpoint is null || checkpoint is ScavengeCheckpoint.Accumulating)
-				Accumulate();
-			else if (checkpoint is ScavengeCheckpoint.Calculating<TStreamId>)
-				Calculate();
-			else if (checkpoint is ScavengeCheckpoint.ExecutingChunks)
-				ExecuteChunks();
-			else if (checkpoint is ScavengeCheckpoint.ExecutingIndex)
-				ExecuteIndex();
-			else if (checkpoint is ScavengeCheckpoint.ExecutingChunks)
-				ExecuteChunks();
-			else
+			// each component can be started with its checkpoint or fresh from a given scavengepoint.
+			if (!_state.TryGetCheckpoint(out var checkpoint)) {
+				// start of the first scavenge (or the state was deleted)
+				// get the latest scavengepoint and scavenge that.
+				var scavengePoint = _scavengePointSource.GetScavengePoint();
+				//qqqqq if it doesn't exist we need to optimistically drop one into the log
+				AccumulateEtc(0, scavengePoint); //qqqqqqq is 0 ok in this case
+
+			} else if (checkpoint is ScavengeCheckpoint.Done done) {
+				// start of a subsequent scavenge.
+				// get the latest scavengepoint and scavenge that
+				//qqqq if it doesn't exist we need to optimistically drop one into the log
+				//     if we fail to create one its probably because one was created in the mean time.
+				//qqqq OR if the last one is the one that we have done then drop a new one into the log
+				//   consider if that is what we want to do
+				var scavengePoint = _scavengePointSource.GetScavengePoint();
+				//qqqqq if it doesn't exist we need to optimistically drop one into the log
+				AccumulateEtc(done.ScavengePoint.Position, scavengePoint); //qqqqqqq is 0 ok in this case
+
+				//qqqqqq this has quite a lot in common with the case above, maybe refactor
+
+			// the other cases are continuing an incomplete scavenge
+			} else if (checkpoint is ScavengeCheckpoint.Accumulating accumulating) {
+				_accumulator.Accumulate(accumulating, _state, cancellationToken);
+				AfterAccumulation(accumulating.ScavengePoint);
+
+			} else if (checkpoint is ScavengeCheckpoint.Calculating<TStreamId> calculating) {
+				_calculator.Calculate(calculating, _state, cancellationToken);
+				AfterCalculation(calculating.ScavengePoint);
+
+			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
+				_chunkExecutor.Execute(executingChunks, _state, cancellationToken);
+				AfterChunkExecution(executingChunks.ScavengePoint);
+
+			} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
+				_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken);
+				AfterIndexExecution(executingIndex.ScavengePoint);
+
+			} else {
 				throw new Exception($"unexpected checkpoint {checkpoint}"); //qq details
-
-			//qq whatever checkpoint we have, if any, we jump to that step and pass it in.
-			// calls to subsequent steps don't have that checkpoint. would it be better if each component
-			// just managed its own checkpoint and realised it had nothing to do on start
-			void Accumulate() {
-				_accumulator.Accumulate(
-					scavengePoint,
-					checkpoint as ScavengeCheckpoint.Accumulating,
-					_state,
-					cancellationToken);
-
-				Calculate();
 			}
 
-			void Calculate() {
-				_calculator.Calculate(
-					scavengePoint,
-					checkpoint as ScavengeCheckpoint.Calculating<TStreamId>,
-					_state,
-					cancellationToken);
-
-				ExecuteChunks();
+			void AccumulateEtc(long prev, ScavengePoint sp) {
+				_accumulator.Accumulate(prev, sp, _state, cancellationToken);
+				AfterAccumulation(sp);
 			}
 
-			void ExecuteChunks() {
-				_chunkExecutor.Execute(
-					scavengePoint,
-					checkpoint as ScavengeCheckpoint.ExecutingChunks,
-					_state,
-					cancellationToken);
-
-				ExecuteIndex();
+			void AfterAccumulation(ScavengePoint sp) {
+				_calculator.Calculate(sp, _state, cancellationToken);
+				AfterCalculation(sp);
 			}
 
-
-			void ExecuteIndex() {
-				_indexExecutor.Execute(
-					scavengePoint,
-					checkpoint as ScavengeCheckpoint.ExecutingIndex,
-					_state,
-					scavengerLogger,
-					cancellationToken);
-
-				Finish();
+			void AfterCalculation(ScavengePoint sp) {
+				_chunkExecutor.Execute(sp, _state, cancellationToken);
+				AfterChunkExecution(sp);
 			}
 
-			void Finish() {
+			void AfterChunkExecution(ScavengePoint sp) {
+				_indexExecutor.Execute(sp, _state, scavengerLogger, cancellationToken);
+				AfterIndexExecution(sp);
+			}
+
+			void AfterIndexExecution(ScavengePoint sp) {
 				//qqq merge phase
 
 				//qqq tidy phase if necessary
@@ -163,7 +160,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//     - chunk weights
 				//          - after executing a chunk (chunk executor will do this)
 
-				_state.BeginTransaction().Commit(new ScavengeCheckpoint.Done());
+				//qq check this is the right scavengepoint
+				_state.BeginTransaction().Commit(new ScavengeCheckpoint.Done(sp));
 			}
 		}
 	}

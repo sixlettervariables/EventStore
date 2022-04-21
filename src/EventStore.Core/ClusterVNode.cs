@@ -568,6 +568,7 @@ namespace EventStore.Core {
 				// affected by the log format ofc.
 				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
 				var accumulator = new Accumulator<string>(
+					chunkSize: TFConsts.ChunkSize,
 					metastreamLookup: metastreamLookup,
 					chunkReader: new ChunkReaderForAccumulator<string>(),
 					cancellationCheckPeriod: cancellationCheckPeriod);
