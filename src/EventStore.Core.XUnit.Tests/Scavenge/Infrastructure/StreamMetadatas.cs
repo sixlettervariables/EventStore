@@ -1,5 +1,8 @@
 ﻿using System;
 using EventStore.Core.Data;
+using EventStore.Core.Services;
+using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class StreamMetadatas {
@@ -19,5 +22,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public static DateTime EffectiveNow { get; } = new DateTime(2022, 1, 5, 00, 00, 00);
 		public static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
 		public static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
+
+		public static Rec ScavengePoint(int transaction) => Rec.Prepare(
+			transaction: transaction,
+			stream: SystemStreams.ScavengePointsStream,
+			eventType: SystemEventTypes.ScavengePoint,
+			timestamp: EffectiveNow);
 	}
 }

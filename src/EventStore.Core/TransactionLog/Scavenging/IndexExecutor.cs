@@ -22,7 +22,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			CancellationToken cancellationToken) {
 
 			var checkpoint = new ScavengeCheckpoint.ExecutingIndex(scavengePoint);
-			state.BeginTransaction().Commit(checkpoint);
+			state.SetCheckpoint(checkpoint);
 			Execute(checkpoint, state, scavengerLogger, cancellationToken);
 		}
 
@@ -34,7 +34,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_indexScavenger.ScavengeIndex(
 				//qq get the ptables to take account of this
-				scavengePoint: checkpoint.ScavengePoint.Position,
+				scavengePoint: checkpoint.ScavengePoint.UpToPosition,
 				shouldKeep: GenShouldKeep(state),
 				log: scavengerLogger,
 				cancellationToken: cancellationToken);

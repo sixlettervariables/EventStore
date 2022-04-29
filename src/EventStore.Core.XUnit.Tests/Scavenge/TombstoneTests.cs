@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using Xunit;
+using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TombstoneTests {
@@ -9,26 +10,30 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		// and a set for collisions when there is metadata (maybe combination metadata and tombstone)
 		[Fact]
 		public async Task simple_tombstone() {
+			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(0, "ab-1"),
-						Rec.Delete(1, "ab-1"))
-					.CompleteLastChunk())
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Delete(t++, "ab-1"))
+					.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(1)
+					x.Recs[0].KeepIndexes(1),
+					x.Recs[1],
 				});
 		}
 
 		[Fact]
 		public async Task single_tombstone() {
+			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
-						Rec.Delete(1, "ab-1"))
-					.CompleteLastChunk())
+						Rec.Delete(t++, "ab-1"))
+					.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(0)
+					x.Recs[0].KeepIndexes(0),
+					x.Recs[1],
 				});
 		}
 
@@ -37,11 +42,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// eventstore refuses denies access to write such a tombstone in the first place,
 			// including in ESv5
 			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
+				var t = 0;
 				await new Scenario()
 					.WithDb(x => x
 						.Chunk(
-							Rec.Delete(0, "$$ab-1"))
-						.CompleteLastChunk())
+							Rec.Delete(t++, "$$ab-1"))
+						.Chunk(ScavengePoint(t++)))
 					.RunAsync();
 			});
 
@@ -60,7 +66,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						.Chunk(
 							Rec.TransSt(0, "ab-1"),
 							Rec.Delete(0, "ab-1"))
-						.CompleteLastChunk())
+						.Chunk(ScavengePoint(1)))
 					.RunAsync();
 			});
 

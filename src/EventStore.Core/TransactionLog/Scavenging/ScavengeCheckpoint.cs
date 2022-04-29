@@ -19,6 +19,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			public int? DoneLogicalChunkNumber { get; }
+
+			public override string ToString() =>
+				$"Accumulating {ScavengePoint.GetName()} done " +
+					(DoneLogicalChunkNumber.HasValue
+						? $"Chunk {DoneLogicalChunkNumber}"
+						: "None");
 		}
 
 		public class Calculating<TStreamId> : ScavengeCheckpoint {
@@ -28,6 +34,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			public StreamHandle<TStreamId> DoneStreamHandle { get; }
+
+			public override string ToString() =>
+				$"Calculating {ScavengePoint.GetName()} done {DoneStreamHandle}";
 		}
 
 		public class ExecutingChunks : ScavengeCheckpoint {
@@ -37,18 +46,30 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				: base(scavengePoint) {
 				DoneLogicalChunkNumber = doneLogicalChunkNumber;
 			}
+
+			public override string ToString() =>
+				$"Executing chunks for {ScavengePoint.GetName()} done " +
+					(DoneLogicalChunkNumber.HasValue
+						? $"Chunk {DoneLogicalChunkNumber}"
+						: "None");
 		}
 
 		public class ExecutingIndex : ScavengeCheckpoint {
 			public ExecutingIndex(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
+
+			public override string ToString() =>
+				$"Executing index for {ScavengePoint.GetName()}";
 		}
 
 		public class Merging : ScavengeCheckpoint {
 			public Merging(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
+
+			public override string ToString() =>
+				$"Merging {ScavengePoint.GetName()}";
 		}
 
 		//qq name. if this is a phase at all.
@@ -56,12 +77,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			public Tidying(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
+
+			public override string ToString() =>
+				$"Tidying {ScavengePoint.GetName()}";
 		}
 
 		public class Done : ScavengeCheckpoint {
 			public Done(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
+
+			public override string ToString() =>
+				$"Done {ScavengePoint.GetName()}";
 		}
 	}
 }

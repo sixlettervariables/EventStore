@@ -4,15 +4,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq own file. name
 	public class ScavengeTransaction : ITransaction {
 		private readonly ITransactionBackend _backend;
-		private readonly Action<ScavengeCheckpoint> _onCompleting;
+		private readonly IScavengeMap<Unit, ScavengeCheckpoint> _storage;
 		private bool _began;
 
 		public ScavengeTransaction(
 			ITransactionBackend backend,
-			Action<ScavengeCheckpoint> onCompleting) {
+			IScavengeMap<Unit, ScavengeCheckpoint> storage) {
 
 			_backend = backend;
-			_onCompleting = onCompleting;
+			_storage = storage;
 		}
 
 		public void Begin() {
@@ -38,15 +38,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (!_began)
 				throw new InvalidOperationException("Cannot commit a transaction that has not begun.");
 
-			_onCompleting(checkpoint);
+			_storage[Unit.Instance] = checkpoint;
+
 			//qqqq if we crash while commiting, will it get rolled back properly
 			_backend.Commit();
 			_began = false;
-		}
-
-		public void Dispose() {
-			if (_began)
-				Rollback();
 		}
 	}
 }

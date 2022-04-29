@@ -46,7 +46,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq 5. data for maxage calculations - maybe that can be another IScavengeMap
 	public interface IAccumulator<TStreamId> {
 		void Accumulate(
-			long completedScavengePointPosition,
+			ScavengePoint prevScavengePoint,
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken);
@@ -309,7 +309,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	// So that the scavenger knows where to scavenge up to
 	public interface IScavengePointSource {
-		ScavengePoint GetScavengePoint();
+		// returns null when no scavenge point
+		//qq rename to GetLatestOrDefault ?
+		Task<ScavengePoint> GetLatestScavengePointAsync();
+		Task<ScavengePoint> AddScavengePointAsync(long expectedVersion);
 	}
 
 	// when scavenging we dont need all the data for a record
@@ -317,10 +320,37 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// but the bytes can just be bytes, in the end we are going to keep it or discard it.
 	//qq recycle this record like the recordforaccumulation?
 	//qq hopefully doesn't have to be a class, or can be pooled
-	public class RecordForScavenge<TStreamId> {
-		public RecordForScavenge() {
+	//qqqqq this will need some rethinking to accommodate the chunk execution logic and
+	// its treatment of things like transactions. probably we will need access to the actual
+	// LogRecord instance
+	public class RecordForScavenge {
+		public static RecordForScavenge<TStreamId> CreateScavengeable<TStreamId>(
+				TStreamId streamId,
+				DateTime timeStamp,
+				long eventNumber,
+				byte[] bytes) {
+
+			return new RecordForScavenge<TStreamId>() {
+				IsScavengable = true,
+				TimeStamp = timeStamp,
+				StreamId = streamId,
+				EventNumber = eventNumber,
+				RecordBytes = bytes,
+			};
 		}
 
+		public static RecordForScavenge<TStreamId> CreateNonScavengeable<TStreamId>(
+			byte[] bytes) {
+
+			return new RecordForScavenge<TStreamId>() {
+				IsScavengable = false,
+				RecordBytes = bytes,
+			};
+		}
+	}
+
+	public class RecordForScavenge<TStreamId> {
+		public bool IsScavengable { get; set; } //qq temporary messy
 		public TStreamId StreamId { get; set; }
 		public DateTime TimeStamp { get; set; }
 		public long EventNumber { get; set; }
@@ -513,8 +543,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// We previously accumulated up to the previous scavenge point.
 	// We need to start from there and accumulate up to the new scavenge point.
 	// So we just need to know where we accumulated up to.
-	// Can we skip scavenge points? if so we can't tell where we accumulated up to from the previous scavenge point
-	// we need to store it in the checkpoint.
 
 	// CALCULATOR
 	// ???
@@ -761,17 +789,35 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// whether they are collisions or not
 
 	//qq add a test that covers a chunk becoming empty on scavenge
-	// these are json serialized in the checkpoint
+	//qqqqq this should not care that it is persisted in a log record
+	// these are json serialized in the checkpoint,
 	public class ScavengePoint {
-		//qq do we want these to be explicit, or implied from the position/timestamp
-		// of the scavenge point itself? questions is whether there is any need to scavenge
-		// at a different time or place.
-		//qq consider that at the time we place the scavenge point it is not in a scavengable chunk
-		//   we should probably capture that behaviour here and have Position (rename to
-		//   EffectivePosition?) return the point that we can really scavenge up to, whatever that is.
+		public static ScavengePoint CreateForLogPosition(
+			long chunkSize,
+			long scavengePointLogPosition,
+			long eventNumber,
+			DateTime effectiveNow) {
 
-		public long Position { get; set; }
-		public DateTime EffectiveNow { get; set; }
-		//qqqqq public long ScavengePointNumber { get; set; }
+			return new ScavengePoint(
+				// scavenge up to the beginning of the chunk that the scavenge point record is in (excl)
+				upToPosition: scavengePointLogPosition / chunkSize * chunkSize,
+				eventNumber: eventNumber,
+				effectiveNow: effectiveNow);
+		}
+
+		public ScavengePoint(long upToPosition, long eventNumber, DateTime effectiveNow) {
+			UpToPosition = upToPosition;
+			EventNumber = eventNumber;
+			EffectiveNow = effectiveNow;
+		}
+
+		// the position to scavenge up to (exclusive)
+		public long UpToPosition { get; }
+
+		public long EventNumber { get; }
+
+		public DateTime EffectiveNow { get; }
+
+		public string GetName() => $"SP-{EventNumber}";
 	}
 }

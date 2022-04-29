@@ -32,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var checkpoint = new ScavengeCheckpoint.ExecutingChunks(
 				scavengePoint: scavengePoint,
 				doneLogicalChunkNumber: default);
-			state.BeginTransaction().Commit(checkpoint);
+			state.SetCheckpoint(checkpoint);
 			Execute(checkpoint, state, cancellationToken);
 		}
 
@@ -50,8 +50,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
 			var scavengePoint = checkpoint.ScavengePoint;
 
-			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.Position)) {
-				using (var transaction = state.BeginTransaction()) {
+			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.UpToPosition)) {
+				var transaction = state.BeginTransaction();
+				try {
 					var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
 
 					//qq configurable threshold? in scavenge point?
@@ -67,12 +68,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						physicalChunk.ChunkStartNumber,
 						physicalChunk.ChunkEndNumber);
 
+					cancellationToken.ThrowIfCancellationRequested();
+
 					transaction.Commit(
 						new ScavengeCheckpoint.ExecutingChunks(
 							scavengePoint,
 							physicalChunk.ChunkEndNumber));
-
-					cancellationToken.ThrowIfCancellationRequested();
+				} catch {
+					transaction.Rollback();
+					throw;
 				}
 			}
 		}
@@ -193,6 +197,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			ScavengePoint scavengePoint,
 			RecordForScavenge<TStreamId> record) {
+
+			if (!record.IsScavengable)
+				return false;
 
 			if (record.EventNumber < 0) {
 				//qq we can discard from transactions sometimes, copy the logic from old scavenge.

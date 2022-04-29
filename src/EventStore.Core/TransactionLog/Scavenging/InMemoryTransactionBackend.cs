@@ -1,5 +1,8 @@
 ﻿namespace EventStore.Core.TransactionLog.Scavenging {
 	public class InMemoryTransactionBackend : ITransactionBackend {
+		public InMemoryTransactionBackend() {
+		}
+
 		public void Begin() {
 			// sqlite implementation would open a transaction
 		}

@@ -590,6 +590,7 @@ namespace EventStore.Core {
 					new IndexScavenger(tableIndex),
 					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)));
 
+				var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 				var scavengeState = new ScavengeState<string>(
 					longHasher,
 					metastreamLookup,
@@ -599,10 +600,13 @@ namespace EventStore.Core {
 					new InMemoryScavengeMap<string, DiscardPoint>(),
 					new InMemoryOriginalStreamScavengeMap<ulong>(),
 					new InMemoryOriginalStreamScavengeMap<string>(),
-					new InMemoryScavengeMap<Unit, ScavengeCheckpoint>(),
+					checkpointStorage,
 					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
 					new InMemoryChunkWeightScavengeMap(),
-					new InMemoryTransactionBackend());
+					new ScavengeTransaction(
+						new InMemoryTransactionBackend(),
+						checkpointStorage)
+				);
 
 				var scavenger = new Scavenger<string>(
 					scavengeState,
@@ -610,7 +614,7 @@ namespace EventStore.Core {
 					calculator,
 					chunkExecutor,
 					indexExecutor,
-					new ScavengePointSource(db));
+					new ScavengePointSource(TFConsts.ChunkSize, db, ioDispatcher));
 
 				var storageScavenger = new NewStorageScavenger<string>(
 					scavengerLogManager,

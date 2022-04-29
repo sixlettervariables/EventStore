@@ -9,31 +9,38 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		// and set in different orders
 		[Fact]
 		public async Task maxcount_then_tombstone() {
+			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount2),
-						Rec.Prepare(1, "ab-1"),
-						Rec.Prepare(2, "ab-1"),
-						Rec.Delete(3, "ab-1"))
-					.CompleteLastChunk())
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Delete(t++, "ab-1"))
+					.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(0, 3)
+					x.Recs[0].KeepIndexes(0, 3),
+					x.Recs[1],
 				});
 		}
 
+		//qq pretty much of the tests will start with a scavengepoint already in the database
+		//qq add a set of tests that are variations on this - not present, multiple present,
+		// last one before extra records, et.
 		[Fact]
 		public async Task tombstone_then_maxcount() {
+			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(0, "ab-1"),
-						Rec.Prepare(1, "ab-1"),
-						Rec.Delete(2, "ab-1"),
-						Rec.Prepare(3, "$$ab-1", "$metadata", metadata: MaxCount2))
-					.CompleteLastChunk())
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Delete(t++, "ab-1"),
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
+					.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(2, 3)
+					x.Recs[0].KeepIndexes(2, 3),
+					x.Recs[1],
 				});
 		}
 	}

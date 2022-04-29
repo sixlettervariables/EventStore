@@ -1,4 +1,5 @@
-﻿using EventStore.Core.Index.Hashes;
+﻿using System;
+using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Scavenging;
 
@@ -8,6 +9,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private readonly IMetastreamLookup<string> _metastreamLookup;
 
 		private ScavengeState<string> _preexisting;
+		private Tracer _tracer;
 
 		public ScavengeStateBuilder(
 			ILongHasher<string> hasher,
@@ -22,6 +24,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
+		public ScavengeStateBuilder Transform(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) =>
+			f(this);
+
+		public ScavengeStateBuilder WithTracer(Tracer tracer) {
+			_tracer = tracer;
+			return this;
+		}
+
 		public ScavengeState<string> Build() {
 			if (_preexisting != null)
 				return _preexisting;
@@ -30,12 +40,28 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var hashesStorage = new InMemoryScavengeMap<ulong, string>();
 			var metaStorage = new InMemoryScavengeMap<ulong, DiscardPoint>();
 			var metaCollisionStorage = new InMemoryScavengeMap<string, DiscardPoint>();
-			var originalStorage = new InMemoryOriginalStreamScavengeMap<ulong>();
-			var originalCollisionStorage = new InMemoryOriginalStreamScavengeMap<string>();
+			IOriginalStreamScavengeMap<ulong> originalStorage =
+				new InMemoryOriginalStreamScavengeMap<ulong>();
+			IOriginalStreamScavengeMap<string> originalCollisionStorage =
+				new InMemoryOriginalStreamScavengeMap<string>();
 			var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 			var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
 			var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
-			var transactionBackend = new InMemoryTransactionBackend();
+			ITransactionBackend transactionBackend = new InMemoryTransactionBackend();
+
+			if (_tracer != null)
+				transactionBackend = new TracingTransactionBackend(transactionBackend, _tracer);
+
+			ITransaction transaction = new ScavengeTransaction(
+				transactionBackend,
+				checkpointStorage);
+
+			if (_tracer != null) {
+				transaction = new TracingTransaction(transaction, _tracer);
+				originalStorage = new TracingOriginalStreamScavengeMap<ulong>(originalStorage, _tracer);
+				originalCollisionStorage =
+					new TracingOriginalStreamScavengeMap<string>(originalCollisionStorage, _tracer);
+			}
 
 			var scavengeState = new ScavengeState<string>(
 				_hasher,
@@ -49,7 +75,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				checkpointStorage,
 				chunkTimeStampRangesStorage,
 				chunkWeightStorage,
-				transactionBackend);
+				transaction);
 
 			return scavengeState;
 		}

@@ -24,13 +24,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CanCommitThenBegin() {
-			var actualCheckpoint = default(ScavengeCheckpoint);
+			var storage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 			var backend = new MockTransactionBackend();
-			var sut = new ScavengeTransaction(
-				backend,
-				onCompleting: cp => actualCheckpoint = cp);
+			var sut = new ScavengeTransaction(backend, storage);
 
-			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(new ScavengePoint(), 5);
+			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(
+				new ScavengePoint(default, default, default),
+				5);
 
 			Assert.Equal(0, backend.BeginCount);
 			Assert.Equal(0, backend.CommitCount);
@@ -43,13 +43,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(0, backend.RollbackCount);
 
 			sut.Commit(expectedCheckpoint);
+			Assert.True(storage.TryGetValue(Unit.Instance, out var actualCheckpoint));
 			Assert.Equal(expectedCheckpoint, actualCheckpoint);
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(1, backend.CommitCount);
-			Assert.Equal(0, backend.RollbackCount);
-
-			sut.Dispose();
 
 			Assert.Equal(1, backend.BeginCount);
 			Assert.Equal(1, backend.CommitCount);
@@ -67,7 +62,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var backend = new MockTransactionBackend();
 			var sut = new ScavengeTransaction(
 				backend,
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			Assert.Equal(0, backend.BeginCount);
 			Assert.Equal(0, backend.CommitCount);
@@ -85,12 +80,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(0, backend.CommitCount);
 			Assert.Equal(1, backend.RollbackCount);
 
-			sut.Dispose();
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(0, backend.CommitCount);
-			Assert.Equal(1, backend.RollbackCount);
-
 			sut.Begin();
 
 			Assert.Equal(2, backend.BeginCount);
@@ -99,51 +88,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
-		public void DisposeCommittedDoesNothing() {
-			var backend = new MockTransactionBackend();
-			var sut = new ScavengeTransaction(
-				backend,
-				onCompleting: cp => { });
-
-			sut.Begin();
-			sut.Commit(null);
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(1, backend.CommitCount);
-			Assert.Equal(0, backend.RollbackCount);
-
-			sut.Dispose();
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(1, backend.CommitCount);
-			Assert.Equal(0, backend.RollbackCount);
-		}
-
-		[Fact]
-		public void DisposeUncommittedRollsBack() {
-			var backend = new MockTransactionBackend();
-			var sut = new ScavengeTransaction(
-				backend,
-				onCompleting: cp => { });
-
-			sut.Begin();
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(0, backend.CommitCount);
-			Assert.Equal(0, backend.RollbackCount);
-
-			sut.Dispose();
-
-			Assert.Equal(1, backend.BeginCount);
-			Assert.Equal(0, backend.CommitCount);
-			Assert.Equal(1, backend.RollbackCount);
-		}
-
-		[Fact]
 		public void CannotBeginTwice() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
 
@@ -156,7 +104,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotCommitTwice() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
 			sut.Commit(null);
@@ -170,7 +118,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotCommitThenRollback() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
 			sut.Commit(null);
@@ -184,7 +132,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotRollbackTwice() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
 			sut.Rollback();
@@ -198,7 +146,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotRollbackThenCommit() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
 			sut.Rollback();
@@ -212,7 +160,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotCommitWithoutBeginning() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			Assert.Throws<InvalidOperationException>(() => {
 				sut.Commit(null);
@@ -223,7 +171,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void CannotRollbackWithoutBeginning() {
 			var sut = new ScavengeTransaction(
 				new MockTransactionBackend(),
-				onCompleting: cp => { });
+				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			Assert.Throws<InvalidOperationException>(() => {
 				sut.Rollback();

@@ -28,7 +28,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var checkpoint = new ScavengeCheckpoint.Calculating<TStreamId>(
 				scavengePoint: scavengePoint,
 				doneStreamHandle: default);
-			state.BeginTransaction().Commit(checkpoint);
+			state.SetCheckpoint(checkpoint);
 			Calculate(checkpoint, state, cancellationToken);
 		}
 
@@ -118,8 +118,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						transaction = state.BeginTransaction();
 					}
 				}
-			} finally {
-				transaction.Dispose();
+
+				//qqqqqq consider/test this
+				// we have an open transaction here so we have to commit something
+				// if we processed some streams, the last one is in the calculator
+				// if we didn't process any streams, the calculator contains the default
+				// none handle, which is probably appropriate to commit in that case
+				transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
+					scavengePoint,
+					streamCalc.OriginalStreamHandle));
+			} catch {
+				transaction.Rollback();
+				throw;
 			}
 		}
 
@@ -152,6 +162,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//qq limit the read to the scavengepoint too?
 				const int maxCount = 100; //qq what would be sensible? probably pretty large
 
+				//qqqqqqqqqqqq on subsequent scavenge, consider if this would/should return noncontigous
+				// if some chunks have been scavenged (for the collision case, which relies on the log)
 				var slice = _index.ReadEventInfoForward(
 					originalStreamHandle,
 					fromEventNumber,
