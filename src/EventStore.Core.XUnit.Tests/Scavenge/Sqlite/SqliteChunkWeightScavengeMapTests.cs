@@ -1,4 +1,5 @@
-﻿using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+﻿using System.Collections.Generic;
+using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
@@ -42,6 +43,50 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			Assert.True(sut.TryGetValue(13, out var v));
 			Assert.Equal(0.33f, v);
+		}
+
+		[Fact]
+		public void can_sum_chunk_weights() {
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			sut.Initialize();
+			
+			sut[0] = 0.1f;
+			sut[1] = 0.1f;
+			sut[2] = 0.1f;
+			sut[3] = 0.1f;
+			sut[4] = 0.1f;
+
+			var value = sut.SumChunkWeights(1, 3);
+			
+			Assert.Equal(0.3f, value);
+		}
+		
+		[Fact]
+		public void can_sum_non_existing_chunk_weights() {
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			sut.Initialize();
+			
+			var value = sut.SumChunkWeights(1, 3);
+			
+			Assert.Equal(0.0f, value);
+		}
+		
+		[Fact]
+		public void can_reset_chunk_weights() {
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			sut.Initialize();
+			
+			sut[0] = 0.1f;
+			sut[1] = 0.1f;
+			sut[2] = 0.1f;
+			sut[3] = 0.1f;
+			sut[4] = 0.1f;
+
+			sut.ResetChunkWeights(1, 3);
+			
+			Assert.Collection(sut,
+				item => Assert.Equal(new KeyValuePair<int,float>(0, 0.1f), item),
+				item => Assert.Equal(new KeyValuePair<int,float>(4, 0.1f), item));
 		}
 	}
 }

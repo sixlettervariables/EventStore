@@ -17,5 +17,25 @@
 				parameters.AddWithValue("$value", extraWeight);
 			});
 		}
+
+		public float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) {
+			var sql = $"SELECT SUM(value) FROM {TableName} WHERE key BETWEEN $start AND $end";
+			
+			ExecuteSingleRead(sql, parameters => {
+				parameters.AddWithValue("start", startLogicalChunkNumber);
+				parameters.AddWithValue("end", endLogicalChunkNumber);
+			}, reader => reader.IsDBNull(0) ? 0 : reader.GetFloat(0), out var value);
+
+			return value;
+		}
+
+		public void ResetChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) {
+			var sql = $"DELETE FROM {TableName} WHERE key BETWEEN $start AND $end";
+			
+			ExecuteNonQuery(sql, parameters => {
+				parameters.AddWithValue("start", startLogicalChunkNumber);
+				parameters.AddWithValue("end", endLogicalChunkNumber);
+			});
+		}
 	}
 }
