@@ -5,14 +5,14 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 {
-	public class SqliteFixedStructScavengeMapTests : DirectoryPerTest<SqliteFixedStructScavengeMapTests> {
+	public class SqliteFixedStructScavengeMapTests : SqliteDbPerTest<SqliteFixedStructScavengeMapTests> {
 
 		public SqliteFixedStructScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
 		}
 
 		[Fact]
 		public void can_use_fixed_struct_value_type_map() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("FixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("FixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut[22] = DiscardPoint.DiscardBefore(22);
@@ -27,7 +27,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_enumerate_all_items() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 
 			sut[0] = DiscardPoint.DiscardBefore(10);
@@ -46,7 +46,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_enumerate_from_checkpoint() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 
 			sut[0] = DiscardPoint.DiscardBefore(10);
@@ -62,7 +62,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_try_get_value_of_non_existing() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 
 			Assert.False(sut.TryGetValue(33, out var v));
@@ -71,7 +71,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_remove_value() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 
 			sut[0] = DiscardPoint.DiscardBefore(10);
@@ -82,7 +82,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_try_remove_value() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.Directory);
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();
 
 			Assert.False(sut.TryRemove(0, out var v));

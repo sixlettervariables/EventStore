@@ -4,14 +4,14 @@ using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
-	public class SqliteScavengeCheckpointMapTests : DirectoryPerTest<SqliteScavengeCheckpointMapTests> {
+	public class SqliteScavengeCheckpointMapTests : SqliteDbPerTest<SqliteScavengeCheckpointMapTests> {
 
 		public SqliteScavengeCheckpointMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
 		}
 
 		[Fact]
 		public void can_store_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.Directory);
+			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
 			sut.Initialize();
 
 			var scavengePoint = new ScavengePoint() {
@@ -30,7 +30,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_overwrite_current_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.Directory);
+			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
 			sut.Initialize();
 
 			sut[Unit.Instance] = new ScavengeCheckpoint.Accumulating(new ScavengePoint() {
@@ -54,7 +54,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_remove_current_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.Directory);
+			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
 			sut.Initialize();
 
 			var scavengePoint = new ScavengePoint() {
@@ -70,7 +70,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_try_remove_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.Directory);
+			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
 			sut.Initialize();
 
 			Assert.False(sut.TryRemove(Unit.Instance, out _));

@@ -3,14 +3,14 @@ using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
-	public class SqliteChunkWeightScavengeMapTests : DirectoryPerTest<SqliteChunkWeightScavengeMapTests> {
+	public class SqliteChunkWeightScavengeMapTests : SqliteDbPerTest<SqliteChunkWeightScavengeMapTests> {
 
 		public SqliteChunkWeightScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
 		}
 
 		[Fact]
 		public void can_increase_existing_chunk_weight() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut[3] = 0.5f;
@@ -23,7 +23,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_decrease_existing_chunk_weight() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut[3] = 0.5f;
@@ -36,7 +36,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_increase_non_existing_chunk_weight() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut.IncreaseWeight(13, 0.33f);
@@ -47,7 +47,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_sum_chunk_weights() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut[0] = 0.1f;
@@ -63,7 +63,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_sum_non_existing_chunk_weights() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			var value = sut.SumChunkWeights(1, 3);
@@ -73,7 +73,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_reset_chunk_weights() {
-			var sut = new SqliteChunkWeightScavengeMap(Fixture.Directory);
+			var sut = new SqliteChunkWeightScavengeMap(Fixture.DbConnection);
 			sut.Initialize();
 			
 			sut[0] = 0.1f;

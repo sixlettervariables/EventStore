@@ -6,16 +6,18 @@ using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteOriginalStreamScavengeMap<TKey> : AbstractSqliteBase, IOriginalStreamScavengeMap<TKey> {
-		private const string FileName = "OriginalStreamScavengeMap";
 		private readonly string _insertSql;
 
-		public SqliteOriginalStreamScavengeMap(string dir) : base(FileName, dir) {
-			_insertSql = "INSERT INTO OriginalStreamScavengeMap VALUES($key, $isTombstoned, $maxAge, $maxCount, $truncateBefore, $discardPoint, $maybeDiscardPoint)";
+		private string TableName { get; }
+		
+		public SqliteOriginalStreamScavengeMap(string name, SqliteConnection connection) : base(connection) {
+			TableName = name;
+			_insertSql = $"INSERT INTO {TableName} VALUES($key, $isTombstoned, $maxAge, $maxCount, $truncateBefore, $discardPoint, $maybeDiscardPoint)";
 		}
 
 		public override void Initialize() {
 			var sql = 
-				"CREATE TABLE IF NOT EXISTS OriginalStreamScavengeMap (" +
+				$"CREATE TABLE IF NOT EXISTS {TableName} (" +
 				$"key {GetSqliteTypeName<TKey>()} PRIMARY KEY, " +
 				"isTombstoned      INTEGER DEFAULT 0, " +
 				"maxAge            TEXT NULL, " +
@@ -42,7 +44,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public bool TryRemove(TKey key, out OriginalStreamData value) {
 			var selectSql =
 				"SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint " + 
-				"FROM OriginalStreamScavengeMap WHERE key = $key";
+				$"FROM {TableName} WHERE key = $key";
 			var deleteSql = "DELETE FROM OriginalStreamScavengeMap WHERE key = $key";
 			
 			return ExecuteReadAndDelete(selectSql, deleteSql, parameters => {
@@ -52,7 +54,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public bool TryGetValue(TKey key, out OriginalStreamData value) {
 			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint " +
-			          "FROM OriginalStreamScavengeMap WHERE key = $key";
+			          $"FROM {TableName} WHERE key = $key";
 
 			return ExecuteSingleRead(sql, parameters => {
 				parameters.AddWithValue("$key", key);
@@ -61,7 +63,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public void SetTombstone(TKey key) {
 			var sql =
-				"INSERT INTO OriginalStreamScavengeMap (key, isTombstoned) VALUES($key, 1) " + 
+				$"INSERT INTO {TableName} (key, isTombstoned) VALUES($key, 1) " + 
 				"ON CONFLICT(key) DO UPDATE SET isTombstoned=1";
 			
 			ExecuteNonQuery(sql, parameters => {
@@ -71,7 +73,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public void SetMetadata(TKey key, StreamMetadata metadata) {
 			var sql =
-				"INSERT INTO OriginalStreamScavengeMap (key, maxAge, maxCount, truncateBefore) VALUES($key, $maxAge, $maxCount, $truncateBefore) " + 
+				$"INSERT INTO {TableName} (key, maxAge, maxCount, truncateBefore) VALUES($key, $maxAge, $maxCount, $truncateBefore) " + 
 				"ON CONFLICT(key) DO UPDATE SET maxAge=$maxAge, maxCount=$maxCount, truncateBefore=$truncateBefore";
 			
 			ExecuteNonQuery(sql, parameters => {
@@ -84,7 +86,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		
 		public void SetDiscardPoints(TKey key, DiscardPoint discardPoint, DiscardPoint maybeDiscardPoint) {
 			var sql =
-				"INSERT INTO OriginalStreamScavengeMap (key, discardPoint, maybeDiscardPoint) VALUES($key, $discardPoint, $maybeDiscardPoint) " + 
+				$"INSERT INTO {TableName} (key, discardPoint, maybeDiscardPoint) VALUES($key, $discardPoint, $maybeDiscardPoint) " + 
 				"ON CONFLICT(key) DO UPDATE SET discardPoint=$discardPoint, maybeDiscardPoint=$maybeDiscardPoint";
 			
 			ExecuteNonQuery(sql, parameters => {
@@ -95,7 +97,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details) {
-			var sql = "SELECT maxAge, discardPoint, maybeDiscardPoint FROM OriginalStreamScavengeMap WHERE key = $key";
+			var sql = $"SELECT maxAge, discardPoint, maybeDiscardPoint FROM {TableName} WHERE key = $key";
 
 			return ExecuteSingleRead(sql, parameters => {
 				parameters.AddWithValue("$key", key);
@@ -108,7 +110,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 		
 		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> FromCheckpoint(TKey checkpoint) {
-			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key FROM OriginalStreamScavengeMap WHERE key > $key";
+			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key " +
+			          $"FROM {TableName} WHERE key > $key";
 
 			return ExecuteReader(sql, parameters => {
 				parameters.AddWithValue("$key", checkpoint);
@@ -117,7 +120,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public IEnumerator<KeyValuePair<TKey, OriginalStreamData>> GetEnumerator() {
-			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key FROM OriginalStreamScavengeMap";
+			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key " + "" +
+			          $"FROM {TableName}";
 
 			return ExecuteReader(sql, p => {}, reader => new KeyValuePair<TKey, OriginalStreamData>(
 				reader.GetFieldValue<TKey>(6), ReadOriginalStreamData(reader))).GetEnumerator();

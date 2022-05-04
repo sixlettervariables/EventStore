@@ -16,8 +16,6 @@ using Microsoft.Data.Sqlite;
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 {
 	public class SqliteScavengeMap<TKey, TValue> : AbstractSqliteBase, IScavengeMap<TKey, TValue> {
-		private readonly string _name;
-
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
 			{typeof(int), nameof(SqliteType.Integer)},
 			{typeof(float), nameof(SqliteType.Real)},
@@ -25,12 +23,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			{typeof(string), nameof(SqliteType.Text)},
 		};
 
-		public SqliteScavengeMap(string name, string dir = ".") : base(name, dir) {
-			_name = name;
+		protected string TableName { get; }
+		
+		public SqliteScavengeMap(string name, SqliteConnection connection) : base(connection) {
+			TableName = name;
 			AssertTypesAreSupported();
 		}
-		
-		protected string TableName => _name;
 
 		private void AssertTypesAreSupported() {
 			if (!IsSupportedType<TKey>()) {

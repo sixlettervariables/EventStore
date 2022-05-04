@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public abstract class AbstractSqliteBase {
-		private readonly string _connectionString;
+		private readonly SqliteConnection _connection;
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
 			{typeof(int), nameof(SqliteType.Integer)},
 			{typeof(float), nameof(SqliteType.Real)},
@@ -14,22 +14,18 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		};
 
 		public AbstractSqliteBase(string name, string dir = ".") {
-			var connectionStringBuilder = new SqliteConnectionStringBuilder();
-			connectionStringBuilder.DataSource = Path.Combine(dir, name + ".db");
-
-			_connectionString = connectionStringBuilder.ConnectionString;
+		}
+		
+		public AbstractSqliteBase(SqliteConnection connection) {
+			_connection = connection;
 		}
 
 		public abstract void Initialize();
 		
 		protected void InitializeDb(string createSql) {
-			using (var connection = new SqliteConnection(_connectionString)) {
-				connection.Open();
-
-				var createTableCmd = connection.CreateCommand();
-				createTableCmd.CommandText = createSql;
-				createTableCmd.ExecuteNonQuery();
-			}
+			var createTableCmd = _connection.CreateCommand();
+			createTableCmd.CommandText = createSql;
+			createTableCmd.ExecuteNonQuery();
 		}
 
 		protected virtual string GetSqliteTypeName<T>() {
@@ -40,21 +36,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			Action<SqliteParameterCollection> addParams,
 			Func<SqliteDataReader, TValue> getValue, out TValue value) {
 			
-			using (var connection = new SqliteConnection(_connectionString)) {
-				connection.Open();
+			if (ExecuteSingleRead(selectSql, addParams, getValue, out value)) {
+				var affectedRows = ExecuteNonQuery(deleteSql, addParams);
 				
-				using (var tx = connection.BeginTransaction()) {
-					if (ExecuteSingleRead(selectSql, addParams, getValue, out value, connection)) {
-						var affectedRows = ExecuteNonQuery(deleteSql, addParams, connection);
-						tx.Commit();
-						
-						if (affectedRows == 1) {
-							return true;
-						} 
-						if (affectedRows > 1) {
-							throw new SystemException($"More values removed then expected!");
-						}
-					}
+				if (affectedRows == 1) {
+					return true;
+				} 
+				if (affectedRows > 1) {
+					throw new SystemException($"More values removed then expected!");
 				}
 			}
 
@@ -64,17 +53,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		
 		protected int ExecuteNonQuery(string sql, Action< SqliteParameterCollection> addParams)
 		{
-			using (var connection = new SqliteConnection(_connectionString))
-			{
-				connection.Open();
-
-				return ExecuteNonQuery(sql, addParams, connection);
-			}
-		}
-
-		protected int ExecuteNonQuery(string sql, Action< SqliteParameterCollection> addParams, SqliteConnection connection)
-		{
-			var cmd = connection.CreateCommand();
+			var cmd = _connection.CreateCommand();
 			cmd.CommandText = sql;
 			addParams(cmd.Parameters);
 			
@@ -87,21 +66,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				throw new ArgumentException();
 			}
 		}
-		
-		protected bool ExecuteSingleRead<TValue>(string sql, Action< SqliteParameterCollection> addParams,
-			Func<SqliteDataReader, TValue> getValue, out TValue value) {
-			
-			using (var connection = new SqliteConnection(_connectionString)) {
-				connection.Open();
-
-				return ExecuteSingleRead(sql, addParams, getValue, out value, connection);
-			}
-		}
 
 		protected bool ExecuteSingleRead<TValue>(string sql, Action<SqliteParameterCollection> addParams,
-			Func<SqliteDataReader, TValue> getValue, out TValue value, SqliteConnection connection) {
+			Func<SqliteDataReader, TValue> getValue, out TValue value) {
 			
-			var selectCmd = connection.CreateCommand();
+			var selectCmd = _connection.CreateCommand();
 			selectCmd.CommandText = sql;
 			addParams(selectCmd.Parameters);
 
@@ -120,17 +89,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			Action<SqliteParameterCollection> addParams,
 			Func<SqliteDataReader,KeyValuePair<TKey, TValue>> toValue) {
 			
-			using (var connection = new SqliteConnection(_connectionString)) {
-				connection.Open();
-
-				var cmd = connection.CreateCommand();
-				cmd.CommandText = sql;
-				addParams(cmd.Parameters);
-				
-				using (var reader = cmd.ExecuteReader()) {
-					while (reader.Read()) {
-						yield return toValue(reader);
-					}
+			var cmd = _connection.CreateCommand();
+			cmd.CommandText = sql;
+			addParams(cmd.Parameters);
+			
+			using (var reader = cmd.ExecuteReader()) {
+				while (reader.Read()) {
+					yield return toValue(reader);
 				}
 			}
 		}

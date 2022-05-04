@@ -19,7 +19,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			{typeof(string), nameof(SqliteType.Text)},
 		};
 
-		public SqliteFixedStructScavengeMap(string name, string dir = ".") : base(name, dir) {
+		public SqliteFixedStructScavengeMap(string name, SqliteConnection connection) : base(connection) {
 			if (typeof(TValue).IsPrimitive) {
 				throw new ArgumentException($"Invalid type for value, use {nameof(SqliteScavengeMap<TKey,TValue>)} for primitive types!");
 			}

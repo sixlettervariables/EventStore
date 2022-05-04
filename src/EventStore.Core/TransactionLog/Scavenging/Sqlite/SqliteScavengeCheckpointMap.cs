@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteScavengeCheckpointMap<TStreamId>: AbstractSqliteBase, IScavengeMap<Unit, ScavengeCheckpoint> {
-		private readonly string _name;
-
-		public SqliteScavengeCheckpointMap(string name, string dir = ".") : base(name, dir) {
-			_name = name;
+		public SqliteScavengeCheckpointMap(SqliteConnection connection) : base(connection) {
 		}
 		
 		public override void Initialize() {
