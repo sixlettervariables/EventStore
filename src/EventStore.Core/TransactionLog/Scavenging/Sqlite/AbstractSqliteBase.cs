@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
@@ -13,9 +12,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			{typeof(string), nameof(SqliteType.Text)},
 		};
 
-		public AbstractSqliteBase(string name, string dir = ".") {
-		}
-		
 		public AbstractSqliteBase(SqliteConnection connection) {
 			_connection = connection;
 		}

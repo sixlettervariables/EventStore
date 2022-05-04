@@ -36,11 +36,10 @@ using System.Threading;
 using EventStore.Core.Services.Histograms;
 using EventStore.Core.Services.PersistentSubscription.ConsumerStrategy;
 using System.Threading.Tasks;
-using System.Collections;
-using System.Diagnostics;
 using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.LogV2;
 using EventStore.Core.TransactionLog.Chunks.TFChunk;
+using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 
 namespace EventStore.Core {
 	public class ClusterVNode :
@@ -93,7 +92,8 @@ namespace EventStore.Core {
 		private readonly ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 		private readonly IAuthenticationProvider _internalAuthenticationProvider;
 
-
+		private readonly SqliteScavengeBackend<string> _sqliteScavengeBackend;
+		
 		private readonly InMemoryBus[] _workerBuses;
 		private readonly MultiQueuedHandler _workersHandler;
 		public event EventHandler<VNodeStatusChangeArgs> NodeStatusChanged;
@@ -590,20 +590,42 @@ namespace EventStore.Core {
 					new IndexScavenger(tableIndex),
 					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)));
 
-				var scavengeState = new ScavengeState<string>(
-					longHasher,
-					metastreamLookup,
-					new InMemoryScavengeMap<string, Unit>(),
-					new InMemoryScavengeMap<ulong, string>(),
-					new InMemoryScavengeMap<ulong, DiscardPoint>(),
-					new InMemoryScavengeMap<string, DiscardPoint>(),
-					new InMemoryOriginalStreamScavengeMap<ulong>(),
-					new InMemoryOriginalStreamScavengeMap<string>(),
-					new InMemoryScavengeMap<Unit, ScavengeCheckpoint>(),
-					new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
-					new InMemoryChunkWeightScavengeMap(),
-					new InMemoryTransactionBackend());
-
+				ScavengeState<string> scavengeState;
+				if (true) {
+					_sqliteScavengeBackend = new SqliteScavengeBackend<string>();
+					_sqliteScavengeBackend.Initialize(".");
+					
+					scavengeState = new ScavengeState<string>(
+						longHasher,
+						metastreamLookup,
+						_sqliteScavengeBackend.CollisionStorage,
+						_sqliteScavengeBackend.Hashes,
+						_sqliteScavengeBackend.MetaStorage,
+						_sqliteScavengeBackend.MetaCollisionStorage,
+						_sqliteScavengeBackend.OriginalStorage,
+						_sqliteScavengeBackend.OriginalCollisionStorage,
+						_sqliteScavengeBackend.CheckpointStorage,
+						_sqliteScavengeBackend.ChunkTimeStampRanges,
+						_sqliteScavengeBackend.ChunkWeights,
+						_sqliteScavengeBackend);
+#pragma warning disable CS0162
+				} else {
+					scavengeState = new ScavengeState<string>(
+						longHasher,
+						metastreamLookup,
+						new InMemoryScavengeMap<string, Unit>(),
+						new InMemoryScavengeMap<ulong, string>(),
+						new InMemoryScavengeMap<ulong, DiscardPoint>(),
+						new InMemoryScavengeMap<string, DiscardPoint>(),
+						new InMemoryOriginalStreamScavengeMap<ulong>(),
+						new InMemoryOriginalStreamScavengeMap<string>(),
+						new InMemoryScavengeMap<Unit, ScavengeCheckpoint>(),
+						new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
+						new InMemoryChunkWeightScavengeMap(),
+						new InMemoryTransactionBackend());
+				}
+#pragma warning restore CS0162
+				
 				var scavenger = new Scavenger<string>(
 					scavengeState,
 					accumulator,
@@ -755,6 +777,7 @@ namespace EventStore.Core {
 
 		public void Handle(SystemMessage.BecomeShutdown message) {
 			_shutdownEvent.Set();
+			_sqliteScavengeBackend?.Dispose();
 		}
 
 		public void AddTasks(IEnumerable<Task> tasks) {

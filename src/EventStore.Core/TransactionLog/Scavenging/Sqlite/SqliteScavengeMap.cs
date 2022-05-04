@@ -32,11 +32,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 
 		private void AssertTypesAreSupported() {
 			if (!IsSupportedType<TKey>()) {
-				throw new ArgumentException($"Unsupported type {nameof(TKey)} for key specified");
+				throw new ArgumentException($"Scavenge map {TableName} has an unsupported type {typeof(TKey).Name} for key specified");
 			}
 			
 			if (!IsSupportedType<TValue>()) {
-				throw new ArgumentException($"Unsupported type {nameof(TValue)} for value specified");
+				throw new ArgumentException($"Scavenge map {TableName} has an unsupported type {typeof(TValue).Name} for value specified");
 			}
 		}
 
