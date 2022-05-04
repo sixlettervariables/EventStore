@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteScavengeBackend<TStreamId> : ITransactionBackend, IDisposable {
-		private const string DbFileName = "ScavengeState.db";
+		private const string DbFileName = "scavenging.db";
 		private SqliteConnection _connection;
 		private SqliteTransaction _transaction;
 
@@ -24,6 +24,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public void Initialize(string dir = ".") {
+			Directory.CreateDirectory(dir);
+			
 			var connectionStringBuilder = new SqliteConnectionStringBuilder();
 			connectionStringBuilder.DataSource = Path.Combine(dir, DbFileName);
 			_connection = new SqliteConnection(connectionStringBuilder.ConnectionString);

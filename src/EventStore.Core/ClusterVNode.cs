@@ -593,7 +593,8 @@ namespace EventStore.Core {
 				ScavengeState<string> scavengeState;
 				if (true) {
 					_sqliteScavengeBackend = new SqliteScavengeBackend<string>();
-					_sqliteScavengeBackend.Initialize(".");
+					//qq store in index dir?
+					_sqliteScavengeBackend.Initialize(Path.Combine(indexPath, "scavenging"));
 					
 					scavengeState = new ScavengeState<string>(
 						longHasher,
