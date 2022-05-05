@@ -57,7 +57,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 		}
 
 		private void AddValue(TKey key, TValue value) {
-			var sql = $"INSERT INTO {TableName} VALUES($key, $value)";
+			var sql = $"INSERT INTO {TableName} VALUES($key, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
 			ExecuteNonQuery(sql, parameters => {
 				parameters.AddWithValue("$key", key);
 				parameters.AddWithValue("$value", value);

@@ -12,7 +12,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		
 		public SqliteOriginalStreamScavengeMap(string name, SqliteConnection connection) : base(connection) {
 			TableName = name;
-			_insertSql = $"INSERT INTO {TableName} VALUES($key, $isTombstoned, $maxAge, $maxCount, $truncateBefore, $discardPoint, $maybeDiscardPoint)";
+			_insertSql = $"INSERT INTO {TableName} VALUES($key, $isTombstoned, $maxAge, $maxCount, $truncateBefore, $discardPoint, $maybeDiscardPoint)" + 
+			             "ON CONFLICT(key) DO UPDATE SET isTombstoned=$isTombstoned, maxAge=$maxAge, maxCount=$maxCount, truncateBefore=$truncateBefore, discardPoint=$discardPoint, maybeDiscardPoint=$maybeDiscardPoint";
 		}
 
 		public override void Initialize() {
@@ -45,7 +46,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			var selectSql =
 				"SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint " + 
 				$"FROM {TableName} WHERE key = $key";
-			var deleteSql = "DELETE FROM OriginalStreamScavengeMap WHERE key = $key";
+			var deleteSql = $"DELETE FROM {TableName} WHERE key = $key";
 			
 			return ExecuteReadAndDelete(selectSql, deleteSql, parameters => {
 				parameters.AddWithValue("$key", key);
@@ -97,7 +98,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details) {
-			var sql = $"SELECT maxAge, discardPoint, maybeDiscardPoint FROM {TableName} WHERE key = $key";
+			var sql = $"SELECT maxAge, discardPoint, maybeDiscardPoint FROM {TableName} WHERE key = $key AND discardPoint IS NOT NULL AND maybeDiscardPoint IS NOT NULL";
 
 			return ExecuteSingleRead(sql, parameters => {
 				parameters.AddWithValue("$key", key);

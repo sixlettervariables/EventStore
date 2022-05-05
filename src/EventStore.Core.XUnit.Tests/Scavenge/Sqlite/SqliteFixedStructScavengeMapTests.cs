@@ -26,6 +26,18 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
+		public void can_overwrite_value() {
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("OverwriteValueFixedStructMap", Fixture.DbConnection);
+			sut.Initialize();
+			
+			sut[33] = DiscardPoint.DiscardBefore(22);
+			sut[33] = DiscardPoint.DiscardBefore(33);
+
+			Assert.True(sut.TryGetValue(33, out var v));
+			Assert.Equal(DiscardPoint.DiscardBefore(33), v);
+		}
+		
+		[Fact]
 		public void can_enumerate_all_items() {
 			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap", Fixture.DbConnection);
 			sut.Initialize();

@@ -75,6 +75,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				throw new InvalidOperationException("Cannot start a scavenge state transaction without an open connection");
 			}
 
+			if (_transaction != null) {
+				throw new InvalidOperationException("Cannot start another scavenge state transaction");
+			}
+			
 			_transaction = _connection.BeginTransaction();
 		}
 

@@ -17,10 +17,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			set => AddValue(key, value);
 		}
 
-		protected void AddValue(Unit key, ScavengeCheckpoint value) {
-			var sql = @"INSERT INTO ScavengeCheckpointMap VALUES(0, $value)
-			          ON CONFLICT(key) DO UPDATE SET value=$value";
-			
+		protected void AddValue(Unit _, ScavengeCheckpoint value) {
+			var sql = "INSERT INTO ScavengeCheckpointMap VALUES(0, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
 			ExecuteNonQuery(sql, parameters => {
 				parameters.AddWithValue("$value", ScavengeCheckpointJsonPersistence<TStreamId>.Serialize(value));
 			});

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using EventStore.Core.Data;
 using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
@@ -6,7 +7,6 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteOriginalStreamScavengeMapTests : SqliteDbPerTest<SqliteOriginalStreamScavengeMapTests> {
-
 		public SqliteOriginalStreamScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
 		}
 
@@ -27,7 +27,36 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[33] = data;
 
 			Assert.True(sut.TryGetValue(33, out var v));
-			Assert.Equal(data.ToString(), v.ToString());
+			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
+		}
+		
+		[Fact]
+		public void can_overwrite_existing() {
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OverwriteOriginalStreamScavengeMap", Fixture.DbConnection);
+			sut.Initialize();
+
+			sut[33] = new OriginalStreamData {
+				DiscardPoint = DiscardPoint.DiscardIncluding(5),
+				IsTombstoned = true,
+				MaxAge = TimeSpan.FromDays(13),
+				MaxCount = 33,
+				MaybeDiscardPoint = DiscardPoint.DiscardBefore(long.MaxValue-1),
+				TruncateBefore = 43
+			};
+			
+			var data = new OriginalStreamData {
+				DiscardPoint = DiscardPoint.DiscardIncluding(50),
+				IsTombstoned = true,
+				MaxAge = TimeSpan.FromDays(30),
+				MaxCount = 303,
+				MaybeDiscardPoint = DiscardPoint.DiscardBefore(long.MaxValue-100),
+				TruncateBefore = 430
+			};
+
+			sut[33] = data;
+			
+			Assert.True(sut.TryGetValue(33, out var v));
+			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -49,7 +78,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			data.IsTombstoned = true;
 			
 			Assert.True(sut.TryGetValue(33, out var v));
-			Assert.Equal(data.ToString(), v.ToString());
+			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -62,7 +91,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData {
 				IsTombstoned = true,
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -88,7 +117,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			data.TruncateBefore = metadata.TruncateBefore;
 			
 			Assert.True(sut.TryGetValue(33, out var v));
-			Assert.Equal(data.ToString(), v.ToString());
+			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -106,7 +135,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(new OriginalStreamData() {
 				MaxCount = metadata.MaxCount,
 				TruncateBefore = metadata.TruncateBefore
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -124,7 +153,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(new OriginalStreamData() {
 				MaxAge = metadata.MaxAge,
 				TruncateBefore = metadata.TruncateBefore
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -142,7 +171,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(new OriginalStreamData() {
 				MaxAge = metadata.MaxAge,
 				MaxCount = metadata.MaxCount
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -162,7 +191,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				MaxAge = metadata.MaxAge,
 				MaxCount = metadata.MaxCount,
 				TruncateBefore = metadata.TruncateBefore
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -183,7 +212,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut.SetDiscardPoints(33, data.DiscardPoint, data.MaybeDiscardPoint);
 
 			Assert.True(sut.TryGetValue(33, out var v));
-			Assert.Equal(data.ToString(), v.ToString());
+			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -199,7 +228,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(new OriginalStreamData() {
 				DiscardPoint = discardPoint,
 				MaybeDiscardPoint = maybeDiscardPoint,
-			}.ToString(), v.ToString());
+			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -220,6 +249,16 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 		
 		[Fact]
+		public void can_try_get_stream_execution_details_when_only_tombstoned() {
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
+			sut.Initialize();
+			
+			sut.SetTombstone(33);
+
+			Assert.False(sut.TryGetStreamExecutionDetails(33, out var v));
+		}
+		
+		[Fact]
 		public void can_try_get_stream_execution_details_of_non_existing() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
 			sut.Initialize();
@@ -227,7 +266,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.False(sut.TryGetStreamExecutionDetails(33, out var v));
 			Assert.Equal(default, v);
 		}
-		
+
 		[Fact]
 		public void can_enumerate_all_items() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
@@ -244,23 +283,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Collection(sut,
 				item => {
 					Assert.Equal(0, item.Key);
-					Assert.Equal(osd[0].ToString(), item.Value.ToString());
+					Assert.Equal(osd[0], item.Value, OriginalStreamDataComparer.Default);
 				},
 				item => {
 					Assert.Equal(1, item.Key);
-					Assert.Equal(osd[1].ToString(), item.Value.ToString());
+					Assert.Equal(osd[1], item.Value, OriginalStreamDataComparer.Default);
 				},
 				item => {
 					Assert.Equal(2, item.Key);
-					Assert.Equal(osd[2].ToString(), item.Value.ToString());
+					Assert.Equal(osd[2], item.Value, OriginalStreamDataComparer.Default);
 				},
 				item => {
 					Assert.Equal(3, item.Key);
-					Assert.Equal(osd[3].ToString(), item.Value.ToString());
+					Assert.Equal(osd[3], item.Value, OriginalStreamDataComparer.Default);
 				},
 				item => {
 					Assert.Equal(4, item.Key);
-					Assert.Equal(osd[4].ToString(), item.Value.ToString());
+					Assert.Equal(osd[4], item.Value, OriginalStreamDataComparer.Default);
 				});
 		}
 
@@ -280,11 +319,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Collection(sut.FromCheckpoint(2),
 				item => {
 					Assert.Equal(3, item.Key);
-					Assert.Equal(osd[3].ToString(), item.Value.ToString());
+					Assert.Equal(osd[3], item.Value, OriginalStreamDataComparer.Default);
 				},
 				item => {
 					Assert.Equal(4, item.Key);
-					Assert.Equal(osd[4].ToString(), item.Value.ToString());
+					Assert.Equal(osd[4], item.Value, OriginalStreamDataComparer.Default);
 				});
 		}
 		
@@ -300,11 +339,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			Assert.True(sut.TryGetValue(33, out _));
 			Assert.True(sut.TryRemove(33, out var removedValue));
-			Assert.Equal(osd[0].ToString(), removedValue.ToString());
+			Assert.Equal(osd[0], removedValue, OriginalStreamDataComparer.Default);
 			Assert.False(sut.TryGetValue(33, out _));
 			
 			Assert.True(sut.TryGetValue(1, out var v));
-			Assert.Equal(osd[1].ToString(), v.ToString());
+			Assert.Equal(osd[1], v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
@@ -350,6 +389,29 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 					MaybeDiscardPoint = DiscardPoint.DiscardBefore(500)
 				}
 			};
+		}
+		
+		public class OriginalStreamDataComparer : IEqualityComparer<OriginalStreamData> {
+			
+			public static readonly OriginalStreamDataComparer Default = new OriginalStreamDataComparer();
+			
+			public bool Equals(OriginalStreamData x, OriginalStreamData y)
+			{
+				if (x is null || y is null) {
+					return false;
+				}
+
+				return x.MaxCount == y.MaxCount &&
+				       x.MaxAge == y.MaxAge &&
+				       x.TruncateBefore == y.TruncateBefore &&
+				       x.IsTombstoned == y.IsTombstoned &&
+				       x.DiscardPoint == y.DiscardPoint &&
+				       x.MaybeDiscardPoint == y.MaybeDiscardPoint;
+			}
+
+			public int GetHashCode(OriginalStreamData obj) {
+				throw new NotImplementedException();
+			}
 		}
 	}
 }

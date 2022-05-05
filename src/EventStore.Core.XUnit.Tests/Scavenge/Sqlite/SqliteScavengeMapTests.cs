@@ -58,15 +58,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_not_add_the_same_key_twice() {
-			var sut = new SqliteScavengeMap<int, float>("DuplicateKeyMap", Fixture.DbConnection);
+		public void can_overwrite_value() {
+			var sut = new SqliteScavengeMap<string, string>("OverwriteStringMap", Fixture.DbConnection);
 			sut.Initialize();
 
-			sut[33] = 1;
-
-			Assert.Throws<ArgumentException>(() => sut[33] = 1);
+			sut["string"] = "string-one";
+			sut["string"] = "string-two";
+			
+			Assert.True(sut.TryGetValue("string", out var v));
+			Assert.Equal("string-two", v);
 		}
-		
+
 		[Fact]
 		public void can_store_max_unsigned_long() {
 			var sut = new SqliteScavengeMap<ulong, ulong>("UnsignedLongMaxValueMap", Fixture.DbConnection);
