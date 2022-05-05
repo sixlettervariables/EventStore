@@ -55,18 +55,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				try {
 					var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
 
-					//qq configurable threshold? in scavenge point?
-					var threshold = 0.0f;
-					if (physicalWeight < threshold) {
-						// they'll still (typically) be removed from the index
-						return;
+					if (physicalWeight >= scavengePoint.Threshold) {
+						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
+
+						state.ResetChunkWeights(
+							physicalChunk.ChunkStartNumber,
+							physicalChunk.ChunkEndNumber);
+
 					}
-
-					ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
-
-					state.ResetChunkWeights(
-						physicalChunk.ChunkStartNumber,
-						physicalChunk.ChunkEndNumber);
 
 					cancellationToken.ThrowIfCancellationRequested();
 
@@ -96,7 +92,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				scavengePos = physicalChunk.ChunkEndPosition;
 			}
-
 		}
 
 		private void ExecutePhysicalChunk(

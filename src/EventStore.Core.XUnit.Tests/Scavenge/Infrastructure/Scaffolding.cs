@@ -38,11 +38,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				if (record is PrepareLogRecord prepare &&
 					prepare.EventType == SystemEventTypes.ScavengePoint) {
 
+					var payload = ScavengePointPayload.FromBytes(prepare.Data);
+
 					scavengePoint = ScavengePoint.CreateForLogPosition(
 						chunkSize: _chunkSize,
 						scavengePointLogPosition: record.LogPosition,
 						eventNumber: prepare.ExpectedVersion + 1,
-						effectiveNow: prepare.TimeStamp);
+						effectiveNow: prepare.TimeStamp,
+						threshold: payload.Threshold);
 				}
 			}
 
@@ -51,7 +54,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 
 		//qq maybe actually add it to the log, or not if we get rid of this soon enough
-		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion) {
+		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
 			var latestScavengePoint = await GetLatestScavengePointAsync();
 			var actualVersion = latestScavengePoint != null
 				? latestScavengePoint.EventNumber
@@ -63,6 +66,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"wrong version number {expectedVersion} vs {actualVersion}");
 			}
 
+			var payload = new ScavengePointPayload {
+				Threshold = threshold,
+			};
+
 			var lastChunk = _log.Length - 1;
 			var newChunk = _log[lastChunk].ToList();
 			newChunk.Add(LogRecord.SingleWrite(
@@ -72,7 +79,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				eventStreamId: SystemStreams.ScavengesStream,
 				expectedVersion: expectedVersion, // no optimistic concurrency
 				eventType: SystemEventTypes.ScavengePoint,
-				data: LogRecord.NoData,
+				data: payload.ToJsonBytes(),
 				metadata: null,
 				timestamp: _effectiveNow));
 

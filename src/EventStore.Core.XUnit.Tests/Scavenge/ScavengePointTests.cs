@@ -19,7 +19,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				chunkSize: chunkSize,
 				scavengePointLogPosition: scavengePointPosition,
 				eventNumber: 5,
-				effectiveNow: DateTime.UtcNow);
+				effectiveNow: DateTime.UtcNow,
+				threshold: 6);
 
 			Assert.Equal(expectedUpToPosition, sp.UpToPosition);
 		}

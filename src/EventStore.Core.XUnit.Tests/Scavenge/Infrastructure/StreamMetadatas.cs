@@ -23,10 +23,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
 		public static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
 
-		public static Rec ScavengePoint(int transaction) => Rec.Prepare(
+		public static Rec ScavengePoint(int transaction, int threshold = 0) => Rec.Prepare(
 			transaction: transaction,
 			stream: SystemStreams.ScavengePointsStream,
 			eventType: SystemEventTypes.ScavengePoint,
-			timestamp: EffectiveNow);
+			timestamp: EffectiveNow,
+			data: new ScavengePointPayload {
+				Threshold = 0,
+			}.ToJsonBytes());
 	}
 }

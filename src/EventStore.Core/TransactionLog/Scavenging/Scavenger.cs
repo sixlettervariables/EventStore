@@ -135,12 +135,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// Get the latest scavengePoint and scavenge from prevScavengePoint to there.
 			// If there is no latest scavengePoint, or it _is_ the prev, then create a new one.
 
+			var threshold = 1; //qq draw from request, with default
 			ScavengePoint nextScavengePoint;
 			var latestScavengePoint = await _scavengePointSource.GetLatestScavengePointAsync();
 			if (latestScavengePoint == null) {
 				// no latest scavenge point, create the first one
 				nextScavengePoint = await _scavengePointSource
-					.AddScavengePointAsync(ExpectedVersion.NoStream);
+					.AddScavengePointAsync(ExpectedVersion.NoStream, threshold: threshold);
 			} else {
 				// got the latest scavenge point
 				if (prevScavengePoint == null ||
@@ -151,12 +152,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// the latest scavengepoint is the prev scavenge point, so create a new one
 					//qq test that if this fails the scavenge terminates with an error
 					nextScavengePoint = await _scavengePointSource
-						.AddScavengePointAsync(prevScavengePoint.EventNumber);
+						.AddScavengePointAsync(prevScavengePoint.EventNumber, threshold: threshold);
 				}
 			}
 
 			// we now have a nextScavengePoint.
-			if (prevScavengePoint != null && prevScavengePoint.UpToPosition == nextScavengePoint.UpToPosition) {
+			if (prevScavengePoint != null &&
+				prevScavengePoint.UpToPosition == nextScavengePoint.UpToPosition) {
 				//qqq there is no point in scavenging, implement some early return.
 			}
 

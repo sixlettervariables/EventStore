@@ -21,7 +21,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public IChunkReaderForExecutor<TStreamId> GetChunkReaderFor(long position) {
 			var ret = _wrapped.GetChunkReaderFor(position);
-			_tracer.Trace($"Reading Chunk {ret.ChunkStartNumber}-{ret.ChunkEndNumber}");
+			_tracer.Trace($"Opening Chunk {ret.ChunkStartNumber}-{ret.ChunkEndNumber}");
 			return ret;
 		}
 
@@ -31,11 +31,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			bool removeChunksWithGreaterNumbers,
 			out string newFileName) {
 
-			return _wrapped.TrySwitchChunk(
+			var ret = _wrapped.TrySwitchChunk(
 				chunk,
 				verifyHash,
 				removeChunksWithGreaterNumbers,
 				out newFileName);
+
+			if (ret) {
+				_tracer.Trace($"Switched in chunk {newFileName}");
+			} else {
+				_tracer.Trace($"Did not switch in chunk {newFileName}");
+			}
+
+			return ret;
 		}
 	}
 }

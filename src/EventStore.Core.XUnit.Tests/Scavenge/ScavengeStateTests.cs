@@ -22,7 +22,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.True(sut.TryGetMetastreamDiscardPoint("$$ab-1", out var actual));
 			Assert.Equal(DiscardPoint.DiscardBefore(20), actual);
 			trans.Commit(new ScavengeCheckpoint.Accumulating(
-				new ScavengePoint(default, default, default),
+				new ScavengePoint(default, default, default, default),
 				20));
 		}
 	}

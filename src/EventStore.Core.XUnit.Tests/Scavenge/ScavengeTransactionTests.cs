@@ -29,7 +29,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var sut = new ScavengeTransaction(backend, storage);
 
 			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(
-				new ScavengePoint(default, default, default),
+				new ScavengePoint(default, default, default, default),
 				5);
 
 			Assert.Equal(0, backend.BeginCount);
