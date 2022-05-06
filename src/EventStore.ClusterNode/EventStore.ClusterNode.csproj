@@ -5,6 +5,8 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <ApplicationIcon>app2.ico</ApplicationIcon>
+    <Configurations>Debug;Release</Configurations>
+    <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System.ComponentModel.Composition" />
