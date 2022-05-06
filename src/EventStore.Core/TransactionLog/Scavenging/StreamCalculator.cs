@@ -8,7 +8,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// and can be unit tested separately.
 	// reused between streams to avoid allocations.
 	//qq the observation here is that various properties exist for the stream, which we might
-	// or might not need to calculate, and want to be clear that they are not mutating
+	// or might not need to calculate, and want to be clear that they are not mutating.
 	// factoring them out here helps to manage this more cleanly, rather than having a rather large
 	// method
 
@@ -38,7 +38,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// State that is scoped to the stream
 		public StreamHandle<TStreamId> OriginalStreamHandle { get; private set; }
-		public OriginalStreamData OriginalStreamData { get; private set; }
+		private OriginalStreamData OriginalStreamData { get; set; }
 
 		//qq consider what will happen here if the strea, doesn't exist
 		//  if it doesn't exist at all then presumably there is nothing to scavenge

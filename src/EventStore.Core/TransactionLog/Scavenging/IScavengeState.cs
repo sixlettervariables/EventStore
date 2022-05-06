@@ -14,14 +14,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	// all the components use these
 	public interface IScavengeStateCommon {
-		// start a batch, returns the batch so that it can be committed or rolled back
-		ITransaction BeginTransaction();
+		// begin a transaction, returns the started transaction so that it can be
+		// committed or rolled back
+		IOpenTransaction BeginTransaction();
 	}
 
-	// on dispose rollback the transaction if it has not been committed
-	public interface ITransaction : IDisposable {
+	public interface IOpenTransaction {
 		void Rollback();
 		void Commit(ScavengeCheckpoint checkpoint);
+	}
+
+	public interface ITransaction : IOpenTransaction {
+		void Begin();
 	}
 
 	// abstraction for the backing store. memory, sqlite etc.

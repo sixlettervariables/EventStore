@@ -8,29 +8,33 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TruncateBeforeTests {
 		[Fact]
 		public async Task simple_truncatebefore() {
+			var t = 0;
 			await new Scenario().WithDb(x => x
 				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(1, "ab-1"),
-					Rec.Prepare(2, "ab-1"),
-					Rec.Prepare(3, "ab-1"),
-					Rec.Prepare(4, "$$ab-1", "$metadata", metadata: TruncateBefore3))
-				.CompleteLastChunk())
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: TruncateBefore3))
+				.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(3, 4)
+					x.Recs[0].KeepIndexes(3, 4),
+					x.Recs[1],
 				});
 		}
 
 		[Fact]
 		public async Task keep_last_event() {
+			var t = 0;
 			await new Scenario().WithDb(x => x
 				.Chunk(
-					Rec.Prepare(0, "ab-1"),
-					Rec.Prepare(1, "ab-1"),
-					Rec.Prepare(2, "$$ab-1", "$metadata", metadata: TruncateBefore4))
-				.CompleteLastChunk())
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "ab-1"),
+					Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: TruncateBefore4))
+				.Chunk(ScavengePoint(t++)))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(1,2)
+					x.Recs[0].KeepIndexes(1,2),
+					x.Recs[1],
 				});
 		}
 	}

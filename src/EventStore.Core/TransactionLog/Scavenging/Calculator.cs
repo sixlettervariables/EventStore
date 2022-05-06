@@ -28,7 +28,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var checkpoint = new ScavengeCheckpoint.Calculating<TStreamId>(
 				scavengePoint: scavengePoint,
 				doneStreamHandle: default);
-			state.BeginTransaction().Commit(checkpoint);
+			state.SetCheckpoint(checkpoint);
 			Calculate(checkpoint, state, cancellationToken);
 		}
 
@@ -57,25 +57,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			try {
 				foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
 					//qqqqqqqqqqqqqqqqqqq
-					//qq it would be neat if this interface gave us some hint about the location of
+					// it would be neat if this interface gave us some hint about the location of
 					// the DP so that we could set it in a moment cheaply without having to search.
 					// although, if its a wal that'll be cheap anyway.
-					//qq if the scavengemap supports RMW that might have a bearing too, but for now maybe
+					// if the scavengemap supports RMW that might have a bearing too, but for now maybe
 					// this is just overcomplicating things.
 
-					//qqqq consider, for subsequent scavenge purposes, how the discard points from the
-					// previous, should be accounted for.
-					// bear in mind the metadata may have been expanded since the previous disacrdpoints
-					// were calculated. should the discard points be allowed to move backwards?
-					// suspecting probably not. suspect when you drop a scavengepoint that closes your window
-					// to expand the metadata again.... although reads don't know that. hmm.
-					// - bear in mind we want it to be deterministic so it might be _necessary_ that we don't
-					//   allow the discardpoint to move backwards here
-					// - but if we do want to allow it to move backwards we could possibly record more data
-					//   here to indicate to the calculator that it has extra work to do
-					// - bear in mind that we ought to have discarded data with respect to the old discard
-					//   points already so perhaps there isn't harm in moving them backwards
-					//
 					//qq there is probably scope for a few optimisations here eg, we could store on the
 					// originalstreamdata what the lasteventnumber was at the point of calculating the 
 					// discard points. then we could spot here that if the last event number hasn't moved
@@ -87,7 +74,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// is completely spent, which might have a bearing on the above.
 					streamCalc.SetStream(originalStreamHandle, originalStreamData);
 
-					CalculateDiscardPointForOriginalStream(
+					CalculateDiscardPointsForOriginalStream(
 						eventCalc,
 						state,
 						originalStreamHandle,
@@ -105,11 +92,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							maybeDiscardPoint: adjustedMaybeDiscardPoint);
 					}
 
+					// Check cancellation occasionally
 					if (++cancellationCheckCounter == _cancellationCheckPeriod) {
 						cancellationCheckCounter = 0;
 						cancellationToken.ThrowIfCancellationRequested();
 					}
 
+					// Checkpoint occasionally
 					if (++checkpointCounter == _checkpointPeriod) {
 						checkpointCounter = 0;
 						transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
@@ -118,15 +107,33 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						transaction = state.BeginTransaction();
 					}
 				}
-			} finally {
-				transaction.Dispose();
+
+				//qqqqqq consider/test this
+				// we have an open transaction here so we have to commit something
+				// if we processed some streams, the last one is in the calculator
+				// if we didn't process any streams, the calculator contains the default
+				// none handle, which is probably appropriate to commit in that case
+				transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
+					scavengePoint,
+					streamCalc.OriginalStreamHandle));
+			} catch {
+				transaction.Rollback();
+				throw;
 			}
 		}
 
 		// This does two things.
-		// 1. Calculates and returns the discard point
+		// 1. Calculates and returns the discard points for this stream
 		// 2. Adds weight to the affected chunks so that they get scavenged.
-		private void CalculateDiscardPointForOriginalStream(
+		//
+		// The calculator determines that we can definitely discard everything up to the discardPoint
+		// and we may be able to discard things between the discardPoint and the maybeDiscardPoint.
+		//
+		// We want to calculate the discard points from scratch, without considering what values they
+		// came out as last time. The discard points are allowed to move backwards from where they were
+		// before, although this is unusual. This minimises the possibility that running the scavenge
+		// causes events that can currently be read to be removed.
+		private void CalculateDiscardPointsForOriginalStream(
 			EventCalculator<TStreamId> eventCalc,
 			IScavengeStateForCalculator<TStreamId> state,
 			StreamHandle<TStreamId> originalStreamHandle,
@@ -134,36 +141,49 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			out DiscardPoint discardPoint,
 			out DiscardPoint maybeDiscardPoint) {
 
-			// iterate through the eventInfos in slices.
-			// add weight to the chunk the event is in if are discarding or maybe discarding it
-			// move the finalDiscardPoint if we are definitely discarding the event.
+			//qqqqq having a stab with allowing the previous discard points to be moved backwards.
 
-			//qq this gets set again if we discard something. so, if we don't discard something, what do
-			// we want to happen? we probably want to keep it as what we calculated last time - but this
-			// will only become apparent when we do subsequent scavenges.
-			discardPoint = default;
-			//qq this gets set again if we maybe-discard something. same question as above.
-			maybeDiscardPoint = default;
+			var fromEventNumber = 0L;
 
-			var fromEventNumber = 0L; //qq maybe from the previous scavenge point
+			discardPoint = DiscardPoint.KeepAll;
+			maybeDiscardPoint = DiscardPoint.KeepAll;
+
+			const float DiscardWeight = 2.0f;
+			const float MaybeDiscardWeight = 1.0f;
+			const int maxCount = 100; //qq what would be sensible? probably pretty large
+
+			//qq it is normal for the maybediscardpoint to be after the discard point, but is it possible
+			// for it to be _before_ ?
+			var first = true;
+
 			while (true) {
 				// read in slices because the stream might be huge.
 				// Note: when the handle is a hash the ReadEventInfoForward call is index-only
 				//qq limit the read to the scavengepoint too?
-				const int maxCount = 100; //qq what would be sensible? probably pretty large
 
+				//qqqqqqqqqqqq on subsequent scavenge, consider if this would/should return noncontigous
+				// if some chunks have been scavenged (for the collision case, which relies on the log)
+				// yes i think this is quite likely, and could probably happen if the index is partially
+				// scavenged too. or if old scavenge has been run.
 				var slice = _index.ReadEventInfoForward(
 					originalStreamHandle,
 					fromEventNumber,
 					maxCount,
 					scavengePoint);
 
-				const float DiscardWeight = 2.0f;
-				const float MaybeDiscardWeight = 1.0f;
-
-				//qq naive, we dont need to check every event, we could check the last one**
 				foreach (var eventInfo in slice) {
 					eventCalc.SetEvent(eventInfo);
+
+					if (first) {
+						// this is the first event that is known to the index. advance the discard points
+						// to discard everything before here since they're already discarded. (we need
+						// this because the chunks haven't necessarily been executed yet so we want to
+						// make sure those records are removed when the chunks are scavenged. note that
+						// chunk weight has already been added for them, so no need to do that again.
+						discardPoint = DiscardPoint.DiscardBefore(eventInfo.EventNumber);
+						maybeDiscardPoint = discardPoint;
+						first = false;
+					}
 
 					switch (eventCalc.DecideEvent()) {
 						case DiscardDecision.Discard:
@@ -179,6 +199,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 						case DiscardDecision.Keep:
 							// found the first one to keep. we are done discarding.
+							// for obviousness move the maybe up to the discardpoint if it is behind
+							maybeDiscardPoint = maybeDiscardPoint.Or(discardPoint);
 							return;
 
 						default:
@@ -186,21 +208,32 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					}
 				}
 
+				// we haven't found an event to definitely keep
+				//qq would it be better to have IsEndOfStream returned from the index?
 				if (slice.Length < maxCount) {
-					//qq we discarded everything in the stream, this should never happen
-					// since we always keep the last event (..unless ignore hard deletes
-					// is enabled)
-					// which ones are otherwise in danger of removing all the events?
-					//  hard deleted?
-					//
-					//qq although, the old scavenge might be capable of removing all the events
-					// after this scavenge point... which would produce this condition.
-					//
-					// so would not having any events in the stream
-					// or not having any events from 'fromEventNumber'
-					return;
-					// in these situatiosn what discard point should we return, or do we need to abort
-					//throw new Exception("panic"); //qq dont panic really shouldn't
+					// we have finished reading the stream from the index,
+					// but not found any events to keep.
+					// we therefore didn't find any at all, or found some and discarded them all
+					// (the latter should not be possible)
+					if (first) {
+						// we didn't find any at all
+						// - the stream might actually be empty
+						// - the stream might have events after the scavenge point and olscavenge
+						//   has removed the ones before
+						// we didn't find anything to discard, so keep everything.
+						// in these situatiosn what discard point should we return, or do we need to abort
+						discardPoint = DiscardPoint.KeepAll;
+						maybeDiscardPoint = DiscardPoint.KeepAll;
+						return;
+					} else {
+						// we found some and discarded them all, oops.
+						//qq maybe we could have the state look up the stream name
+						throw new Exception(
+							$"Discarded all events for stream {originalStreamHandle}. " +
+							$"This should be impossible.");
+					}
+				} else {
+					// we aren't done reading slices, read the next slice.
 				}
 
 				fromEventNumber += slice.Length;
@@ -214,7 +247,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			//qq dont want to actually increase the weight every time, just increase it once at the end
 			// of the chunk
-			//qq also consider when to commit/flush
 			state.IncreaseChunkWeight(logicalChunkNumber, extraWeight);
 		}
 	}

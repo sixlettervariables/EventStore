@@ -22,11 +22,20 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private string _calculatingCancellationTrigger;
 		private string _executingChunkCancellationTrigger;
 		private string _executingIndexEntryCancellationTrigger;
+		private (string Message, int Line)[] _expectedTrace;
+
+		protected Tracer Tracer { get; set; }
 
 		public Scenario() {
 			_getDb = dbConfig => throw new Exception("db not configured. call WithDb");
 			_stateTransform = x => x;
+			Tracer = new Tracer();
 		}
+
+		public Scenario WithTracerFrom(Scenario scenario) {
+			Tracer = scenario.Tracer;
+			return this;
+		} 
 
 		public Scenario WithDb(DbResult db) {
 			_getDb = _ => db;
@@ -65,6 +74,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
+		// Assert methods can be used to input checks that are internal to the scavenge
+		// This is not black box testing, handle with care.
+		public delegate Scenario TraceDelegate(params string[] expected);
+
+		public Scenario AssertTrace(params (string, int)[] expected) {
+			_expectedTrace = expected;
+			return this;
+		}
+
 		public async Task<(ScavengeState<string>, DbResult)> RunAsync(
 			Func<DbResult, LogRecord[][]> getExpectedKeptRecords = null,
 			Func<DbResult, LogRecord[][]> getExpectedKeptIndexEntries = null) {
@@ -100,7 +118,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var hasher = new HumanReadableHasher();
 			var metastreamLookup = new LogV2SystemStreams();
 
-			var scavengeState = _stateTransform(new ScavengeStateBuilder(hasher, metastreamLookup)).Build();
+			IChunkReaderForAccumulator<string> chunkReader = new ScaffoldChunkReaderForAccumulator(
+				log,
+				metastreamLookup);
 
 			var accumulatorMetastreamLookup = new AdHocMetastreamLookupInterceptor<string>(
 				metastreamLookup,
@@ -143,38 +163,85 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 
 			var cancellationCheckPeriod = 1;
+			var checkpointPeriod = 2;
+
+			// add tracing
+			Tracer.Reset();
+			chunkReader = new TracingChunkReaderForAccumulator<string>(chunkReader, Tracer.Trace);
+
+			IAccumulator<string> accumulator = new Accumulator<string>(
+				chunkSize: dbConfig.ChunkSize,
+				metastreamLookup: accumulatorMetastreamLookup,
+				chunkReader: chunkReader,
+				cancellationCheckPeriod: cancellationCheckPeriod);
+
+			ICalculator<string> calculator = new Calculator<string>(
+				index: calculatorIndexReader,
+				chunkSize: dbConfig.ChunkSize,
+				cancellationCheckPeriod: cancellationCheckPeriod,
+				checkpointPeriod: checkpointPeriod);
+
+			IChunkExecutor<string> chunkExecutor = new ChunkExecutor<string, ScaffoldChunk>(
+				metastreamLookup: chunkExecutorMetastreamLookup,
+				chunkManager: new TracingChunkManagerForChunkExecutor<string, ScaffoldChunk>(
+					new ScaffoldChunkManagerForScavenge(
+						chunkSize: dbConfig.ChunkSize,
+						log: log),
+					Tracer),
+				chunkSize: dbConfig.ChunkSize,
+				cancellationCheckPeriod: cancellationCheckPeriod);
+
+			IIndexExecutor<string> indexExecutor = new IndexExecutor<string>(
+				indexScavenger: cancellationWrappedIndexScavenger,
+				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log));
+
+
+			accumulator = new TracingAccumulator<string>(accumulator, Tracer);
+			calculator = new TracingCalculator<string>(calculator, Tracer);
+			chunkExecutor = new TracingChunkExecutor<string>(chunkExecutor, Tracer);
+			indexExecutor = new TracingIndexExecutor<string>(indexExecutor, Tracer);
+
+			var scavengeState = new ScavengeStateBuilder(hasher, metastreamLookup)
+				.Transform(_stateTransform)
+				.WithTracer(Tracer)
+				.Build();
 
 			var sut = new Scavenger<string>(
 				scavengeState,
-				new Accumulator<string>(
-					chunkSize: dbConfig.ChunkSize,
-					metastreamLookup: accumulatorMetastreamLookup,
-					chunkReader: new ScaffoldChunkReaderForAccumulator(log, metastreamLookup),
-					cancellationCheckPeriod: cancellationCheckPeriod),
-
-				new Calculator<string>(
-					index: calculatorIndexReader,
-					chunkSize: dbConfig.ChunkSize,
-					cancellationCheckPeriod: cancellationCheckPeriod,
-					checkpointPeriod: 1),
-
-				new ChunkExecutor<string, ScaffoldChunk>(
-					metastreamLookup: chunkExecutorMetastreamLookup,
-					chunkManager: new ScaffoldChunkManagerForScavenge(
-						chunkSize: dbConfig.ChunkSize,
-						log: log),
-					chunkSize: dbConfig.ChunkSize,
-					cancellationCheckPeriod: cancellationCheckPeriod),
-
-				new IndexExecutor<string>(
-					indexScavenger: cancellationWrappedIndexScavenger,
-					streamLookup: new ScaffoldChunkReaderForIndexExecutor(log)),
-
-				new ScaffoldScavengePointSource(log, EffectiveNow));
+				accumulator,
+				calculator,
+				chunkExecutor,
+				indexExecutor,
+				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow));
 
 			await sut.RunAsync(
 				new FakeTFScavengerLog(),
 				cancellationTokenSource.Token);
+
+			// check the trace
+			if (_expectedTrace != null) {
+				var expected = _expectedTrace;
+				var actual = Tracer.ToArray();
+
+				for (var i = 0; i < Math.Max(expected.Length, actual.Length); i++) {
+					var line = expected[i].Line;
+					Assert.True(
+						i < expected.Length,
+						i < actual.Length
+							? $"Actual trace contains extra entries starting with: {actual[i]}"
+							: "impossible");
+
+					Assert.True(
+						i < actual.Length,
+						$"Expected trace contains extra entries starting from line {line}: {expected[i].Message}");
+
+					Assert.True(
+						expected[i].Message == actual[i],
+						$"Trace mismatch at line {line}. \r\n" +
+						$" Expected: {expected[i].Message} \r\n" +
+						$" Actual:   {actual[i]}");
+				}
+			}
 
 			//qq we do some naive calculations here that are inefficient but 'obviously correct'
 			// we might want to consider breaking them out and writing some simple tests for them
@@ -307,18 +374,18 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.OrderBy(x => x.Item1);
 
 			// 3b. compare to the actual handles.
-			var actual = scavengeState
+			var actualHandles = scavengeState
 				.OriginalStreamsToScavenge(default)
 				.Select(x => (x.Item1.ToString(), x.Item2))
 				.OrderBy(x => x.Item1);
 
 			// compare the handles
-			Assert.Equal(expectedHandles.Select(x => x.Item1), actual.Select(x => x.Item1));
+			Assert.Equal(expectedHandles.Select(x => x.Item1), actualHandles.Select(x => x.Item1));
 
 			// compare the metadatas
 			Assert.Equal(
 				expectedHandles.Select(x => x.metadata),
-				actual.Select(x => x.Item2),
+				actualHandles.Select(x => x.Item2),
 				compareOnlyMetadata);
 
 			// 4. The records we expected to keep are kept
@@ -330,6 +397,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			return (scavengeState, dbResult);
 		}
+
+
+
+
+
+
 
 		//qq nicked from scavengetestscenario, will probably just use that class
 		protected static void CheckRecords(LogRecord[][] expected, DbResult actual) {
@@ -354,6 +427,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
 
 				for (int j = 0; j < expected[i].Length; ++j) {
+					// for now null indicates there should be a record there but not what it should be
+					// using to indicate the place of a scavengepoint
+					if (expected[i][j] == null)
+						continue;
+
 					Assert.True(
 						expected[i][j] == chunkRecords[j],
 						$"Wrong log record #{j} read from chunk #{i}. " +
@@ -379,6 +457,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
 
 				for (int j = 0; j < expected[i].Length; ++j) {
+					// for now null indicates there should be a record there but not what it should be
+					// using to indicate the place of a scavengepoint
+					if (expected[i][j] == null)
+						continue;
+
 					Assert.True(
 						expected[i][j].Equals(chunkRecords[j]),
 						$"Wrong log record #{j} read from chunk #{i}.\r\n" +
@@ -403,6 +486,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"Expected {expected[i].Length}. Actual {chunkRecords.Length}");
 
 				for (int j = 0; j < expected[i].Length; ++j) {
+					// for now null indicates there should be a record there but not what it should be
+					// using to indicate the place of a scavengepoint
+					if (expected[i][j] == null)
+						continue;
+
 					Assert.True(
 						expected[i][j].Equals(chunkRecords[j]),
 						$"IndexCheck. Wrong log record #{j} read from index-chunk #{i}.\r\n" +

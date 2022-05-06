@@ -25,7 +25,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IScavengeMap<int, ChunkTimeStampRange> _chunkTimeStampRanges;
 		private readonly IChunkWeightScavengeMap _chunkWeights;
 		private readonly IScavengeMap<Unit, ScavengeCheckpoint> _checkpointStorage;
-		private readonly ScavengeTransaction _batch;
+		private readonly ITransaction _transaction;
 
 		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
@@ -45,7 +45,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<Unit, ScavengeCheckpoint> checkpointStorage,
 			IScavengeMap<int, ChunkTimeStampRange> chunkTimeStampRanges,
 			IChunkWeightScavengeMap chunkWeights,
-			ITransactionBackend transactionBackend) {
+			ITransaction transaction) {
 
 			//qq inject this so that in log v3 we can have a trivial implementation
 			//qq to save us having to look up the stream names repeatedly
@@ -73,16 +73,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkTimeStampRanges = chunkTimeStampRanges;
 			_chunkWeights = chunkWeights;
 
-			_batch = new ScavengeTransaction(
-				transactionBackend,
-				onCompleting: checkpoint => _checkpointStorage[Unit.Instance] = checkpoint);
+			_transaction = transaction;
 		}
 
-		// reuses the same batch. caller is reponsible for committing, rolling back, or disposing
-		// the batch before calling StartBatch again
-		public ITransaction BeginTransaction() {
-			_batch.Begin();
-			return _batch;
+		// reuses the same transaction object for multiple transactions.
+		// caller is reponsible for committing, rolling back, or disposing
+		// the transaction before calling BeginTransaction again
+		public IOpenTransaction BeginTransaction() {
+			_transaction.Begin();
+			return _transaction;
 		}
 
 		//qqqq where to wire in the json conversion

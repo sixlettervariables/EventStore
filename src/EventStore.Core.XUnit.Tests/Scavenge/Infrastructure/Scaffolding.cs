@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using EventStore.Core.Data;
 using EventStore.Core.Index;
 using EventStore.Core.Index.Hashes;
@@ -17,23 +18,84 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// memdb for rapid testing)
 
 	public class ScaffoldScavengePointSource : IScavengePointSource {
+		private readonly int _chunkSize;
 		private readonly LogRecord[][] _log;
 		private readonly DateTime _effectiveNow;
 
 		public ScaffoldScavengePointSource(
+			int chunkSize,
 			LogRecord[][] log,
 			DateTime effectiveNow) {
 
+			_chunkSize = chunkSize;
 			_log = log;
 			_effectiveNow = effectiveNow;
 		}
 
-		public ScavengePoint GetScavengePoint() =>
-			//qq we presumably want to actually get this from the log.
-			new ScavengePoint {
-				EffectiveNow = _effectiveNow,
-				Position = _log.Length * 1 * 1024 * 1024,
+		public Task<ScavengePoint> GetLatestScavengePointAsync() {
+			ScavengePoint scavengePoint = default;
+			foreach (var record in AllRecords()) {
+				if (record is PrepareLogRecord prepare &&
+					prepare.EventType == SystemEventTypes.ScavengePoint) {
+
+					var payload = ScavengePointPayload.FromBytes(prepare.Data);
+
+					scavengePoint = ScavengePoint.CreateForLogPosition(
+						chunkSize: _chunkSize,
+						scavengePointLogPosition: record.LogPosition,
+						eventNumber: prepare.ExpectedVersion + 1,
+						effectiveNow: prepare.TimeStamp,
+						threshold: payload.Threshold);
+				}
+			}
+
+			return Task.FromResult(scavengePoint);
+		}
+
+
+		//qq maybe actually add it to the log, or not if we get rid of this soon enough
+		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
+			var latestScavengePoint = await GetLatestScavengePointAsync();
+			var actualVersion = latestScavengePoint != null
+				? latestScavengePoint.EventNumber
+				: -1;
+
+			if (actualVersion != expectedVersion) {
+				//qq this probably isn't the right exception
+				throw new InvalidOperationException(
+					$"wrong version number {expectedVersion} vs {actualVersion}");
+			}
+
+			var payload = new ScavengePointPayload {
+				Threshold = threshold,
 			};
+
+			var lastChunk = _log.Length - 1;
+			var newChunk = _log[lastChunk].ToList();
+			newChunk.Add(LogRecord.SingleWrite(
+				logPosition: lastChunk * _chunkSize + 20,
+				correlationId: Guid.NewGuid(),
+				eventId: Guid.NewGuid(),
+				eventStreamId: SystemStreams.ScavengesStream,
+				expectedVersion: expectedVersion, // no optimistic concurrency
+				eventType: SystemEventTypes.ScavengePoint,
+				data: payload.ToJsonBytes(),
+				metadata: null,
+				timestamp: _effectiveNow));
+
+			_log[_log.Length - 1] = newChunk.ToArray();
+
+			var scavengePoint = await GetLatestScavengePointAsync();
+			return scavengePoint;
+		}
+
+		private IEnumerable<LogRecord> AllRecords() {
+			for (var chunkIndex = 0; chunkIndex < _log.Length; chunkIndex++) {
+				for (var recordIndex = 0; recordIndex < _log[chunkIndex].Length; recordIndex++) {
+					yield return _log[chunkIndex][recordIndex];
+				}
+			}
+		}
 	}
 
 	public class ScaffoldChunkReaderForAccumulator : IChunkReaderForAccumulator<string> {
@@ -100,7 +162,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var lastEventNumber = -1L;
 			//qq technically should only to consider committed prepares but probably doesn't matter
 			// for our purposes here.
-			var stopBefore = scavengePoint.Position;
+			var stopBefore = scavengePoint.UpToPosition;
 			foreach (var chunk in _log) {
 				foreach (var record in chunk) {
 					if (record.LogPosition >= stopBefore)
@@ -137,7 +199,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			var result = new List<EventInfo>();
 
-			var stopBefore = scavengePoint.Position;
+			var stopBefore = scavengePoint.UpToPosition;
 
 			foreach (var chunk in _log) {
 				foreach (var record in chunk) {
@@ -199,21 +261,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
 			foreach (var record in _chunk) {
-				if (!(record is PrepareLogRecord prepare))
-					continue;
-
 				//qq hopefully getting rid of this scaffolding before long, but
 				// if not, consider efficiency of this, maybe reuse array, writer, etc.
 				var bytes = new byte[1024];
 				using (var stream = new MemoryStream(bytes))
 				using (var binaryWriter = new BinaryWriter(stream)) {
 					record.WriteTo(binaryWriter);
-					yield return new RecordForScavenge<string>() {
-						StreamId = prepare.EventStreamId,
-						TimeStamp = prepare.TimeStamp,
-						EventNumber = prepare.ExpectedVersion + 1,
-						RecordBytes = bytes,
-					};
+
+					if (record is PrepareLogRecord prepare) {
+						//qq at a test to make sure we keep the system records
+						yield return RecordForScavenge.CreateScavengeable(
+							streamId: prepare.EventStreamId,
+							timeStamp: prepare.TimeStamp,
+							eventNumber: prepare.ExpectedVersion + 1,
+							bytes: bytes);
+					} else {
+						yield return RecordForScavenge.CreateNonScavengeable<string>(bytes);
+					}
 				}
 			}
 		}

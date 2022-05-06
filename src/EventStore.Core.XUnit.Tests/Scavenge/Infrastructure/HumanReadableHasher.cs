@@ -7,7 +7,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// The second character of the stream name is the basis of the hash for the original stream
 	// e.g.
 	//   "$$ma-1 -> 'm'
-	//   "ma-1" -> 'a'
+	//   "ma-1" -> 'a' (97)
 	class HumanReadableHasher : ILongHasher<string> {
 		public HumanReadableHasher() {
 		}
