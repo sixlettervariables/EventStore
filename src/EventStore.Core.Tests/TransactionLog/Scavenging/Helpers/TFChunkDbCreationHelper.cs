@@ -97,6 +97,13 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 					var logPos = _db.Config.WriterCheckpoint.ReadNonFlushed();
 
 					long streamVersion = streamUncommitedVersion[rec.StreamId];
+
+					if (rec.EventNumber.HasValue && rec.EventNumber > streamVersion + 1) {
+						// advance the stream
+						streamVersion = rec.EventNumber.Value - 1;
+						streamUncommitedVersion[rec.StreamId] = streamVersion;
+					}
+
 					if (streamVersion == -1
 					    && rec.Type != Rec.RecType.TransStart
 					    && rec.Type != Rec.RecType.Prepare
@@ -356,12 +363,14 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 		public readonly string StreamId;
 		public readonly string EventType;
 		public readonly DateTime TimeStamp;
+		public readonly long? EventNumber;
 		public readonly byte[] Data;
 		public readonly StreamMetadata Metadata;
 		public readonly PrepareFlags PrepareFlags;
 		public readonly byte Version;
 
 		public Rec(RecType type, int transaction, string streamId, string eventType, DateTime? timestamp, byte version,
+			long? eventNumber = null,
 			byte[] data = null,
 			StreamMetadata metadata = null, PrepareFlags prepareFlags = PrepareFlags.Data) {
 			Ensure.NotNullOrEmpty(streamId, "streamId");
@@ -377,6 +386,7 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 			EventType = eventType ?? string.Empty;
 			TimeStamp = timestamp ?? DateTime.UtcNow;
 			Version = version;
+			EventNumber = eventNumber;
 			Data = data;
 			Metadata = metadata;
 			PrepareFlags = prepareFlags;
@@ -393,10 +403,11 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 		}
 
 		public static Rec Prepare(int transaction, string stream, string eventType = null, DateTime? timestamp = null,
+			long? eventNumber = null,
 			byte[] data = null,
 			StreamMetadata metadata = null, PrepareFlags prepareFlags = PrepareFlags.Data,
 			byte version = PrepareLogRecord.PrepareRecordVersion) {
-			return new Rec(RecType.Prepare, transaction, stream, eventType, timestamp, version, data, metadata, prepareFlags);
+			return new Rec(RecType.Prepare, transaction, stream, eventType, timestamp, version, eventNumber, data, metadata, prepareFlags);
 		}
 
 		public static Rec TransEnd(int transaction, string stream, DateTime? timestamp = null,

@@ -10,6 +10,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		private ScavengeState<string> _preexisting;
 		private Tracer _tracer;
+		private Action<ScavengeState<string>> _mutateState;
 
 		public ScavengeStateBuilder(
 			ILongHasher<string> hasher,
@@ -17,6 +18,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
+			_mutateState = x => { };
 		}
 
 		public ScavengeStateBuilder ExistingState(ScavengeState<string> state) {
@@ -24,8 +26,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
-		public ScavengeStateBuilder Transform(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) =>
+		public ScavengeStateBuilder TransformBuilder(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) =>
 			f(this);
+
+		public ScavengeStateBuilder MutateState(Action<ScavengeState<string>> f) {
+			var wrapped = _mutateState;
+			_mutateState = state => {
+				wrapped(state);
+				f(state);
+			};
+			return this;
+		}
 
 		public ScavengeStateBuilder WithTracer(Tracer tracer) {
 			_tracer = tracer;
@@ -33,6 +44,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		public ScavengeState<string> Build() {
+			var state = BuildInternal();
+			_mutateState(state);
+			return state;
+		}
+
+		private ScavengeState<string> BuildInternal() {
 			if (_preexisting != null)
 				return _preexisting;
 

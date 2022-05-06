@@ -70,7 +70,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// consider the equivalent for the other discard criteria, and see whether the time/space
 					// tradeoff is worth it.
 					//
-					//qq we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
+					//qq tidy: we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
 					// is completely spent, which might have a bearing on the above.
 					streamCalc.SetStream(originalStreamHandle, originalStreamData);
 
@@ -141,8 +141,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			out DiscardPoint discardPoint,
 			out DiscardPoint maybeDiscardPoint) {
 
-			//qqqqq having a stab with allowing the previous discard points to be moved backwards.
-
 			var fromEventNumber = 0L;
 
 			discardPoint = DiscardPoint.KeepAll;
@@ -152,19 +150,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			const float MaybeDiscardWeight = 1.0f;
 			const int maxCount = 100; //qq what would be sensible? probably pretty large
 
-			//qq it is normal for the maybediscardpoint to be after the discard point, but is it possible
-			// for it to be _before_ ?
 			var first = true;
 
 			while (true) {
 				// read in slices because the stream might be huge.
-				// Note: when the handle is a hash the ReadEventInfoForward call is index-only
+				// note: when the handle is a hash the ReadEventInfoForward call is index-only
+				// note: the event infos are not necessarily contiguous
 				//qq limit the read to the scavengepoint too?
-
-				//qqqqqqqqqqqq on subsequent scavenge, consider if this would/should return noncontigous
-				// if some chunks have been scavenged (for the collision case, which relies on the log)
-				// yes i think this is quite likely, and could probably happen if the index is partially
-				// scavenged too. or if old scavenge has been run.
 				var slice = _index.ReadEventInfoForward(
 					originalStreamHandle,
 					fromEventNumber,
@@ -198,8 +190,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							break;
 
 						case DiscardDecision.Keep:
-							// found the first one to keep. we are done discarding.
-							// for obviousness move the maybe up to the discardpoint if it is behind
+							// found the first one to keep. we are done discarding. to help keep things
+							// simple, move the maybe up to the discardpoint if it is behind.
 							maybeDiscardPoint = maybeDiscardPoint.Or(discardPoint);
 							return;
 
@@ -245,8 +237,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			int logicalChunkNumber,
 			float extraWeight) {
 
-			//qq dont want to actually increase the weight every time, just increase it once at the end
-			// of the chunk
+			//qq dont want to actually increase the weight every time, just increase it once
+			// per chunk, when the transaction is committed
 			state.IncreaseChunkWeight(logicalChunkNumber, extraWeight);
 		}
 	}

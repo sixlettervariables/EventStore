@@ -48,7 +48,18 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		public Scenario WithState(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) {
-			_stateTransform = f;
+			var wrapped = _stateTransform;
+			_stateTransform = builder => builder
+				.TransformBuilder(wrapped)
+				.TransformBuilder(f);
+			return this;
+		}
+
+		public Scenario MutateState(Action<ScavengeState<string>> f) {
+			var wrapped = _stateTransform;
+			_stateTransform = builder => builder
+				.TransformBuilder(wrapped)
+				.MutateState(f);
 			return this;
 		}
 
@@ -166,7 +177,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var checkpointPeriod = 2;
 
 			// add tracing
-			Tracer.Reset();
 			chunkReader = new TracingChunkReaderForAccumulator<string>(chunkReader, Tracer.Trace);
 
 			IAccumulator<string> accumulator = new Accumulator<string>(
@@ -202,9 +212,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			indexExecutor = new TracingIndexExecutor<string>(indexExecutor, Tracer);
 
 			var scavengeState = new ScavengeStateBuilder(hasher, metastreamLookup)
-				.Transform(_stateTransform)
+				.TransformBuilder(_stateTransform)
 				.WithTracer(Tracer)
 				.Build();
+
 
 			var sut = new Scavenger<string>(
 				scavengeState,
@@ -214,6 +225,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				indexExecutor,
 				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow));
 
+			Tracer.Reset();
 			await sut.RunAsync(
 				new FakeTFScavengerLog(),
 				cancellationTokenSource.Token);
