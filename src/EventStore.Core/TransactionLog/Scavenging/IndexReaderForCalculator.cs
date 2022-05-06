@@ -17,10 +17,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
 					// tries as far as possible to use the index without consulting the log to fetch the last event number
-					return _readIndex.GetStreamLastEventNumber_NoCollisions(handle.StreamHash, _getStreamId, scavengePoint.Position);
+					return _readIndex.GetStreamLastEventNumber_NoCollisions(handle.StreamHash, _getStreamId, scavengePoint.UpToPosition);
 				case StreamHandle.Kind.Id:
 					// uses the index and the log to fetch the last event number
-					return _readIndex.GetStreamLastEventNumber_KnownCollisions(handle.StreamId, scavengePoint.Position);
+					return _readIndex.GetStreamLastEventNumber_KnownCollisions(handle.StreamId, scavengePoint.UpToPosition);
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}
@@ -37,7 +37,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				case StreamHandle.Kind.Hash:
 					// uses the index only
 					return _readIndex.ReadEventInfoForward(handle.StreamHash, fromEventNumber, maxCount,
-						scavengePoint.Position).EventInfos;
+						scavengePoint.UpToPosition).EventInfos;
 				case StreamHandle.Kind.Id:
 					// uses log to check for hash collisions
 					var result = _readIndex.ReadStreamEventsForward(
@@ -48,7 +48,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq do we need to look at the other things like .Result, .IsEndOfStream etc
 					var eventInfos = new List<EventInfo>();
 					foreach (var record in result.Records) {
-						if (record.LogPosition < scavengePoint.Position) {
+						if (record.LogPosition < scavengePoint.UpToPosition) {
 							eventInfos.Add(new EventInfo(record.LogPosition, record.EventNumber));
 						}
 					}
