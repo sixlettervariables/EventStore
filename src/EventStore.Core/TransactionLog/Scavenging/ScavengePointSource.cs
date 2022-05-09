@@ -5,15 +5,12 @@ using EventStore.Core.Helpers;
 using EventStore.Core.Messages;
 using EventStore.Core.Services;
 using EventStore.Core.Services.UserManagement;
-using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class ScavengePointSource : IScavengePointSource {
-		private readonly int _chunkSize;
 		private readonly IODispatcher _ioDispatcher;
 
-		public ScavengePointSource(int chunkSize, IODispatcher ioDispatcher) {
-			_chunkSize = chunkSize;
+		public ScavengePointSource(IODispatcher ioDispatcher) {
 			_ioDispatcher = ioDispatcher;
 		}
 
@@ -47,9 +44,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var scavengePointEvent = events[0].Event;
 			var scavengePointPayload = ScavengePointPayload.FromBytes(scavengePointEvent.Data);
 
-			var scavengePoint = ScavengePoint.CreateForLogPosition(
-				chunkSize: _chunkSize,
-				scavengePointLogPosition: scavengePointEvent.LogPosition,
+			var scavengePoint = new ScavengePoint(
+				position: scavengePointEvent.LogPosition,
 				eventNumber: scavengePointEvent.EventNumber,
 				effectiveNow: scavengePointEvent.TimeStamp,
 				threshold: scavengePointPayload.Threshold);

@@ -50,10 +50,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
 			var scavengePoint = checkpoint.ScavengePoint;
 
-			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint.UpToPosition)) {
+			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint)) {
 				var transaction = state.BeginTransaction();
 				try {
-					var physicalWeight = state.SumChunkWeights(physicalChunk.ChunkStartNumber, physicalChunk.ChunkEndNumber);
+					var physicalWeight = state.SumChunkWeights(
+						physicalChunk.ChunkStartNumber,
+						physicalChunk.ChunkEndNumber);
 
 					if (physicalWeight >= scavengePoint.Threshold) {
 						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
@@ -77,11 +79,22 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
+		//qqqq the scavenge point can, itself, be in a merged chunk.
+		// we can decide here whether to
+		// 1. scavenge the merge chunk with it in, and respect the scavenge
+		//    point as we go. currently this respects the discard points, which is enough to also
+		//    respect the scavenge point, but using the scavenge point directly would be more efficient
+		//    if there is any chance a record will be the other side of it. OR
+		// 2. not to scavenge the chunk with the discard point in it, so every chunk we execute only has
+		//    records that are before the scavenge point.
+		//    see how awkward the former is when we bring in the older logic. remember not scavenging
+		//    things has implications for gdpr.
 		private IEnumerable<IChunkReaderForExecutor<TStreamId>> GetAllPhysicalChunks(
 			int startFromChunk,
-			long upTo) {
+			ScavengePoint scavengePoint) {
 
 			var scavengePos = _chunkSize * startFromChunk;
+			var upTo = scavengePoint.Position;
 			while (scavengePos < upTo) {
 				var physicalChunk = _chunkManager.GetChunkReaderFor(scavengePos);
 

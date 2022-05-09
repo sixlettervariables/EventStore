@@ -40,9 +40,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 					var payload = ScavengePointPayload.FromBytes(prepare.Data);
 
-					scavengePoint = ScavengePoint.CreateForLogPosition(
-						chunkSize: _chunkSize,
-						scavengePointLogPosition: record.LogPosition,
+					scavengePoint = new ScavengePoint(
+						position: record.LogPosition,
 						eventNumber: prepare.ExpectedVersion + 1,
 						effectiveNow: prepare.TimeStamp,
 						threshold: payload.Threshold);
@@ -162,7 +161,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var lastEventNumber = -1L;
 			//qq technically should only to consider committed prepares but probably doesn't matter
 			// for our purposes here.
-			var stopBefore = scavengePoint.UpToPosition;
+			var stopBefore = scavengePoint.Position;
 			foreach (var chunk in _log) {
 				foreach (var record in chunk) {
 					if (record.LogPosition >= stopBefore)
@@ -199,7 +198,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			var result = new List<EventInfo>();
 
-			var stopBefore = scavengePoint.UpToPosition;
+			var stopBefore = scavengePoint.Position;
 
 			foreach (var chunk in _log) {
 				foreach (var record in chunk) {

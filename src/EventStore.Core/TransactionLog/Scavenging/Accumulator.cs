@@ -28,10 +28,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			var doneLogicalChunkNumber = prevScavengePoint == null
-				? (int?)null
-				//qqqqqqqqqqqqq check this
-				: (int)(prevScavengePoint.UpToPosition / _chunkSize) - 1;
+			var doneLogicalChunkNumber = default(int?);
+
+			// accumulate the chunk that the previous scavenge point was in because we last time we
+			// only accumulated that chunk _up to_ the scavenge point and not all of it.
+			if (prevScavengePoint != null) {
+				if (prevScavengePoint.Position >= _chunkSize) {
+					doneLogicalChunkNumber = (int)(prevScavengePoint.Position / _chunkSize) - 1;
+				} else {
+					// the previous scavenge point was in the first chunk so we haven't
+					// 'done' any chunks, leave it as null.
+				}
+			}
 
 			var checkpoint = new ScavengeCheckpoint.Accumulating(
 					scavengePoint,
@@ -47,30 +55,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			CancellationToken cancellationToken) {
 
 			//qq is the plus 1 necessaryily ok, bounds?
-			var startChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
-
-			var upToPosition = checkpoint.ScavengePoint.UpToPosition;
-			if (upToPosition % _chunkSize != 0) {
-				throw new Exception(
-					$"upToPosition is {upToPosition} " +
-					$"which is not a multiple of chunkSize {_chunkSize:N0}");
-			}
-			//qqqqqqqqq refactor with the other calculation like this in this file
-			var stopBeforeChunk = upToPosition / _chunkSize;
+			var logicalChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
 
-
-			for (var i = startChunkNumber; i < stopBeforeChunk; i++) {
-				AccumulateChunkAndRecordRange(
-						scavengePoint,
-						state,
-						i,
-						cancellationToken);
-				cancellationToken.ThrowIfCancellationRequested();
+			while (AccumulateChunkAndRecordRange(
+					scavengePoint,
+					state,
+					logicalChunkNumber,
+					cancellationToken)) {
+				logicalChunkNumber++;
 			}
 		}
 
-		private void AccumulateChunkAndRecordRange(
+		private bool AccumulateChunkAndRecordRange(
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			int logicalChunkNumber,
@@ -80,7 +77,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// within a transaction.
 			var transaction = state.BeginTransaction();
 			try {
-				AccumulateChunk(
+				var ret = AccumulateChunk(
+					scavengePoint,
 					state,
 					logicalChunkNumber,
 					cancellationToken,
@@ -100,14 +98,18 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				transaction.Commit(new ScavengeCheckpoint.Accumulating(
 					scavengePoint,
 					doneLogicalChunkNumber: logicalChunkNumber));
+
+				return ret;
 			} catch {
 				transaction.Rollback();
 				throw;
 			}
 		}
 
+		// returns true to continue
 		// do not assume that record TimeStamps are non descending, clocks can change.
-		private void AccumulateChunk(
+		private bool AccumulateChunk(
+			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			int logicalChunkNumber,
 			CancellationToken cancellationToken,
@@ -118,8 +120,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			chunkMinTimeStamp = DateTime.MaxValue;
 			chunkMaxTimeStamp = DateTime.MinValue;
 
+			var stopBefore = scavengePoint.Position;
 			var cancellationCheckCounter = 0;
 			foreach (var record in _chunkReader.ReadChunk(logicalChunkNumber)) {
+				if (record.LogPosition >= stopBefore)
+					return false;
+
 				if (record.TimeStamp < chunkMinTimeStamp)
 					chunkMinTimeStamp = record.TimeStamp;
 
@@ -148,6 +154,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					cancellationToken.ThrowIfCancellationRequested();
 				}
 			}
+
+			return true;
 		}
 
 		// For every* record in an original stream we need to see if its stream collides.

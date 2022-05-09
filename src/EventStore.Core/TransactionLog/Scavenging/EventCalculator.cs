@@ -32,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq consider this inequality
 		public bool IsLastEventInStream => EventInfo.EventNumber == Stream.LastEventNumber;
 
-		public bool IsOnOrAfterScavengePoint => EventInfo.LogPosition >= ScavengePoint.UpToPosition;
+		public bool IsOnOrAfterScavengePoint => EventInfo.LogPosition >= ScavengePoint.Position;
 
 		//qq consider caching
 		public int LogicalChunkNumber => (int)(EventInfo.LogPosition / ChunkSize);

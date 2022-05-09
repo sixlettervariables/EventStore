@@ -19,6 +19,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public static StreamMetadata MaxAgeMetadata { get; } =
 			new StreamMetadata(maxAge: TimeSpan.FromDays(2));
 
+		public static StreamMetadata SoftDelete { get; } =
+			new StreamMetadata(truncateBefore: EventNumber.DeletedStream);
+
 		public static DateTime EffectiveNow { get; } = new DateTime(2022, 1, 5, 00, 00, 00);
 		public static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
 		public static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
@@ -29,7 +32,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			eventType: SystemEventTypes.ScavengePoint,
 			timestamp: EffectiveNow,
 			data: new ScavengePointPayload {
-				Threshold = 0,
+				Threshold = threshold,
 			}.ToJsonBytes());
 	}
 }

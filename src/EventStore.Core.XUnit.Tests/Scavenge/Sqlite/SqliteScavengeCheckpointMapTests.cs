@@ -15,7 +15,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut.Initialize();
 
 			var scavengePoint = new ScavengePoint(
-				upToPosition: 303,
+				position: 303,
 				eventNumber: 5,
 				effectiveNow: DateTime.UtcNow,
 				threshold: 6);
@@ -25,7 +25,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.NotNull(v);
 			Assert.IsType<ScavengeCheckpoint.Accumulating>(v);
 			Assert.Equal(22, ((ScavengeCheckpoint.Accumulating)v).DoneLogicalChunkNumber);
-			Assert.Equal(scavengePoint.UpToPosition, v.ScavengePoint.UpToPosition);
+			Assert.Equal(scavengePoint.Position, v.ScavengePoint.Position);
 			Assert.Equal(scavengePoint.EventNumber, v.ScavengePoint.EventNumber);
 			Assert.Equal(scavengePoint.EffectiveNow, v.ScavengePoint.EffectiveNow);
 			Assert.Equal(scavengePoint.Threshold, v.ScavengePoint.Threshold);
@@ -38,14 +38,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			sut[Unit.Instance] = new ScavengeCheckpoint.Accumulating(
 				new ScavengePoint(
-					upToPosition: 303,
+					position: 303,
 					eventNumber: 5,
 					effectiveNow: DateTime.UtcNow.AddHours(-1),
 					threshold: 6),
 				22);
 
 			var scavengePoint = new ScavengePoint(
-				upToPosition: 909,
+				position: 909,
 				eventNumber: 6,
 				effectiveNow: DateTime.UtcNow,
 				threshold: 7);
@@ -56,7 +56,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.NotNull(v);
 			Assert.IsType<ScavengeCheckpoint.ExecutingChunks>(v);
 			Assert.Equal(43, ((ScavengeCheckpoint.ExecutingChunks)v).DoneLogicalChunkNumber);
-			Assert.Equal(scavengePoint.UpToPosition, v.ScavengePoint.UpToPosition);
+			Assert.Equal(scavengePoint.Position, v.ScavengePoint.Position);
 			Assert.Equal(scavengePoint.EventNumber, v.ScavengePoint.EventNumber);
 			Assert.Equal(scavengePoint.EffectiveNow, v.ScavengePoint.EffectiveNow);
 			Assert.Equal(scavengePoint.Threshold, v.ScavengePoint.Threshold);
@@ -68,7 +68,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut.Initialize();
 
 			var scavengePoint = new ScavengePoint(
-				upToPosition: 303,
+				position: 303,
 				eventNumber: 5,
 				effectiveNow: DateTime.UtcNow,
 				threshold: 6);
@@ -77,7 +77,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryRemove(Unit.Instance, out var v));
 			Assert.NotNull(v);
 			Assert.IsType<ScavengeCheckpoint.Accumulating>(v);
-			Assert.Equal(scavengePoint.UpToPosition, v.ScavengePoint.UpToPosition);
+			Assert.Equal(scavengePoint.Position, v.ScavengePoint.Position);
 			Assert.Equal(scavengePoint.EventNumber, v.ScavengePoint.EventNumber);
 			Assert.Equal(scavengePoint.EffectiveNow, v.ScavengePoint.EffectiveNow);
 			Assert.Equal(scavengePoint.Threshold, v.ScavengePoint.Threshold);

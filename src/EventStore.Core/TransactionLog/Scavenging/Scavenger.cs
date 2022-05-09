@@ -157,11 +157,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			// we now have a nextScavengePoint.
-			if (prevScavengePoint != null &&
-				prevScavengePoint.UpToPosition == nextScavengePoint.UpToPosition) {
-				//qqq there is no point in scavenging, implement some early return.
-			}
-
 			_accumulator.Accumulate(prevScavengePoint, nextScavengePoint, _state, cancellationToken);
 			AfterAccumulation(nextScavengePoint, scavengerLogger, cancellationToken);
 		}

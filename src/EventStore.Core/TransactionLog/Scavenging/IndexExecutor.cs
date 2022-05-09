@@ -34,7 +34,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_indexScavenger.ScavengeIndex(
 				//qq get the ptables to take account of this
-				scavengePoint: checkpoint.ScavengePoint.UpToPosition,
+				scavengePoint: checkpoint.ScavengePoint.Position,
 				shouldKeep: GenShouldKeep(state),
 				log: scavengerLogger,
 				cancellationToken: cancellationToken);

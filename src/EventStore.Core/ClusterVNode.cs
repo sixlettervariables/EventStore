@@ -637,7 +637,7 @@ namespace EventStore.Core {
 					calculator,
 					chunkExecutor,
 					indexExecutor,
-					new ScavengePointSource(TFConsts.ChunkSize, ioDispatcher));
+					new ScavengePointSource(ioDispatcher));
 
 				var storageScavenger = new NewStorageScavenger<string>(
 					scavengerLogManager,
