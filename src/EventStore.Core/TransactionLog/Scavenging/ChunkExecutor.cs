@@ -59,11 +59,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					if (physicalWeight >= scavengePoint.Threshold) {
 						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
-
-						state.ResetChunkWeights(
-							physicalChunk.ChunkStartNumber,
-							physicalChunk.ChunkEndNumber);
-
 					}
 
 					cancellationToken.ThrowIfCancellationRequested();
@@ -196,8 +191,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				out var newFileName)) {
 				//qq what is the new file name of an inmemory chunk :/
 				//qq log
+				state.ResetChunkWeights(
+					chunk.ChunkStartNumber,
+					chunk.ChunkEndNumber);
 			} else {
 				//qq log
+				// dont reset the weights, we couldn't switch it in.
 			}
 		}
 
@@ -230,6 +229,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return false;
 			}
 
+			// discard said no, but maybe discard said yes
 			if (!details.MaxAge.HasValue) {
 				return false;
 			}
