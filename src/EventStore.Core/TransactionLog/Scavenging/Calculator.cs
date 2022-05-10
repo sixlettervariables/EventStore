@@ -82,6 +82,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						out var adjustedDiscardPoint,
 						out var adjustedMaybeDiscardPoint);
 
+					// don't allow the discard point to move backwards
+					if (adjustedDiscardPoint < originalStreamData.DiscardPoint) {
+						adjustedDiscardPoint = originalStreamData.DiscardPoint;
+					}
+
+					// don't allow the maybe discard point to move backwards
+					if (adjustedMaybeDiscardPoint < originalStreamData.MaybeDiscardPoint) {
+						adjustedMaybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
+					}
+
 					if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
 						adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
 						// nothing to update for this stream
@@ -130,9 +140,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// and we may be able to discard things between the discardPoint and the maybeDiscardPoint.
 		//
 		// We want to calculate the discard points from scratch, without considering what values they
-		// came out as last time. The discard points are allowed to move backwards from where they were
-		// before, although this is unusual. This minimises the possibility that running the scavenge
-		// causes events that can currently be read to be removed.
+		// came out as last time.
 		private void CalculateDiscardPointsForOriginalStream(
 			EventCalculator<TStreamId> eventCalc,
 			IScavengeStateForCalculator<TStreamId> state,

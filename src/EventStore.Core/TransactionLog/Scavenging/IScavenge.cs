@@ -500,117 +500,109 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 
 
-
+	//=====================
 	//qqqq SUBSEQUENT SCAVENGES AND RELATED QUESTIONS
-	//
-	//qqqq EXPANDING metadatas
-	// - do we want to allow discard points to move backwards?
-	//    - working hypothesis: yes we do, to reduce the risk that scavenge removes some data that
-	//      was readable at that time.
-	//
-	 // can anything  bad happen if we accept an expanding metadata, but do not move the discard point back
-	//    - but fundamentall the most important thing is whichever is simpler.
-	//
+	//=====================
 
-	// - a user can currently _expand_ a metadata (meaning, change it so that more events are available
-	//   to be read than before). this is handy because it means that setting an incorrect metadata does
+	// EXPANDING metadatas
+	// - ideally it would be nice if running a scavenge does not remove data that
+	//   can currently be read by the system. otherwise it could be considered 'dangerous' to run a
+	//   scavenge.
+	//
+	// - a user can currently _expand_ a metadata (meaning, change it so that events previously not
+	//   readable become readable. this is handy because it means that setting an incorrect metadata does
 	//   not cause the data to be permanently unretrievable - thats what the scavenge does.
-	// - however we also want the property that running a scavenge itself does not remove data that
-	//   can currently be read by the system. otherwise it could be 'dangerous' to run a scavenge.
-	// - therefore scavenge needs to cope with metadata being expanded and respect the new metadata.
-	// - BUT clearly it is only going to respect the new metadata when it finds out about it, so there
-	//   is still the possibility that it will discard based on an old calculation.
-	//   there isn't anything we can do about this unless we get the reads to check the discard points.
-	//   - or we could prevent the metadata from being expanded beyond the current discard points)
-	// - so the question is, given that we cant currently prevent the scavenge from removing data that
-	//   can be read (when metadata is expanded), do we want still want the scavenge to move discard
-	//   points _backwards_ when so directed by new metadata.
 	//
-	// we dont run the next scavenge until the previous one has finished
-	// which means we can be sure that the current discard points have been executed
-	// (i.e. events before them removed) NO THIS IS NOT TRUE, the chunk might have been
-	// below the threshold and not been scavenged. NO THIS IS TRUE as long as we require the
-	// index to be scavenged, but it is then necessarily the case that when we scavenge the index
-	// it can have the effect of removing data that was currently readable.
+	// - this does not work terribly well with old scavenge because it can result in read errors when
+	//   a scavenge has run removing some events leaving uncontiguous results.
 	//
-	// ok what if we did allow discard points to move backwards?
-	//   - by the time we are moving it backwards, the events were already discarded from the index
-	//     so we would be keeping them in the chunks but not the index, which is silly.
-	//   - BUT they wont have been discarded from the index if we prevented the scavenge from completing
-	//     some how.... si that a feature we want to support?
+	// - but it is worse with new scavenge because there is a risk that the scavenge will remove events
+	//   that can currently be read, because fundamentally scavenge only takes account of the log up to
+	//   a certain point, so if the metadata was expanded after that, it wont know it.
+	//      - most trivially
+	//         - say there are 10 events in the stream
+	//         - set the metadata to maxcount 1
+	//         - start a scavenge, which calculates the appropriate discard point
+	//         - expand the metadata, immediately more records can be read
+	//         - the scavenge will still remove those records based on the discard point it calculated
+	//           when it gets there.
+	//      - or when a scavenge is started on another node, placing a scavenge point, then we expand
+	//        the metadata. then the expanded metadata is not included when we scavenge this node.
 	//
-	//   - pro: is it simpler?
-	//          it means we are now keeping things that we were not before
-	//          which means that the calc can't just pick up from where we were before, but must start from
-	//          0 (or from a point the accumulator determined)
-	//          when might this be a lot to read through?
-	//             it reads until it finds records it definitely wants to keep.
-	//             so it has a lot to read if there is a lot to discard or maybe discard.
-	//             so that would be lame if we made it go back deciding again to discard things that
-	//             it already decided to discard, but this isn't possible because they would
-	//             have been discarded already.
-	//             
-	//   - con: we might be keeping data in the hcunks that we cant read because its gone from the index
-	//   - con: is it slow because the calculator has to go back to earlier? don't think so,
-	//          even if the calculator starts from zero, the ones it decided to discard last time have
-	//          probably been discarded from the index by now so it wont process them again, so it only
-	//          has to process any that have become discardable (which it has to do anyway) and those
-	//          that were maybe discardable (which it has to do anyway in case they became discardable)
-	//   - pro: it makes it rarer that we will remove some data that was readable
-	//        - example: if the index still has some records because of the maybe disacrdpoint
+	// - maybe the way to explain that
+	//     1. expanding the metadata is fine without using old or new scavenge
+	//     2. the danger with new scavenge occurrs if you add a scavenge point (which effectively saves
+	//        some metadata) and then expand the metadata before executing that scavenge point.
+	//        if you execute the scavenge point first then everything that it is going to remove will be
+	//        removed, so expanding the metadata wont show you anything in danger.
+	//        if the goal is to recover accidentally removed events, then expand the metadata and copy
+	//        them before executing the pending scavenge point
+	//   this may be acceptable because expanding the metadata was always a bit janky rather than being
+	//   a core feature.
+	//
+	// softundelete is almost a kind of expanding the metadata that we really do need to support,
+	// but it isn't quite. soft-undelete expands the metadata, BUT it will never try to move the DP backwards
+	//   because the DP was limited by the last event and did not advance to max. another way to say it
+	//   is that soft-undelete doesn't reinstate any events that were previously scavengable
+
+	// MOVING DISCARD POINTS BACKWARDS
+	// - the question is whether a subsequent scavenge should allow the discard point to move backwards
+	//   corresponding to an expanded metadata at least _attempting_ to keep more data.
+	//
+	// - the advantage of allowing it to move back is that (sort of rarely) it allows us to keep data
+	//   that can currently be read instead of discarding it. when the metadata has a maxage, it is
+	//   possible that some records that could be discarded are actually retained in the chunks
+	//   (if they dont weigh enough for the threshold) and in the index (which uses the main discard
+	//   point and not the maybediscardpoint). in which case moving the discard point back on a
+	//   subsequent scavenge could rescue those events.
+	//
+	// - however it doesn't gurantee not to scavenge events that can be read, it just makes the cases
+	//   more complicated, so there is limited advantage to this.
+	//
+	// - the disadvantage of allowing it to move back is that it is possible for events to permanently
+	//   escape having weight added for them in the future meaning we have no way to guarantee they
+	//   are scavenged unless we run a threshold=0 scavenge. which is a rather significant implication
+	//   for gdpr. this can happen if we removed it from the index but not yet from the log, since after
+	//   that the calculator wont be able to find it next time to re-add the weight.
+	//      - set metadata maxcount 1. say there are events 0-10 in the stream.
+	//      - run a scavenge
+	//         - dp 10, weight added to chunk for events 0-9
+	//         - scavenge index, remove events up to 9
+	//         - no events removed from chunks because threshold not met
+	//      - set metadata to maxcount 6
+	//      - run a scavenge
+	//         - dp moved back to 5
+	//         - chunk scavenged, remove events up to 4, chunk weight reset to 0.
+	//      - more events added to stream
+	//      - run a scavenge
+	//         - dp 10, but weight for 0-4 NOT added to the chunks because they were not in the index
+	//           and therefore could not be discovered by the calculator.
+	//
+	// - THEREFORE we prevent the scavengepoints from being moved backwards (in an emergency they can
+	//   still be moved backwards by deleting the scavenge state, or at least those discard points)
+	//      - we could also mitigate this by having the reads respect the discard points if we wanted.
+	//        such that expanding the metadata after calculation doesn't temporarily allow extra reads.*
+	//      - or we could check the originalstreamdata when expanding the metadata and disallow it if
+	//        it would move the discard points backwards (or only expand it up to that point)*
+	//      - *but both of these only help if the discard points have been calculated, which they haven't
+	//        necessarily
+	//
+	//qq we can now consider not storing the istombstoned flag, but just baking it in to the DP
+	// but we cannot do this with TB, because if we allowed it to move the DP to max (for soft delete)
+	// we would have to support moving it back again (for soft undelete)
 	//
 	//qqqq IMPORTANT: look carefully at the chunkexecutor and the index executor, see if the chunk executor
 	// relies on the index at all. see if the index executor relies on the chunks at all. if so it may be
 	// important to run one before the other.
 	//
-	// ok what if we did not allow discard points to move backwards?
-	//   - pro: is it simpler?
-	//
-	// is it possible that the index isn't contiguous for a stream during the index scavenge?
-	// say we have scavenged some of the ptables but not all, do we swap them in one at a time or
-	// swap them all in at the end? i guess that would 'just' end up with a noncontiguous read.
-	// this would be mitigated if we scavenged the older ptables first, perhaps this is what we do
-	// 
-	//
-	// 1. what happens to the discard points, can we reuse them, do we need to recalculate them
-	//    do we need to be careful when we recalculate them to take account of what was there before?
-	// 2. in fact ask this^ question of each part of the scavengestate.
-	//
-	//qq in the accumulator consider what should happen if the metadata becomes less restrictive
-	// should we allow events that were previously excluded to re-appear.
-	//  - we presumably dont want to allow cases where reads throw errors
-	//     (although probably that should be up to the read to return whatever is contiguous)
-	//  - if we want to be able to move the dp to make it less restrictive, then we need to
-	//    store enough data to make sure that we dont undo the application of a different
-	//    influence of DP. i.e. we cant apply the TB directly to the DP in the accumulator,
-	//    otherwise we wouldn't know whether it was TB or Tombstone that set it, and therefore
-	//    whether it can expand if we relax the TB.
-	//
-	//qqqq if we stored the previous and current discard point then can tell
-	// from the index which events are new to scavenge this time - if that helps us
-	// significantly with anything?
-	//
-	//qq after a scavenge there are probaly some entries in the scavenge state that we can forget about
-	// to save us having to iterate them next time. for example if it was tombtoned. and perhaps tb
-	// as long as the tb was fully executed. but we need to keep the discard points because the chunks
-	// might not all have been executed.
-	//
-	// ACCUMULATOR
-	// We previously accumulated up to the previous scavenge point.
-	// We need to start from there and accumulate up to the new scavenge point.
-	// So we just need to know where we accumulated up to.
 
 	// CALCULATOR
-	// ???
-	// does something happen in the calculator to add weight to the chunk when some time has passed? yeah surely
-
-	// CHUNK EXECUTOR
-	// probably nothing too scary in here
-
-	// INDEX EXECUTOR
-	// probably reasonable
-
-	// MERGE/TIDYUP
+	//qqqqqq we dont really want to add more weight to a chunk for records that have already
+	// been included in the weight, which i think is a risk for the maybes.
+	// maybe we should add only a little more weight when a record passes from maybe to definitely
+	// so that its the same as being definitely immediately.
+	//qqqqqqqqqqqqqqq want tests around this, we can probably do assertions on the weights in the state
+	// after. use a high threshold so the chunks dont get executed.
 
 
 
@@ -618,6 +610,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 
 
+
+
+
+
+	//qq we should definitely log out the collisions as they are found, and log out the whole list of collisions
+	// when starting a scavenge.
+	//
+	//qq tidying: after a scavenge there are probaly some entries in the scavenge state that we can skip
+	// calculation for. for example if it was tombtoned. and perhaps tb
+	// as long as the tb was fully executed. but we need to keep the discard points because the chunks
+	// might not all have been executed.
 
 
 
@@ -641,11 +644,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 
 	//qq perhaps scavenge points go in a scavenge point stream so they can be easily found
+	// perhaps that stream should have a maxcount, but im inclined not to add one automatically for now
+	// because there wont be _that_ many and the full history might be useful since its a lot of new code
 
-	//qq make it so that the scavenge state can be deleted and run again
-	// if we delete the scavenge state and run a scavenge, do we want it to
-	// process each scavenge point or just the last? presumably just the last because there could
-	// be a lot of them.
 
 	//qq consider compatibility with old scavenge
 	// - config flag to choose which scavenge to run
@@ -839,31 +840,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qqqqq this should not care that it is persisted in a log record
 	// these are json serialized in the checkpoint,
 	public class ScavengePoint {
-		// Insantiates a scavengepoint for a scavengepoint record at a given log position
-		public static ScavengePoint CreateForLogPosition(
-			long chunkSize,
-			long scavengePointLogPosition,
-			long eventNumber,
-			DateTime effectiveNow,
-			int threshold) {
-
-			return new ScavengePoint(
-				// scavenge up to the beginning of the chunk that the scavenge point record is in (excl)
-				upToPosition: scavengePointLogPosition / chunkSize * chunkSize,
-				eventNumber: eventNumber,
-				effectiveNow: effectiveNow,
-				threshold: threshold);
-		}
-
-		public ScavengePoint(long upToPosition, long eventNumber, DateTime effectiveNow, int threshold) {
-			UpToPosition = upToPosition;
+		public ScavengePoint(long position, long eventNumber, DateTime effectiveNow, int threshold) {
+			Position = position;
 			EventNumber = eventNumber;
 			EffectiveNow = effectiveNow;
 			Threshold = threshold;
 		}
 
 		// the position to scavenge up to (exclusive)
-		public long UpToPosition { get; }
+		public long Position { get; }
 
 		public long EventNumber { get; }
 

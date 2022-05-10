@@ -62,6 +62,20 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public void less_than_operator() {
+			Assert.False(DiscardPoint.DiscardBefore(3) < DiscardPoint.DiscardBefore(3));
+			Assert.False(DiscardPoint.DiscardBefore(3) < DiscardPoint.DiscardBefore(2));
+			Assert.True(DiscardPoint.DiscardBefore(3) < DiscardPoint.DiscardBefore(4));
+		}
+
+		[Fact]
+		public void greater_than_operator() {
+			Assert.False(DiscardPoint.DiscardBefore(3) > DiscardPoint.DiscardBefore(3));
+			Assert.True(DiscardPoint.DiscardBefore(3) > DiscardPoint.DiscardBefore(2));
+			Assert.False(DiscardPoint.DiscardBefore(3) > DiscardPoint.DiscardBefore(4));
+		}
+
+		[Fact]
 		public void get_hash_code() {
 			Assert.Equal(3.GetHashCode(), DiscardPoint.DiscardBefore(3).GetHashCode());
 		}

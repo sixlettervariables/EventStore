@@ -543,7 +543,49 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-	}
+		[Fact]
+		public async Task cannot_move_discard_points_backward() {
+			var t = 0;
+			var scenario = new Scenario();
+			var (state, db) = await scenario
+				.WithDb(x => x
+					.Chunk(
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Prepare(t++, "ab-1"), // 0
+						Rec.Prepare(t++, "ab-1"), // 1
+						Rec.Prepare(t++, "ab-1")) // 2
+					.Chunk(
+						ScavengePoint(t++), // <-- SP-0
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount4),
+						Rec.Prepare(t++, "ab-1"), // 3
+						Rec.Prepare(t++, "ab-1")) // 4
+					.Chunk(
+						ScavengePoint(t++))) // <-- SP-1
+				.MutateState(x => {
+					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
+					x.SetOriginalStreamDiscardPoints(
+						StreamHandle.ForHash<string>(98),
+						DiscardPoint.DiscardBefore(2),
+						DiscardPoint.DiscardBefore(2));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
+						//qq 1024*1024 is the chunk size, want less magic
+						//qq probably refactor
+						position: 1024 * 1024,
+						eventNumber: 0,
+						effectiveNow: EffectiveNow,
+						threshold: 0)));
+				})
+				.RunAsync(x => new[] {
+					x.Recs[0].KeepIndexes(3),
+					x.Recs[1],
+					x.Recs[2],
+				});
 
-		//qqqqqqqqqq add a test for moving (or attempting to move) the discard points backwards
+			// we changed the maxcount to 4, but we expect the discard points to remain
+			// where they are rather than moving back to DiscardBefore(1)
+			Assert.True(state.TryGetOriginalStreamData("ab-1", out var data));
+			Assert.Equal(DiscardPoint.DiscardBefore(2), data.DiscardPoint);
+			Assert.Equal(DiscardPoint.DiscardBefore(2), data.MaybeDiscardPoint);
+		}
+	}
 }
