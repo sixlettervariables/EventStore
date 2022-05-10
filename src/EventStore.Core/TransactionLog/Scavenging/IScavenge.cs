@@ -596,14 +596,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// important to run one before the other.
 	//
 
-	// CALCULATOR
-	//qqqqqq we dont really want to add more weight to a chunk for records that have already
-	// been included in the weight, which i think is a risk for the maybes.
-	// maybe we should add only a little more weight when a record passes from maybe to definitely
-	// so that its the same as being definitely immediately.
-	//qqqqqqqqqqqqqqq want tests around this, we can probably do assertions on the weights in the state
-	// after. use a high threshold so the chunks dont get executed.
-
 
 
 

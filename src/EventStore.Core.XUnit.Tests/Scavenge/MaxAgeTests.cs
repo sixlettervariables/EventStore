@@ -9,6 +9,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class MaxAgeTests {
 		[Fact]
 		public async Task simple_maxage() {
+			// records kept in the index because they are 'maybe' expired
 			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
@@ -32,6 +33,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public async Task keep_last_event() {
+			// records kept in the index because they are 'maybe' expired
 			var t = 0;
 			await new Scenario()
 				.WithDb(x => x

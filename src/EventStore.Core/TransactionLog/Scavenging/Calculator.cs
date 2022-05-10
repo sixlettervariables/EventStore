@@ -37,6 +37,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCalculator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
+			var weights = new WeightCalculator<TStreamId>(state);
 			var scavengePoint = checkpoint.ScavengePoint;
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
 			var eventCalc = new EventCalculator<TStreamId>(_chunkSize, state, scavengePoint, streamCalc);
@@ -76,7 +77,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					CalculateDiscardPointsForOriginalStream(
 						eventCalc,
-						state,
+						weights,
 						originalStreamHandle,
 						scavengePoint,
 						out var adjustedDiscardPoint,
@@ -111,6 +112,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// Checkpoint occasionally
 					if (++checkpointCounter == _checkpointPeriod) {
 						checkpointCounter = 0;
+						weights.Flush();
 						transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
 							scavengePoint,
 							originalStreamHandle));
@@ -123,6 +125,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// if we processed some streams, the last one is in the calculator
 				// if we didn't process any streams, the calculator contains the default
 				// none handle, which is probably appropriate to commit in that case
+				weights.Flush();
 				transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
 					scavengePoint,
 					streamCalc.OriginalStreamHandle));
@@ -143,7 +146,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// came out as last time.
 		private void CalculateDiscardPointsForOriginalStream(
 			EventCalculator<TStreamId> eventCalc,
-			IScavengeStateForCalculator<TStreamId> state,
+			WeightCalculator<TStreamId> weights,
 			StreamHandle<TStreamId> originalStreamHandle,
 			ScavengePoint scavengePoint,
 			out DiscardPoint discardPoint,
@@ -154,8 +157,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			discardPoint = DiscardPoint.KeepAll;
 			maybeDiscardPoint = DiscardPoint.KeepAll;
 
-			const float DiscardWeight = 2.0f;
-			const float MaybeDiscardWeight = 1.0f;
 			const int maxCount = 100; //qq what would be sensible? probably pretty large
 
 			var first = true;
@@ -187,13 +188,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					switch (eventCalc.DecideEvent()) {
 						case DiscardDecision.Discard:
-							AddWeightToChunk(state, eventCalc.LogicalChunkNumber, DiscardWeight);
+							weights.OnDiscard(eventCalc.LogicalChunkNumber);
 							discardPoint = DiscardPoint.DiscardIncluding(eventInfo.EventNumber);
 							break;
 
 						case DiscardDecision.MaybeDiscard:
 							// add weight to the chunk so that this will be inspected more closely
-							AddWeightToChunk(state, eventCalc.LogicalChunkNumber, MaybeDiscardWeight);
+							// it is possible that we already added weight on a previous scavenge and are
+							// doing so again, but we must because the weight may have been reset
+							// by the previous scavenge
+							weights.OnMaybeDiscard(eventCalc.LogicalChunkNumber);
 							maybeDiscardPoint = DiscardPoint.DiscardIncluding(eventInfo.EventNumber);
 							break;
 
@@ -238,16 +242,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				fromEventNumber += slice.Length;
 			}
-		}
-
-		private void AddWeightToChunk(
-			IScavengeStateForCalculator<TStreamId> state,
-			int logicalChunkNumber,
-			float extraWeight) {
-
-			//qq dont want to actually increase the weight every time, just increase it once
-			// per chunk, when the transaction is committed
-			state.IncreaseChunkWeight(logicalChunkNumber, extraWeight);
 		}
 	}
 }

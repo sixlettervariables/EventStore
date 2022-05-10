@@ -2,7 +2,7 @@
 using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq might be overkill in the end, but lets create it for now to help write the code
+	// This calculates information about the event so that the main calculator can decide what to do
 	public class EventCalculator<TStreamId> {
 		public EventCalculator(
 			int chunkSize,
