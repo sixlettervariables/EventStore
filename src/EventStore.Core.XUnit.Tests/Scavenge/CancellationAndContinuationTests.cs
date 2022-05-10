@@ -21,7 +21,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "$$cd-cancel-accumulation"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenAccumulatingMetaRecordFor("cd-cancel-accumulation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -47,7 +47,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Prepare(t++, "cd-cancel-calculation"),
 						Rec.Prepare(t++, "$$cd-cancel-calculation", metadata: MaxCount1))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenCalculatingOriginalStream("cd-cancel-calculation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -85,7 +85,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "cd-cancel-chunk-execution"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenExecutingChunk("cd-cancel-chunk-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -134,7 +134,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Prepare(t++, "cd-cancel-index-execution"),
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenExecutingIndexEntry("cd-cancel-index-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -196,7 +196,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "$$cd-cancel-accumulation"))
 					.Chunk(
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenAccumulatingMetaRecordFor("cd-cancel-accumulation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -311,7 +311,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "cd-cancel-calculation"),
 						Rec.Prepare(t++, "$$cd-cancel-calculation", metadata: MaxCount1))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenCalculatingOriginalStream("cd-cancel-calculation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -418,7 +418,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "$$ab-2", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "cd-cancel-chunk-execution"),
 						Rec.Prepare(t++, "ab-2"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenExecutingChunk("cd-cancel-chunk-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -524,7 +524,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "cd-cancel-index-execution"),
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenExecutingIndexEntry("cd-cancel-index-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -629,7 +629,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
 					Tracer.Line("    Begin"),

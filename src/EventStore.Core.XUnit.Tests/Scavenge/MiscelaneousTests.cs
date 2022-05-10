@@ -18,7 +18,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(0, 4),
 						x.Recs[1],
@@ -32,7 +32,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(0),
 						x.Recs[1],
@@ -51,7 +51,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "cd-2"),
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "$$cd-2", "$metadata", metadata: MaxCount1))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(2, 3, 4, 5),
 						x.Recs[1],
@@ -66,7 +66,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(1),
 						x.Recs[1],
@@ -81,7 +81,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Prepare(t++, "$$$$ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "$$$$ab-1", "$metadata", metadata: MaxCount2))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(1),
 						x.Recs[1],
@@ -100,7 +100,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "$$ab-1"),
 						Rec.Prepare(t++, "$$ab-1"),
 						Rec.Prepare(t++, "$$ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(0, 4),
 						x.Recs[1],
@@ -115,7 +115,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Prepare(t++, "$$ab-1"),
 						Rec.Prepare(t++, "$$ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(1),
 						x.Recs[1],
@@ -131,7 +131,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0],
 						x.Recs[1],
@@ -146,7 +146,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						.Chunk(
 							Rec.TransSt(0, "$$ab-1"),
 							Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount1))
-						.Chunk(ScavengePoint(1)))
+						.Chunk(ScavengePointRec(1)))
 					.RunAsync();
 			});
 

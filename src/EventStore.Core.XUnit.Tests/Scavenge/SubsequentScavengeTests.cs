@@ -168,7 +168,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// events 0-4 removed in a previous scavenge
 						Rec.Prepare(t++, "ab-1", eventNumber: 5))
 					.Chunk(
-						ScavengePoint(t++),
+						ScavengePointRec(t++),
 						// two new records written since the previous scavenge
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
@@ -179,13 +179,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						StreamHandle.ForHash<string>(98),
 						DiscardPoint.DiscardBefore(5),
 						DiscardPoint.DiscardBefore(5));
-					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
-						//qq 1024*1024 is the chunk size, want less magic
-						//qq probably refactor
-						position: 1024 * 1024,
-						eventNumber: 0,
-						effectiveNow: EffectiveNow,
-						threshold: 0)));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
+						chunk: 1,
+						eventNumber: 0)));
 				})
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-0 to SP-1"),
@@ -273,15 +269,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// events 0-4 removed in a previous scavenge
 						Rec.Prepare(t++, "ab-1", eventNumber: 5))
 					.Chunk(
-						ScavengePoint(t++), // <-- SP-0
+						ScavengePointRec(t++), // <-- SP-0
 						// five new records written since the previous scavenge
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
 					.Chunk(
 						Rec.Prepare(t++, "ab-1"),
-						ScavengePoint(t++), // <-- SP-1 added by another node
+						ScavengePointRec(t++), // <-- SP-1 added by another node
 						Rec.Prepare(t++, "ab-1"),
-						ScavengePoint(t++), // <-- SP-2 added by another node
+						ScavengePointRec(t++), // <-- SP-2 added by another node
 						Rec.Prepare(t++, "ab-1")))
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
@@ -289,13 +285,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						StreamHandle.ForHash<string>(98),
 						DiscardPoint.DiscardBefore(5),
 						DiscardPoint.DiscardBefore(5));
-					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
-						//qq 1024*1024 is the chunk size, want less magic
-						//qq probably refactor
-						position: 1024 * 1024,
-						eventNumber: 0,
-						effectiveNow: EffectiveNow,
-						threshold: 0)));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
+						chunk: 1,
+						eventNumber: 0)));
 				})
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-0 to SP-2"),
@@ -376,15 +368,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// events 0-4 removed in a previous scavenge
 						Rec.Prepare(t++, "ab-1", eventNumber: 5))
 					.Chunk(
-						ScavengePoint(t++),
+						ScavengePointRec(t++),
 						// five new records written since the previous scavenge
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
 					.Chunk(
 						Rec.Prepare(t++, "ab-1"),
-						ScavengePoint(t++), // <-- SP-1 added by another node
+						ScavengePointRec(t++), // <-- SP-1 added by another node
 						Rec.Prepare(t++, "ab-1"),
-						ScavengePoint(t++), // <-- SP-2 added by another node
+						ScavengePointRec(t++), // <-- SP-2 added by another node
 						Rec.Prepare(t++, "ab-1")))
 				.MutateState(x => {
 				})
@@ -402,16 +394,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var scenario = new Scenario();
 			var (state, db) = await scenario
 				.WithDb(x => x
-					.Chunk(ScavengePoint(t++)) // SP-0
-					.Chunk(ScavengePoint(t++, threshold: 1))) // SP-1
+					.Chunk(ScavengePointRec(t++)) // SP-0
+					.Chunk(ScavengePointRec(t++, threshold: 1))) // SP-1
 				.MutateState(x => {
-					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
-						//qq 1024*1024 is the chunk size, want less magic
-						//qq probably refactor
-						position: 1024 * 1024 * 0,
-						eventNumber: 0,
-						effectiveNow: EffectiveNow,
-						threshold: 0)));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
+						chunk: 0,
+						eventNumber: 0)));
 				})
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-0 to SP-1"),
@@ -470,18 +458,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var scenario = new Scenario();
 			var (state, db) = await scenario
 				.WithDb(x => x
-					.Chunk(ScavengePoint(t++)) // SP-0
-					.Chunk(ScavengePoint(t++)) // SP-1
-					.Chunk(ScavengePoint(t++)) // SP-2
-					.Chunk(ScavengePoint(t++, threshold: 1))) // SP-3
+					.Chunk(ScavengePointRec(t++)) // SP-0
+					.Chunk(ScavengePointRec(t++)) // SP-1
+					.Chunk(ScavengePointRec(t++)) // SP-2
+					.Chunk(ScavengePointRec(t++, threshold: 1))) // SP-3
 				.MutateState(x => {
-					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
-						//qq 1024*1024 is the chunk size, want less magic
-						//qq probably refactor
-						position: 1024 * 1024 * 2,
-						eventNumber: 2,
-						effectiveNow: EffectiveNow,
-						threshold: 0)));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
+						chunk: 2,
+						eventNumber: 2)));
 				})
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-2 to SP-3"),
@@ -555,25 +539,21 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"), // 1
 						Rec.Prepare(t++, "ab-1")) // 2
 					.Chunk(
-						ScavengePoint(t++), // <-- SP-0
+						ScavengePointRec(t++), // <-- SP-0
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount4),
 						Rec.Prepare(t++, "ab-1"), // 3
 						Rec.Prepare(t++, "ab-1")) // 4
 					.Chunk(
-						ScavengePoint(t++))) // <-- SP-1
+						ScavengePointRec(t++))) // <-- SP-1
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
 						StreamHandle.ForHash<string>(98),
 						DiscardPoint.DiscardBefore(2),
 						DiscardPoint.DiscardBefore(2));
-					x.SetCheckpoint(new ScavengeCheckpoint.Done(new ScavengePoint(
-						//qq 1024*1024 is the chunk size, want less magic
-						//qq probably refactor
-						position: 1024 * 1024,
-						eventNumber: 0,
-						effectiveNow: EffectiveNow,
-						threshold: 0)));
+					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
+						chunk: 1,
+						eventNumber: 0)));
 				})
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(3),

@@ -17,7 +17,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Delete(t++, "ab-1"))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(0, 3),
 					x.Recs[1],
@@ -37,7 +37,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Delete(t++, "ab-1"),
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
-					.Chunk(ScavengePoint(t++)))
+					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(2, 3),
 					x.Recs[1],

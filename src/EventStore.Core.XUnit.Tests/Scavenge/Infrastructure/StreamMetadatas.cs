@@ -26,7 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
 		public static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
 
-		public static Rec ScavengePoint(int transaction, int threshold = 0) => Rec.Prepare(
+		public static Rec ScavengePointRec(int transaction, int threshold = 0) => Rec.Prepare(
 			transaction: transaction,
 			stream: SystemStreams.ScavengePointsStream,
 			eventType: SystemEventTypes.ScavengePoint,
@@ -34,5 +34,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			data: new ScavengePointPayload {
 				Threshold = threshold,
 			}.ToJsonBytes());
+
+		public static ScavengePoint ScavengePoint(int chunk, long eventNumber) => new ScavengePoint(
+			//qq 1024*1024 is the chunk size, want less magic
+			position: 1024 * 1024 * chunk,
+			eventNumber: eventNumber,
+			effectiveNow: EffectiveNow,
+			threshold: 0);
 	}
 }
