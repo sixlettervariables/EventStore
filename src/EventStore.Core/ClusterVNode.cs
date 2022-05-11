@@ -583,12 +583,14 @@ namespace EventStore.Core {
 					metastreamLookup,
 					new ChunkManagerForScavenge(db.Manager, db.Config),
 					chunkSize: db.Config.ChunkSize,
+					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
 					cancellationCheckPeriod: cancellationCheckPeriod);
 
 				//qq make sure the maxreaders for the pool is high enough to accommodate us
 				var indexExecutor = new IndexExecutor<string>(
 					new IndexScavenger(tableIndex),
-					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)));
+					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
+					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
 
 				ScavengeState<string> scavengeState;
 				var sqlite = true;
@@ -596,22 +598,23 @@ namespace EventStore.Core {
 					_sqliteScavengeBackend = new SqliteScavengeBackend<string>();
 					//qq store in index dir?
 					_sqliteScavengeBackend.Initialize(Path.Combine(indexPath, "scavenging"));
-					
-					scavengeState = new ScavengeState<string>(
-						longHasher,
-						metastreamLookup,
-						_sqliteScavengeBackend.CollisionStorage,
-						_sqliteScavengeBackend.Hashes,
-						_sqliteScavengeBackend.MetaStorage,
-						_sqliteScavengeBackend.MetaCollisionStorage,
-						_sqliteScavengeBackend.OriginalStorage,
-						_sqliteScavengeBackend.OriginalCollisionStorage,
-						_sqliteScavengeBackend.CheckpointStorage,
-						_sqliteScavengeBackend.ChunkTimeStampRanges,
-						_sqliteScavengeBackend.ChunkWeights,
-						new ScavengeTransaction(
-							_sqliteScavengeBackend,
-							_sqliteScavengeBackend.CheckpointStorage));
+
+					scavengeState = null; //qq
+					//scavengeState = new ScavengeState<string>(
+					//	longHasher,
+					//	metastreamLookup,
+					//	_sqliteScavengeBackend.CollisionStorage,
+					//	_sqliteScavengeBackend.Hashes,
+					//	_sqliteScavengeBackend.MetaStorage,
+					//	_sqliteScavengeBackend.MetaCollisionStorage,
+					//	_sqliteScavengeBackend.OriginalStorage,
+					//	_sqliteScavengeBackend.OriginalCollisionStorage,
+					//	_sqliteScavengeBackend.CheckpointStorage,
+					//	_sqliteScavengeBackend.ChunkTimeStampRanges,
+					//	_sqliteScavengeBackend.ChunkWeights,
+					//	new ScavengeTransaction(
+					//		_sqliteScavengeBackend,
+					//		_sqliteScavengeBackend.CheckpointStorage));
 				} else {
 					var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 					scavengeState = new ScavengeState<string>(
@@ -619,8 +622,8 @@ namespace EventStore.Core {
 						metastreamLookup,
 						new InMemoryScavengeMap<string, Unit>(),
 						new InMemoryScavengeMap<ulong, string>(),
-						new InMemoryScavengeMap<ulong, DiscardPoint>(),
-						new InMemoryScavengeMap<string, DiscardPoint>(),
+						new InMemoryMetastreamScavengeMap<ulong>(),
+						new InMemoryMetastreamScavengeMap<string>(),
 						new InMemoryOriginalStreamScavengeMap<ulong>(),
 						new InMemoryOriginalStreamScavengeMap<string>(),
 						checkpointStorage,

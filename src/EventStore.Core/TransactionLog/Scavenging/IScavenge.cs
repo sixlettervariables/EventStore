@@ -406,6 +406,27 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 	}
 
+	public struct MetastreamData {
+		public static MetastreamData Empty { get; } = new MetastreamData(
+			isTombstoned: false,
+			discardPoint: DiscardPoint.KeepAll);
+
+		public MetastreamData(
+			bool isTombstoned,
+			DiscardPoint discardPoint) {
+
+			IsTombstoned = isTombstoned;
+			DiscardPoint = discardPoint;
+		}
+
+		/// <summary>
+		/// True when the corresponding original stream is tombstoned
+		/// </summary>
+		public bool IsTombstoned { get; }
+
+		public DiscardPoint DiscardPoint { get; }
+	}
+
 	//qq according to IndexReader.GetStreamLastEventNumberCached
 	// if the original stream is hard deleted then the metadatastream is treated as deleted too
 	// according to IndexReader.GetStreamMetadataCached
@@ -447,21 +468,46 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	// For ChunkExecutor, which implements maxAge more accurately than the index executor
-	public struct StreamExecutionDetails {
-		public StreamExecutionDetails(
+	public struct ChunkExecutionInfo {
+		public ChunkExecutionInfo(
+			bool isTombstoned,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint,
 			TimeSpan? maxAge) {
 
+			IsTombstoned = isTombstoned;
 			DiscardPoint = discardPoint;
 			MaybeDiscardPoint = maybeDiscardPoint;
 			MaxAge = maxAge;
 		}
 
+		public bool IsTombstoned { get; }
 		public DiscardPoint DiscardPoint { get; }
 		public DiscardPoint MaybeDiscardPoint { get; }
 		public TimeSpan? MaxAge { get; }
 	}
+
+	public struct IndexExecutionInfo {
+		public IndexExecutionInfo(
+			bool isMetastream,
+			bool isTombstoned,
+			DiscardPoint discardPoint) {
+
+			IsMetastream = isMetastream;
+			IsTombstoned = isTombstoned;
+			DiscardPoint = discardPoint;
+		}
+
+		public bool IsMetastream { get; }
+
+		/// <summary>
+		/// True when the corresponding original stream is tombstoned
+		/// </summary>
+		public bool IsTombstoned { get; }
+
+		public DiscardPoint DiscardPoint { get; }
+	}
+
 
 	//qq implement performance overrides as necessary for this struct and others
 	// (DiscardPoint, StreamHandle, ..)
@@ -496,8 +542,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq some events, like empty writes, do not contain data, presumably dont take up any numbering
 	// see what old scavenge does with those and what we should do with them
 
-
-
+	//qq remove tempStream from metadata (but cope with it being serialized still)
 
 
 	//=====================
@@ -632,6 +677,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//       - although we _could_ accumulate a list of open transactions it seems like its an occasional
 	//         batch operation that isn't quite the same thing as the scavenge, especially as
 	//         transactions are legacy and not an ongoing concern.
+	//   - if the user swaps in a chunk from another node, it might contain data that we have already
+	//     scavenged. //qq we need some way to figure that out and scavenge that chunk if they have strict
+	//     data removal concerns.. 
 
 
 
@@ -811,7 +859,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//  - we can probably persist the flag in the sign bit of the discard point itself
 
 
-
+	//qq we should definitely have more tests checking the scavenge results when there are hash collisions
+	//qq we need to make sure that the calculator can find the tombstone in the index and the right thing
+	// happens when it does
 
 	//qq OLD INDEX SCAVENGE TESTS
 	// - there is no need to run these tests against new scavenge.

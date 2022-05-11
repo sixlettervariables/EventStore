@@ -43,8 +43,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_wrapped.SetTombstone(key);
 		}
 
-		public bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details) {
-			return _wrapped.TryGetStreamExecutionDetails(key, out details);
+		public bool TryGetChunkExecutionInfo(TKey key, out ChunkExecutionInfo details) {
+			return _wrapped.TryGetChunkExecutionInfo(key, out details);
 		}
 
 		public bool TryGetValue(TKey key, out OriginalStreamData value) {

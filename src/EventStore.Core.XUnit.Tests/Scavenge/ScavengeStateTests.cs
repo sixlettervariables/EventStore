@@ -19,8 +19,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			sut.SetMetastreamDiscardPoint("$$ab-1", DiscardPoint.DiscardBefore(20));
 
 			Assert.Equal(60, sut.SumChunkWeights(5, 6));
-			Assert.True(sut.TryGetMetastreamDiscardPoint("$$ab-1", out var actual));
-			Assert.Equal(DiscardPoint.DiscardBefore(20), actual);
+			Assert.True(sut.TryGetMetastreamData("$$ab-1", out var actual));
+			Assert.Equal(DiscardPoint.DiscardBefore(20), actual.DiscardPoint);
 			trans.Commit(new ScavengeCheckpoint.Accumulating(
 				new ScavengePoint(default, default, default, default),
 				20));

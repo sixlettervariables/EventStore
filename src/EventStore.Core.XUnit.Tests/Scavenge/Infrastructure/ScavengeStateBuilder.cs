@@ -55,8 +55,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			var collisionStorage = new InMemoryScavengeMap<string, Unit>();
 			var hashesStorage = new InMemoryScavengeMap<ulong, string>();
-			var metaStorage = new InMemoryScavengeMap<ulong, DiscardPoint>();
-			var metaCollisionStorage = new InMemoryScavengeMap<string, DiscardPoint>();
+			var metaStorage = new InMemoryMetastreamScavengeMap<ulong>();
+			var metaCollisionStorage = new InMemoryMetastreamScavengeMap<string>();
 			IOriginalStreamScavengeMap<ulong> originalStorage =
 				new InMemoryOriginalStreamScavengeMap<ulong>();
 			IOriginalStreamScavengeMap<string> originalCollisionStorage =

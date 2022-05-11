@@ -23,6 +23,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private string _executingChunkCancellationTrigger;
 		private string _executingIndexEntryCancellationTrigger;
 		private (string Message, int Line)[] _expectedTrace;
+		private bool _unsafeIgnoreHardDeletes;
 
 		protected Tracer Tracer { get; set; }
 
@@ -35,7 +36,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public Scenario WithTracerFrom(Scenario scenario) {
 			Tracer = scenario.Tracer;
 			return this;
-		} 
+		}
+
+		public Scenario WithUnsafeIgnoreHardDeletes(bool unsafeIgnoreHardDeletes = true) {
+			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
+			return this;
+		}
 
 		public Scenario WithDb(DbResult db) {
 			_getDb = _ => db;
@@ -199,12 +205,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						log: log),
 					Tracer),
 				chunkSize: dbConfig.ChunkSize,
+				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
 				cancellationCheckPeriod: cancellationCheckPeriod);
 
 			IIndexExecutor<string> indexExecutor = new IndexExecutor<string>(
 				indexScavenger: cancellationWrappedIndexScavenger,
-				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log));
-
+				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log),
+				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
 			accumulator = new TracingAccumulator<string>(accumulator, Tracer);
 			calculator = new TracingCalculator<string>(calculator, Tracer);

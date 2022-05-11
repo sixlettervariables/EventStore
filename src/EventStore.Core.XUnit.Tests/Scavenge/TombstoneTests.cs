@@ -38,6 +38,25 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public async Task tombstone_with_metadata() {
+			var t = 0;
+			await new Scenario()
+				.WithDb(x => x
+					.Chunk(
+						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Delete(t++, "ab-1"))
+					.Chunk(ScavengePointRec(t++)))
+				.RunAsync(x => new[] {
+					// when the stream is hard deleted we can get rid of _all_ the metadata too
+					// do not keep the last metadata record
+					x.Recs[0].KeepIndexes(3),
+					x.Recs[1],
+				});
+		}
+
+		[Fact]
 		public async Task tombstone_in_metadata_stream_not_supported() {
 			// eventstore refuses denies access to write such a tombstone in the first place,
 			// including in ESv5

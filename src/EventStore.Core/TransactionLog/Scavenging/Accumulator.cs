@@ -224,11 +224,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					$"Found Tombstone in metadata stream {record.StreamId}");
 			}
 
-			if (record.EventNumber < 0)
+			if (record.EventNumber < 0) {
 				throw new InvalidOperationException(
 					$"Found Tombstone in transaction in stream {record.StreamId}");
+			}
 
-			state.SetOriginalStreamTombstone(record.StreamId);
+			var originalStreamId = record.StreamId;
+			state.SetOriginalStreamTombstone(originalStreamId);
+
+			var metastreamId = _metastreamLookup.MetaStreamOf(originalStreamId);
+			state.SetMetastreamTombstone(metastreamId);
 		}
 	}
 }

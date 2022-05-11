@@ -65,10 +65,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// that its effect is atomic
 		void DetectCollisions(TStreamId streamId);
 
-		void SetMetastreamDiscardPoint(TStreamId streamId, DiscardPoint discardPoint);
+		void SetMetastreamDiscardPoint(TStreamId metastreamId, DiscardPoint discardPoint);
+
+		// for when the _original_ stream is tombstoned, the metadata stream can be removed entirely.
+		void SetMetastreamTombstone(TStreamId metastreamId);
 
 		void SetOriginalStreamMetadata(TStreamId originalStreamId, StreamMetadata metadata);
-		void SetOriginalStreamTombstone(TStreamId streamId);
+		void SetOriginalStreamTombstone(TStreamId originalStreamId);
 
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
 	}
@@ -97,15 +100,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForChunkExecutor<TStreamId> : IScavengeStateCommon {
 		float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber);
 		void ResetChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber);
-		bool TryGetStreamExecutionDetails(TStreamId streamId, out StreamExecutionDetails details);
-		bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint);
+		bool TryGetChunkExecutionInfo(TStreamId streamId, out ChunkExecutionInfo info);
+		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData metastreamData);
 	}
 
 	public interface IScavengeStateForIndexExecutor<TStreamId> : IScavengeStateCommon {
 		bool IsCollision(ulong streamHash);
 		//qq precondition: the streamhandle must be of the correct kind.
-		bool TryGetDiscardPoint(
+		bool TryGetIndexExecutionInfo(
 			StreamHandle<TStreamId> streamHandle,
-			out DiscardPoint discardPoint);
+			out IndexExecutionInfo info);
 	}
 }

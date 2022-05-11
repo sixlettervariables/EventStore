@@ -244,8 +244,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			sut[33] = data;
 
-			Assert.True(sut.TryGetStreamExecutionDetails(33, out var v));
-			Assert.Equal(new StreamExecutionDetails(data.DiscardPoint, data.MaybeDiscardPoint, data.MaxAge), v);
+			Assert.True(sut.TryGetChunkExecutionInfo(33, out var v));
+			Assert.Equal(new ChunkExecutionInfo(isTombstoned: false, data.DiscardPoint, data.MaybeDiscardPoint, data.MaxAge), v); //qq do istombstoned properly
 		}
 		
 		[Fact]
@@ -255,7 +255,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			
 			sut.SetTombstone(33);
 
-			Assert.False(sut.TryGetStreamExecutionDetails(33, out var v));
+			Assert.False(sut.TryGetChunkExecutionInfo(33, out var v));
 		}
 		
 		[Fact]
@@ -263,7 +263,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
 			sut.Initialize();
 
-			Assert.False(sut.TryGetStreamExecutionDetails(33, out var v));
+			Assert.False(sut.TryGetChunkExecutionInfo(33, out var v));
 			Assert.Equal(default, v);
 		}
 

@@ -97,7 +97,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			});
 		}
 
-		public bool TryGetStreamExecutionDetails(TKey key, out StreamExecutionDetails details) {
+		public bool TryGetChunkExecutionInfo(TKey key, out ChunkExecutionInfo details) {
 			var sql = $"SELECT maxAge, discardPoint, maybeDiscardPoint FROM {TableName} WHERE key = $key AND discardPoint IS NOT NULL AND maybeDiscardPoint IS NOT NULL";
 
 			return ExecuteSingleRead(sql, parameters => {
@@ -106,7 +106,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				var maxAge = GetNullableFieldValue<TimeSpan?>(0, reader);
 				var discardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(1));
 				var maybeDiscardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(2));
-				return new StreamExecutionDetails(discardPoint, maybeDiscardPoint, maxAge);
+				return new ChunkExecutionInfo(isTombstoned: false, discardPoint, maybeDiscardPoint, maxAge);//qq store istombstoned in the table
 			}, out details);
 		}
 		

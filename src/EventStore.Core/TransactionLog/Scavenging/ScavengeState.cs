@@ -17,7 +17,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly CollisionDetector<TStreamId> _collisionDetector;
 
 		// data stored keyed against metadata streams
-		private readonly CollisionMap<TStreamId, DiscardPoint> _metadatastreamDiscardPoints;
+		private readonly MetastreamCollisionMap<TStreamId> _metastreamDatas;
 
 		// data stored keyed against original (non-metadata) streams
 		private readonly OriginalStreamCollisionMap<TStreamId> _originalStreamDatas;
@@ -35,10 +35,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IScavengeMap<TStreamId, Unit> collisionStorage,
 			IScavengeMap<ulong, TStreamId> hashes,
-			//qq consider combining the meta and original together.. this would save the index having to check both
-			// but would make it less efficient for the calculator to iterate unless we had something like an index on it
-			IScavengeMap<ulong, DiscardPoint> metaStorage,
-			IScavengeMap<TStreamId, DiscardPoint> metaCollisionStorage,
+			IMetastreamScavengeMap<ulong> metaStorage,
+			IMetastreamScavengeMap<TStreamId> metaCollisionStorage,
 			IOriginalStreamScavengeMap<ulong> originalStorage,
 			IOriginalStreamScavengeMap<TStreamId> originalCollisionStorage,
 			//qq wanna key to store multiple checkpoints?
@@ -58,7 +56,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
 			_checkpointStorage = checkpointStorage;
-			_metadatastreamDiscardPoints = new CollisionMap<TStreamId, DiscardPoint>(
+
+			_metastreamDatas = new MetastreamCollisionMap<TStreamId>(
 				_hasher,
 				_collisionDetector.IsCollision,
 				metaStorage,
@@ -126,21 +125,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				out var collision);
 
 			if (collisionResult == CollisionResult.NewCollision) {
-				_metadatastreamDiscardPoints.NotifyCollision(collision);
+				_metastreamDatas.NotifyCollision(collision);
 				_originalStreamDatas.NotifyCollision(collision);
 			}
 		}
 
-		public void SetMetastreamDiscardPoint(TStreamId streamId, DiscardPoint discardPoint) {
-			_metadatastreamDiscardPoints[streamId] = discardPoint;
+		public void SetMetastreamDiscardPoint(TStreamId metastreamId, DiscardPoint discardPoint) {
+			_metastreamDatas.SetDiscardPoint(metastreamId, discardPoint);
+		}
+
+		public void SetMetastreamTombstone(TStreamId metastreamId) {
+			_metastreamDatas.SetTombstone(metastreamId);
 		}
 
 		public void SetOriginalStreamMetadata(TStreamId originalStreamId, StreamMetadata metadata) {
 			_originalStreamDatas.SetMetadata(originalStreamId, metadata);
 		}
 
-		public void SetOriginalStreamTombstone(TStreamId streamId) {
-			_originalStreamDatas.SetTombstone(streamId);
+		public void SetOriginalStreamTombstone(TStreamId originalStreamId) {
+			_originalStreamDatas.SetTombstone(originalStreamId);
 		}
 
 		public void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range) {
@@ -190,23 +193,23 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkWeights.ResetChunkWeights(startLogicalChunkNumber, endLogicalChunkNumber);
 		}
 
-		public bool TryGetStreamExecutionDetails(
+		public bool TryGetChunkExecutionInfo(
 			TStreamId streamId,
-			out StreamExecutionDetails details) =>
+			out ChunkExecutionInfo info) =>
 
-			_originalStreamDatas.TryGetStreamExecutionDetails(streamId, out details);
+			_originalStreamDatas.TryGetChunkExecutionInfo(streamId, out info);
 
 
-		public bool TryGetMetastreamDiscardPoint(TStreamId streamId, out DiscardPoint discardPoint) =>
-			_metadatastreamDiscardPoints.TryGetValue(streamId, out discardPoint);
+		public bool TryGetMetastreamData(TStreamId streamId, out MetastreamData data) =>
+			_metastreamDatas.TryGetValue(streamId, out data);
 
 		//
 		// FOR INDEX EXECUTOR
 		//
 
-		public bool TryGetDiscardPoint(
+		public bool TryGetIndexExecutionInfo(
 			StreamHandle<TStreamId> handle,
-			out DiscardPoint discardPoint) {
+			out IndexExecutionInfo info) {
 
 			// here we know that the handle is of the correct kind
 			// but we do not know whether it is for a metastream or an originalstream.
@@ -214,14 +217,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				case StreamHandle.Kind.Hash:
 					// not a collision, but we do not know whether it is a metastream or not.
 					// check both maps (better if we didnt have to though..)
-					return TryGetDiscardPointForOriginalStream(handle, out discardPoint)
-						|| TryGetDiscardPointForMetadataStream(handle, out discardPoint);
+					return TryGetDiscardPointForOriginalStream(handle, out info)
+						|| TryGetDiscardPointForMetadataStream(handle, out info);
 				case StreamHandle.Kind.Id:
 					// collision, but at least we can tell whether it is a metastream or not.
 					// so just check one map.
 					return _metastreamLookup.IsMetaStream(handle.StreamId)
-						? TryGetDiscardPointForMetadataStream(handle, out discardPoint)
-						: TryGetDiscardPointForOriginalStream(handle, out discardPoint);
+						? TryGetDiscardPointForMetadataStream(handle, out info)
+						: TryGetDiscardPointForOriginalStream(handle, out info);
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}
@@ -229,20 +232,33 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private bool TryGetDiscardPointForMetadataStream(
 			StreamHandle<TStreamId> handle,
-			out DiscardPoint discardPoint) =>
+			out IndexExecutionInfo info) {
 
-			_metadatastreamDiscardPoints.TryGetValue(handle, out discardPoint);
-
-		private bool TryGetDiscardPointForOriginalStream(
-			StreamHandle<TStreamId> handle,
-			out DiscardPoint discardPoint) {
-
-			if (!_originalStreamDatas.TryGetValue(handle, out var streamData)) {
-				discardPoint = default;
+			if (!_metastreamDatas.TryGetValue(handle, out var data)) {
+				info = default;
 				return false;
 			}
 
-			discardPoint = streamData.DiscardPoint;
+			info = new IndexExecutionInfo(
+				isMetastream: true,
+				isTombstoned: data.IsTombstoned,
+				discardPoint: data.DiscardPoint);
+			return true;
+		}
+
+		private bool TryGetDiscardPointForOriginalStream(
+			StreamHandle<TStreamId> handle,
+			out IndexExecutionInfo info) {
+
+			if (!_originalStreamDatas.TryGetValue(handle, out var data)) {
+				info = default;
+				return false;
+			}
+
+			info = new IndexExecutionInfo(
+				isMetastream: false,
+				isTombstoned: data.IsTombstoned,
+				discardPoint: data.DiscardPoint);
 			return true;
 		}
 

@@ -118,6 +118,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken);
 				AfterIndexExecution(executingIndex.ScavengePoint, cancellationToken);
 
+				//qqqq note, for merging, that there is a config option to prevent merging.
 			} else {
 				throw new Exception($"unexpected checkpoint {checkpoint}"); //qq details
 			}

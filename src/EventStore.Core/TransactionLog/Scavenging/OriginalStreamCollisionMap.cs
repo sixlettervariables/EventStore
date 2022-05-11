@@ -62,9 +62,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		public bool TryGetStreamExecutionDetails(TStreamId streamId, out StreamExecutionDetails details) =>
+		public bool TryGetChunkExecutionInfo(TStreamId streamId, out ChunkExecutionInfo info) =>
 			_isCollision(streamId)
-				? _collisions.TryGetStreamExecutionDetails(streamId, out details)
-				: _nonCollisions.TryGetStreamExecutionDetails(_hasher.Hash(streamId), out details);
+				? _collisions.TryGetChunkExecutionInfo(streamId, out info)
+				: _nonCollisions.TryGetChunkExecutionInfo(_hasher.Hash(streamId), out info);
 	}
 }

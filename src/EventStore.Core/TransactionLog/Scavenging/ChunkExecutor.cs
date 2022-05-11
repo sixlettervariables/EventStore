@@ -10,17 +10,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkManagerForChunkExecutor<TStreamId, TChunk> _chunkManager;
 		private readonly long _chunkSize;
+		private readonly bool _unsafeIgnoreHardDeletes;
 		private readonly int _cancellationCheckPeriod;
 
 		public ChunkExecutor(
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkManagerForChunkExecutor<TStreamId, TChunk> chunkManager,
 			long chunkSize,
+			bool unsafeIgnoreHardDeletes,
 			int cancellationCheckPeriod) {
 
 			_metastreamLookup = metastreamLookup;
 			_chunkManager = chunkManager;
 			_chunkSize = chunkSize;
+			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
 		}
 
@@ -57,7 +60,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						physicalChunk.ChunkStartNumber,
 						physicalChunk.ChunkEndNumber);
 
-					if (physicalWeight >= scavengePoint.Threshold) {
+					if (physicalWeight >= scavengePoint.Threshold || _unsafeIgnoreHardDeletes) {
 						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
 					}
 
@@ -197,6 +200,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			} else {
 				//qq log
 				// dont reset the weights, we couldn't switch it in.
+				//qqqqq what if _unsafeIgnoreHardDeletes is true, this situation is a serious error i think
 			}
 		}
 
@@ -209,7 +213,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return false;
 
 			if (record.EventNumber < 0) {
-				//qq we can discard from transactions sometimes, copy the logic from old scavenge.
+				// we could discard from transactions sometimes, either by accumulating a state for them
+				// or doing a similar trick as old scavenge and limiting it to transactions that were
+				// stated and commited in the same chunk. however for now this isn't considered so
+				// important because someone with transactions to scavenge has probably scavenged them
+				// already with old scavenge. could be added later
 				return false;
 			}
 
@@ -217,6 +225,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var details = GetStreamExecutionDetails(
 				state,
 				record.StreamId);
+
+			if (details.IsTombstoned) {
+				if (_unsafeIgnoreHardDeletes) {
+					// remove _everything_ for metadata and original streams
+					return true;
+				}
+
+				if (_metastreamLookup.IsMetaStream(record.StreamId)) {
+					// when the original stream is tombstoned we can discard the _whole_ metadata stream
+					return true;
+				}
+
+				// otherwise obey the discard points below.
+			}
 
 			// if definitePoint says discard then discard.
 			if (details.DiscardPoint.ShouldDiscard(record.EventNumber)) {
@@ -237,25 +259,27 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return record.TimeStamp < scavengePoint.EffectiveNow - details.MaxAge;
 		}
 
-		private StreamExecutionDetails GetStreamExecutionDetails(
+		private ChunkExecutionInfo GetStreamExecutionDetails(
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			TStreamId streamId) {
 
 			if (_metastreamLookup.IsMetaStream(streamId)) {
-				if (!state.TryGetMetastreamDiscardPoint(streamId, out var discardPoint)) {
-					discardPoint = DiscardPoint.KeepAll;
+				if (!state.TryGetMetastreamData(streamId, out var metastreamData)) {
+					metastreamData = MetastreamData.Empty;
 				}
 
-				return new StreamExecutionDetails(
-					discardPoint: discardPoint,
+				return new ChunkExecutionInfo(
+					isTombstoned: metastreamData.IsTombstoned,
+					discardPoint: metastreamData.DiscardPoint,
 					maybeDiscardPoint: DiscardPoint.KeepAll,
 					maxAge: null);
 			} else {
 				// original stream
-				if (state.TryGetStreamExecutionDetails(streamId, out var details)) {
+				if (state.TryGetChunkExecutionInfo(streamId, out var details)) {
 					return details;
 				} else {
-					return new StreamExecutionDetails(
+					return new ChunkExecutionInfo(
+						isTombstoned: false,
 						discardPoint: DiscardPoint.KeepAll,
 						maybeDiscardPoint: DiscardPoint.KeepAll,
 						maxAge: null);

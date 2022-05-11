@@ -6,13 +6,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public class IndexExecutor<TStreamId> : IIndexExecutor<TStreamId> {
 		private readonly IIndexScavenger _indexScavenger;
 		private readonly IChunkReaderForIndexExecutor<TStreamId> _streamLookup;
+		private readonly bool _unsafeIgnoreHardDeletes;
 
 		public IndexExecutor(
 			IIndexScavenger indexScavenger,
-			IChunkReaderForIndexExecutor<TStreamId> streamLookup) {
+			IChunkReaderForIndexExecutor<TStreamId> streamLookup,
+			bool unsafeIgnoreHardDeletes) {
 
 			_indexScavenger = indexScavenger;
 			_streamLookup = streamLookup;
+			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
 		}
 
 		public void Execute(
@@ -41,7 +44,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
-			// cache some info between invocations of ShouldKeep since it will typically be invoked
+			//qq cache some info between invocations of ShouldKeep since it will typically be invoked
 			// repeatedly with the same stream hash.
 			//
 			// invariants, guaranteed at the beginning and end of each Invokation of ShouldKeep:
@@ -51,10 +54,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//  (b) currentHash is not null && !currentHashIsCollision =>
 			//         currentDiscardPoint is the discardpoint of the unique stream
 			//         that hashes to currentHash.
-			//
+			//qq hum there should be another invariant here about when currentHash is a collision
 			var currentHash = (ulong?)null;
 			var currentHashIsCollision = false;
 			var currentDiscardPoint = DiscardPoint.KeepAll;
+			var currentIsTombstoned = false;
+			//qq this isn't always defined, consider in relationship to the invariants.
+			var currentIsDefinitelyMetastream = false;
 
 			bool ShouldKeep(IndexEntry indexEntry) {
 				//qq throttle?
@@ -94,9 +100,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq memoize to speed up other ptables?
 					// ^ (consider this generally for the scavenge state)
 					// re-establish (b)
-					if (!state.TryGetDiscardPoint(handle, out currentDiscardPoint)) {
+					if (state.TryGetIndexExecutionInfo(handle, out var info)) {
+						currentIsTombstoned = info.IsTombstoned;
+						currentDiscardPoint = info.DiscardPoint;
+						currentIsDefinitelyMetastream = info.IsMetastream;
+					} else {
 						// this stream has no discard point. keep everything.
+						currentIsTombstoned = false;
 						currentDiscardPoint = DiscardPoint.KeepAll;
+						currentIsDefinitelyMetastream = false;
 						return true;
 					}
 				} else {
@@ -104,6 +116,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// the same stream, so the currentDiscardPoint applies.
 					// invariants already established.
 					;
+				}
+
+				if (currentIsTombstoned) {
+					if (_unsafeIgnoreHardDeletes) {
+						// remove _everything_ for metadata and original streams
+						return false;
+					}
+
+					if (currentIsDefinitelyMetastream) {
+						// when the original stream is tombstoned we can discard the _whole_ metastream
+						return false;
+					}
+
+					// otherwise obey the discard points below.
 				}
 
 				return !currentDiscardPoint.ShouldDiscard(indexEntry.Version);
