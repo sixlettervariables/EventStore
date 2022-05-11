@@ -11,7 +11,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		// - also it goes without saying that bad things will happen if they mix chunks in from
 		//   a node that has not had the scavenge that removed the events
 
-		[Fact(Skip ="need tidyup step")]
+		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -28,7 +28,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.Recs[1],
 				});
 
-			//qqqqqqqqqqq this wont work until we have the tidyup step
 			Assert.False(state.TryGetOriginalStreamData("ab-1", out _));
 			Assert.False(state.TryGetMetastreamData("$$ab-1", out _));
 		}

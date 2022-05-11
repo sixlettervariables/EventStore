@@ -73,6 +73,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-0"),
+					Tracer.Line("Commit"),
+
+					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),
 					Tracer.Line("Commit"))
 				.RunAsync(
@@ -137,6 +141,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Executing index for SP-1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
+
+					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-1"),
+					Tracer.Line("Commit"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-1"),
@@ -237,6 +245,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Executing index for SP-1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
+
+					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-1"),
+					Tracer.Line("Commit"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-1"),
@@ -346,6 +358,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-2"),
+					Tracer.Line("Commit"),
+
+					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-2"),
 					Tracer.Line("Commit"))
 				.RunAsync(x => new[] {
@@ -443,6 +459,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-1"),
+					Tracer.Line("Commit"),
+
+					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-1"),
 					Tracer.Line("Commit"))
 				.RunAsync(x => new[] {
@@ -515,6 +535,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Executing index for SP-3"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
+
+					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Cleaning SP-3"),
+					Tracer.Line("Commit"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-3"),

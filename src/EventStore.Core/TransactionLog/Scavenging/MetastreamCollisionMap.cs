@@ -36,5 +36,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			else
 				_nonCollisions.SetDiscardPoint(_hasher.Hash(streamId), discardPoint);
 		}
+
+		public void DeleteTombstoned() {
+			_collisions.DeleteTombstoned();
+			_nonCollisions.DeleteTombstoned();
+		}
 	}
 }

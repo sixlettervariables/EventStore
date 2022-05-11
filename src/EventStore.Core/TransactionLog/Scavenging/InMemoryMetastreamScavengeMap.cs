@@ -22,5 +22,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				isTombstoned: x.IsTombstoned,
 				discardPoint: discardPoint);
 		}
+
+		public void DeleteTombstoned() {
+			foreach (var kvp in this) {
+				if (kvp.Value.IsTombstoned) {
+					TryRemove(kvp.Key, out _);
+				}
+			}
+		}
 	}
 }

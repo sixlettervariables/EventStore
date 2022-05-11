@@ -272,5 +272,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			return collidingHashes.Contains(streamHash);
 		}
+
+		//
+		// For cleaner
+		//
+
+		public void DeleteTombstonedOriginalStreams() {
+			_originalStreamDatas.DeleteTombstoned();
+		}
+
+		public void DeleteTombstonedMetastreams() {
+			_metastreamDatas.DeleteTombstoned();
+		}
 	}
 }

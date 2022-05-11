@@ -14,5 +14,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			DiscardPoint maybeDiscardPoint);
 
 		bool TryGetChunkExecutionInfo(TKey key, out ChunkExecutionInfo info);
+
+		void DeleteTombstoned();
 	}
 }

@@ -7,7 +7,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		IScavengeStateForAccumulator<TStreamId>,
 		IScavengeStateForCalculator<TStreamId>,
 		IScavengeStateForIndexExecutor<TStreamId>,
-		IScavengeStateForChunkExecutor<TStreamId> {
+		IScavengeStateForChunkExecutor<TStreamId>,
+		IScavengeStateForCleaner {
 
 		bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint);
 	}
@@ -110,5 +111,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		bool TryGetIndexExecutionInfo(
 			StreamHandle<TStreamId> streamHandle,
 			out IndexExecutionInfo info);
+	}
+
+	public interface IScavengeStateForCleaner : IScavengeStateCommon {
+		// these are potentially longer operations so has cancellation support
+		void DeleteTombstonedOriginalStreams();
+		void DeleteTombstonedMetastreams();
 	}
 }

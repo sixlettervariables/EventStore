@@ -72,6 +72,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public void can_round_trip_cleaning() {
+			var cp = RoundTrip(
+				new ScavengeCheckpoint.Cleaning(_scavengePoint),
+				@"{""scavengePoint"":{""position"":1234,""eventNumber"":5,""effectiveNow"":""2022-01-05T00:00:00"",""threshold"":567},""schemaVersion"":""V0"",""checkpointStage"":""Cleaning""}");
+			//qq Assert.Equal();
+		}
+
+		[Fact]
 		public void can_round_trip_done() {
 			var cp = RoundTrip(
 				new ScavengeCheckpoint.Done(_scavengePoint),

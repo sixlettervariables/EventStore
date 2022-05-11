@@ -128,6 +128,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				reader.GetFieldValue<TKey>(6), ReadOriginalStreamData(reader))).GetEnumerator();
 		}
 
+		public void DeleteTombstoned() {
+			throw new NotImplementedException();
+			//qqqq delete where is tombstoned
+		}
+
 		IEnumerator IEnumerable.GetEnumerator() {
 			return GetEnumerator();
 		}

@@ -18,6 +18,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public OriginalStreamData this[TKey key] { set => _wrapped[key] = value; }
 
+		public void DeleteTombstoned() {
+			_wrapped.DeleteTombstoned();
+		}
+
 		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> FromCheckpoint(TKey checkpoint) {
 			return _wrapped.FromCheckpoint(checkpoint);
 		}

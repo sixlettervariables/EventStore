@@ -592,6 +592,9 @@ namespace EventStore.Core {
 					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
 					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
 
+				var cleaner = new Cleaner(
+					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+
 				ScavengeState<string> scavengeState;
 				var sqlite = true;
 				if (sqlite) {
@@ -640,6 +643,7 @@ namespace EventStore.Core {
 					calculator,
 					chunkExecutor,
 					indexExecutor,
+					cleaner,
 					new ScavengePointSource(ioDispatcher));
 
 				var storageScavenger = new NewStorageScavenger<string>(

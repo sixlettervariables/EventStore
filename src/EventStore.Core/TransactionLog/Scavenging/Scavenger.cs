@@ -17,6 +17,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly ICalculator<TStreamId> _calculator;
 		private readonly IChunkExecutor<TStreamId> _chunkExecutor;
 		private readonly IIndexExecutor<TStreamId> _indexExecutor;
+		private readonly ICleaner _cleaner;
 		private readonly IScavengePointSource _scavengePointSource;
 
 		public Scavenger(
@@ -26,6 +27,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ICalculator<TStreamId> calculator,
 			IChunkExecutor<TStreamId> chunkExecutor,
 			IIndexExecutor<TStreamId> indexExecutor,
+			ICleaner cleaner,
 			IScavengePointSource scavengePointSource) {
 
 			_state = state;
@@ -33,6 +35,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_calculator = calculator;
 			_chunkExecutor = chunkExecutor;
 			_indexExecutor = indexExecutor;
+			_cleaner = cleaner;
 			_scavengePointSource = scavengePointSource;
 		}
 
@@ -113,12 +116,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
 				_chunkExecutor.Execute(executingChunks, _state, cancellationToken);
 				AfterChunkExecution(executingChunks.ScavengePoint, scavengerLogger, cancellationToken);
+				//qqqq note, for merging, that there is a config option to prevent merging.
 
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
 				_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken);
 				AfterIndexExecution(executingIndex.ScavengePoint, cancellationToken);
 
-				//qqqq note, for merging, that there is a config option to prevent merging.
+			} else if (checkpoint is ScavengeCheckpoint.Cleaning cleaning) {
+				_cleaner.Clean(cleaning, _state, cancellationToken);
+				AfterCleaning(cleaning.ScavengePoint);
+
 			} else {
 				throw new Exception($"unexpected checkpoint {checkpoint}"); //qq details
 			}
@@ -189,20 +196,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterIndexExecution(scavengePoint, cancellationToken);
 		}
 
-		void AfterIndexExecution(ScavengePoint scavengePoint, CancellationToken cancellationToken) {
-			//qqq merge phase
+		void AfterIndexExecution(
+			ScavengePoint scavengePoint,
+			CancellationToken cancellationToken) {
 
-			//qqq tidy phase if necessary
-			// - could remove certain parts of the scavenge state
-			// - what pieces of information can we discard and when should we discard them
-			//     - collisions (never)
-			//     - hashes (never)
-			//     - metastream discardpoints ???
-			//     - original stream data
-			//     - chunk stamp ranges for empty chunks (probably dont bother)
-			//     - chunk weights
-			//          - after executing a chunk (chunk executor will do this)
+			_cleaner.Clean(scavengePoint, _state, cancellationToken);
+			AfterCleaning(scavengePoint);
+		}
 
+		void AfterCleaning(ScavengePoint scavengePoint) {
 			//qq check this is the right scavengepoint
 			_state.SetCheckpoint(new ScavengeCheckpoint.Done(scavengePoint));
 		}

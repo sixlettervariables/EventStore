@@ -5,5 +5,7 @@
 		void SetTombstone(TKey key);
 
 		void SetDiscardPoint(TKey key, DiscardPoint discardPoint);
+
+		void DeleteTombstoned();
 	}
 }

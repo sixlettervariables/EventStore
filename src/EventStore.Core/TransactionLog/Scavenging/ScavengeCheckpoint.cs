@@ -73,13 +73,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		//qq name. if this is a phase at all.
-		public class Tidying : ScavengeCheckpoint {
-			public Tidying(ScavengePoint scavengePoint)
+		public class Cleaning : ScavengeCheckpoint {
+			public Cleaning(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
 
 			public override string ToString() =>
-				$"Tidying {ScavengePoint.GetName()}";
+				$"Cleaning {ScavengePoint.GetName()}";
 		}
 
 		public class Done : ScavengeCheckpoint {

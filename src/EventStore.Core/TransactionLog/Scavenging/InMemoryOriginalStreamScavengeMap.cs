@@ -76,5 +76,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			return true;
 		}
+
+		public void DeleteTombstoned() {
+			foreach (var kvp in this) {
+				if (kvp.Value.IsTombstoned) {
+					TryRemove(kvp.Key, out _);
+				}
+			}
+		}
 	}
 }

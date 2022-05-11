@@ -16,7 +16,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ExecutingChunks,
 			Merging,
 			ExecutingIndex,
-			Tidying,
+			Cleaning,
 			Done,
 		}
 
@@ -36,6 +36,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return new ScavengeCheckpoint.ExecutingChunks(ScavengePoint, DoneLogicalChunkNumber);
 				case Stage.ExecutingIndex:
 					return new ScavengeCheckpoint.ExecutingIndex(ScavengePoint);
+				case Stage.Cleaning:
+					return new ScavengeCheckpoint.Cleaning(ScavengePoint);
 				case Stage.Done:
 					return new ScavengeCheckpoint.Done(ScavengePoint);
 				//qqqqqq add other cases
@@ -69,6 +71,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				case ScavengeCheckpoint.ExecutingIndex x:
 					dto.CheckpointStage = Stage.ExecutingIndex;
 					//qq
+					break;
+
+				case ScavengeCheckpoint.Cleaning x:
+					dto.CheckpointStage = Stage.Cleaning;
 					break;
 
 				case ScavengeCheckpoint.Done x:

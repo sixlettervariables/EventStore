@@ -66,5 +66,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_isCollision(streamId)
 				? _collisions.TryGetChunkExecutionInfo(streamId, out info)
 				: _nonCollisions.TryGetChunkExecutionInfo(_hasher.Hash(streamId), out info);
+
+		public void DeleteTombstoned() {
+			_collisions.DeleteTombstoned();
+			_nonCollisions.DeleteTombstoned();
+		}
 	}
 }

@@ -91,6 +91,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
+		//qqqqqqq in the morning put it back so its not async, the sqlite api doesn't benefit from this
+		public Scenario CancelDuringCleaning() {
+			//qqqqqqqqq_cleaningCancellationTrigger = true;
+			return this;
+		}
+
 		// Assert methods can be used to input checks that are internal to the scavenge
 		// This is not black box testing, handle with care.
 		public delegate Scenario TraceDelegate(params string[] expected);
@@ -213,6 +219,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log),
 				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
+			var cleaner = new Cleaner(unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
+
 			accumulator = new TracingAccumulator<string>(accumulator, Tracer);
 			calculator = new TracingCalculator<string>(calculator, Tracer);
 			chunkExecutor = new TracingChunkExecutor<string>(chunkExecutor, Tracer);
@@ -230,6 +238,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				calculator,
 				chunkExecutor,
 				indexExecutor,
+				cleaner,
 				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow));
 
 			Tracer.Reset();
@@ -366,46 +375,51 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				}
 			}
 
-			// 2b. assert that we can find each one
-			//qq should also check that we dont have any extras
-			var compareOnlyMetadata = new CompareOnlyMetadataAndTombstone();
-			foreach (var kvp in expectedOriginalStreamDatas) {
-				Assert.True(
-					scavengeState.TryGetOriginalStreamData(kvp.Key, out var originalStreamData),
-					$"could not find metadata for stream {kvp.Key}");
-				Assert.Equal(kvp.Value, originalStreamData, compareOnlyMetadata);
+			// if we wanted to do the assertions here we'd have to figure out which
+			// metadatas, handles, etc supposed to be removed
+			if (!_unsafeIgnoreHardDeletes) {
+				// 2b. assert that we can find each one
+				//qq should also check that we dont have any extras
+				var compareOnlyMetadata = new CompareOnlyMetadataAndTombstone();
+				foreach (var kvp in expectedOriginalStreamDatas) {
+
+					Assert.True(
+						scavengeState.TryGetOriginalStreamData(kvp.Key, out var originalStreamData),
+						$"could not find metadata for stream {kvp.Key}");
+					Assert.Equal(kvp.Value, originalStreamData, compareOnlyMetadata);
+				}
+
+				// 3. Iterate through the metadatas, find the appropriate handles.
+				// 3a. naively calculate the expected handles. one for each metadata, some by hash,
+				// some by streamname
+				//qq can/should probably check the handles of the metastream discard points too
+				var expectedHandles = expectedOriginalStreamDatas
+					.Select(kvp => {
+						var stream = kvp.Key;
+						var metadata = kvp.Value;
+
+						return collidingStreams.Contains(stream)
+							? (StreamHandle.ForStreamId(stream), metadata)
+							: (StreamHandle.ForHash<string>(hasher.Hash(stream)), metadata);
+					})
+					.Select(x => (x.Item1.ToString(), x.metadata))
+					.OrderBy(x => x.Item1);
+
+				// 3b. compare to the actual handles.
+				var actualHandles = scavengeState
+					.OriginalStreamsToScavenge(default)
+					.Select(x => (x.Item1.ToString(), x.Item2))
+					.OrderBy(x => x.Item1);
+
+				// compare the handles
+				Assert.Equal(expectedHandles.Select(x => x.Item1), actualHandles.Select(x => x.Item1));
+
+				// compare the metadatas
+				Assert.Equal(
+					expectedHandles.Select(x => x.metadata),
+					actualHandles.Select(x => x.Item2),
+					compareOnlyMetadata);
 			}
-
-			// 3. Iterate through the metadatas, find the appropriate handles.
-			// 3a. naively calculate the expected handles. one for each metadata, some by hash,
-			// some by streamname
-			//qq can/should probably check the handles of the metastream discard points too
-			var expectedHandles = expectedOriginalStreamDatas
-				.Select(kvp => {
-					var stream = kvp.Key;
-					var metadata = kvp.Value;
-
-					return collidingStreams.Contains(stream)
-						? (StreamHandle.ForStreamId(stream), metadata)
-						: (StreamHandle.ForHash<string>(hasher.Hash(stream)), metadata);
-				})
-				.Select(x => (x.Item1.ToString(), x.metadata))
-				.OrderBy(x => x.Item1);
-
-			// 3b. compare to the actual handles.
-			var actualHandles = scavengeState
-				.OriginalStreamsToScavenge(default)
-				.Select(x => (x.Item1.ToString(), x.Item2))
-				.OrderBy(x => x.Item1);
-
-			// compare the handles
-			Assert.Equal(expectedHandles.Select(x => x.Item1), actualHandles.Select(x => x.Item1));
-
-			// compare the metadatas
-			Assert.Equal(
-				expectedHandles.Select(x => x.metadata),
-				actualHandles.Select(x => x.Item2),
-				compareOnlyMetadata);
 
 			// 4. The records we expected to keep are kept
 			// 5. The index entries we expected to be kept are kept

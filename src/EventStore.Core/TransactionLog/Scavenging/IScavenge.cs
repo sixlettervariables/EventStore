@@ -134,7 +134,27 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			CancellationToken cancellationToken);
 	}
 
+	//qqq
+	// - could remove certain parts of the scavenge state
+	// - what pieces of information can we discard and when should we discard them
+	//     - collisions (never)
+	//     - hashes (never)
+	//     - metastream discardpoints ???
+	//     - original stream data
+	//     - chunk stamp ranges for empty chunks (probably dont bother)
+	//     - chunk weights
+	//          - after executing a chunk (chunk executor will do this)
+	public interface ICleaner {
+		void Clean(
+			ScavengePoint scavengePoint,
+			IScavengeStateForCleaner state,
+			CancellationToken cancellationToken);
 
+		void Clean(
+			ScavengeCheckpoint.Cleaning checkpoint,
+			IScavengeStateForCleaner state,
+			CancellationToken cancellationToken);
+	}
 
 
 
