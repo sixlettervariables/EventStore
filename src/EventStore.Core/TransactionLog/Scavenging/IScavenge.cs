@@ -118,6 +118,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			CancellationToken cancellationToken);
 	}
 
+	public interface IChunkMerger {
+		void MergeChunks(
+			ScavengePoint scavengePoint,
+			IScavengeStateForChunkMerger state,
+			ITFChunkScavengerLog scavengerLogger,
+			CancellationToken cancellationToken);
+
+		void MergeChunks(
+			ScavengeCheckpoint.MergingChunks checkpoint,
+			IScavengeStateForChunkMerger state,
+			ITFChunkScavengerLog scavengerLogger,
+			CancellationToken cancellationToken);
+	}
+
+	public interface IChunkMergerBackend {
+		void MergeChunks(
+			ITFChunkScavengerLog scavengerLogger,
+			CancellationToken cancellationToken);
+	}
+
 	// the index executor performs the actual removal of the index entries
 	// should be very rare to do any further lookups at this point.
 	public interface IIndexExecutor<TStreamId> {
@@ -155,7 +175,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCleaner state,
 			CancellationToken cancellationToken);
 	}
-
 
 
 

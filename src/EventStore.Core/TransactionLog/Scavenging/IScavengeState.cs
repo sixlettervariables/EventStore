@@ -7,6 +7,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		IScavengeStateForAccumulator<TStreamId>,
 		IScavengeStateForCalculator<TStreamId>,
 		IScavengeStateForIndexExecutor<TStreamId>,
+		IScavengeStateForChunkMerger,
 		IScavengeStateForChunkExecutor<TStreamId>,
 		IScavengeStateForCleaner {
 
@@ -104,6 +105,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		void ResetChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber);
 		bool TryGetChunkExecutionInfo(TStreamId streamId, out ChunkExecutionInfo info);
 		bool TryGetMetastreamData(TStreamId streamId, out MetastreamData metastreamData);
+	}
+
+	public interface IScavengeStateForChunkMerger : IScavengeStateCommon {
 	}
 
 	public interface IScavengeStateForIndexExecutor<TStreamId> : IScavengeStateCommon {

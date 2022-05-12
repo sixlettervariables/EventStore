@@ -586,6 +586,12 @@ namespace EventStore.Core {
 					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
 					cancellationCheckPeriod: cancellationCheckPeriod);
 
+				var chunkMerger = new ChunkMerger(
+					mergeChunks: !vNodeSettings.DisableScavengeMerging,
+					backend: new OldScavengeChunkMergerBackend(
+						db: db,
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes));
+
 				//qq make sure the maxreaders for the pool is high enough to accommodate us
 				var indexExecutor = new IndexExecutor<string>(
 					new IndexScavenger(tableIndex),
@@ -642,6 +648,7 @@ namespace EventStore.Core {
 					accumulator,
 					calculator,
 					chunkExecutor,
+					chunkMerger,
 					indexExecutor,
 					cleaner,
 					new ScavengePointSource(ioDispatcher));

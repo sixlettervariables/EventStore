@@ -66,6 +66,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-0"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-0"),
@@ -138,6 +144,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 1"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-1"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -247,6 +259,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Opening Chunk 2-2"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 2"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-1"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -366,6 +384,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
+					Tracer.Line("Merging chunks for SP-2"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-2"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-2"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-2"),
@@ -472,6 +496,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
+					Tracer.Line("Merging chunks for SP-1"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-1"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-1"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-1"),
@@ -552,6 +582,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Opening Chunk 2-2"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-3 done Chunk 2"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-3"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-3"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 

@@ -9,6 +9,7 @@ using EventStore.Core.Index;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.Services;
+using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
 
@@ -393,6 +394,25 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		public LogRecord[][] Scavenged { get; private set; }
+	}
+
+	public class ScaffoldChunkMergerBackend : IChunkMergerBackend {
+		private readonly LogRecord[][] _log;
+
+		public ScaffoldChunkMergerBackend(LogRecord[][] log) {
+			_log = log;
+		}
+
+		public void MergeChunks(
+			ITFChunkScavengerLog scavengerLogger,
+			CancellationToken cancellationToken) {
+
+			var merged = _log.SelectMany(x => x).ToArray();
+			for (var i = 0; i < _log.Length; i++) {
+				_log[i] = Array.Empty<LogRecord>();
+			}
+			_log[0] = merged;
+		}
 	}
 
 	public class ScaffoldChunkReaderForIndexExecutor : IChunkReaderForIndexExecutor<string> {

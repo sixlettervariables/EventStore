@@ -64,11 +64,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public void can_round_trip_merging_chunks() {
+			var cp = RoundTrip(
+				new ScavengeCheckpoint.MergingChunks(_scavengePoint),
+				@"{""scavengePoint"":{""position"":1234,""eventNumber"":5,""effectiveNow"":""2022-01-05T00:00:00"",""threshold"":567},""schemaVersion"":""V0"",""checkpointStage"":""MergingChunks""}");
+		}
+
+		[Fact]
 		public void can_round_trip_executing_index() {
 			var cp = RoundTrip(
 				new ScavengeCheckpoint.ExecutingIndex(_scavengePoint),
 				@"{""scavengePoint"":{""position"":1234,""eventNumber"":5,""effectiveNow"":""2022-01-05T00:00:00"",""threshold"":567},""schemaVersion"":""V0"",""checkpointStage"":""ExecutingIndex""}");
-			//qq Assert.Equal();
 		}
 
 		[Fact]
@@ -76,7 +82,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var cp = RoundTrip(
 				new ScavengeCheckpoint.Cleaning(_scavengePoint),
 				@"{""scavengePoint"":{""position"":1234,""eventNumber"":5,""effectiveNow"":""2022-01-05T00:00:00"",""threshold"":567},""schemaVersion"":""V0"",""checkpointStage"":""Cleaning""}");
-			//qq Assert.Equal();
 		}
 
 		[Fact]
@@ -85,7 +90,5 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				new ScavengeCheckpoint.Done(_scavengePoint),
 				@"{""scavengePoint"":{""position"":1234,""eventNumber"":5,""effectiveNow"":""2022-01-05T00:00:00"",""threshold"":567},""schemaVersion"":""V0"",""checkpointStage"":""Done""}");
 		}
-
-		//qq and the others...
 	}
 }

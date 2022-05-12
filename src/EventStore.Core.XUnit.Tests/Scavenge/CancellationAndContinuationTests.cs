@@ -171,6 +171,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-0"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-0"),
@@ -222,6 +228,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Switched in chunk chunk0"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -332,6 +344,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Switched in chunk chunk2"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 2"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -453,6 +471,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-0"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-0"),
@@ -568,6 +592,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("Done"),
 
 					// the rest is fresh for SP-0
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
 					Tracer.Line("Executing index for SP-0"),
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-0"),
@@ -655,6 +685,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Switched in chunk chunk1"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -751,7 +787,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			//qqqqqqqq add some state checks once we have something to clean up
 		}
 	
-		//qq cancel and resume for any other stages we might add (merging)?
+		//qq cancel and resume for merging?
 
 		[Fact]
 		public async Task can_complete() {
@@ -796,6 +832,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Switched in chunk chunk0"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Merging chunks for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 

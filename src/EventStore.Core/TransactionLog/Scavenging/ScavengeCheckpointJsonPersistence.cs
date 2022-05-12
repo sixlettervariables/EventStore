@@ -14,7 +14,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			Accumulating,
 			Calculating,
 			ExecutingChunks,
-			Merging,
+			MergingChunks,
 			ExecutingIndex,
 			Cleaning,
 			Done,
@@ -34,6 +34,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return new ScavengeCheckpoint.Calculating<TStreamId>(ScavengePoint, DoneStreamHandle);
 				case Stage.ExecutingChunks:
 					return new ScavengeCheckpoint.ExecutingChunks(ScavengePoint, DoneLogicalChunkNumber);
+				case Stage.MergingChunks:
+					return new ScavengeCheckpoint.MergingChunks(ScavengePoint);
 				case Stage.ExecutingIndex:
 					return new ScavengeCheckpoint.ExecutingIndex(ScavengePoint);
 				case Stage.Cleaning:
@@ -68,20 +70,22 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					dto.DoneLogicalChunkNumber = x.DoneLogicalChunkNumber;
 					break;
 
-				case ScavengeCheckpoint.ExecutingIndex x:
-					dto.CheckpointStage = Stage.ExecutingIndex;
-					//qq
+				case ScavengeCheckpoint.MergingChunks _:
+					dto.CheckpointStage = Stage.MergingChunks;
 					break;
 
-				case ScavengeCheckpoint.Cleaning x:
+				case ScavengeCheckpoint.ExecutingIndex _:
+					dto.CheckpointStage = Stage.ExecutingIndex;
+					break;
+
+				case ScavengeCheckpoint.Cleaning _:
 					dto.CheckpointStage = Stage.Cleaning;
 					break;
 
-				case ScavengeCheckpoint.Done x:
+				case ScavengeCheckpoint.Done _:
 					dto.CheckpointStage = Stage.Done;
 					break;
 
-				//qqqqqq add other cases
 				default:
 					throw new ArgumentOutOfRangeException(); //qq detail
 			}

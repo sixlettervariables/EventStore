@@ -63,16 +63,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				$"Executing index for {ScavengePoint.GetName()}";
 		}
 
-		public class Merging : ScavengeCheckpoint {
-			public Merging(ScavengePoint scavengePoint)
+		public class MergingChunks : ScavengeCheckpoint {
+			public MergingChunks(ScavengePoint scavengePoint)
 				: base(scavengePoint) {
 			}
 
 			public override string ToString() =>
-				$"Merging for {ScavengePoint.GetName()}";
+				$"Merging chunks for {ScavengePoint.GetName()}";
 		}
 
-		//qq name. if this is a phase at all.
 		public class Cleaning : ScavengeCheckpoint {
 			public Cleaning(ScavengePoint scavengePoint)
 				: base(scavengePoint) {

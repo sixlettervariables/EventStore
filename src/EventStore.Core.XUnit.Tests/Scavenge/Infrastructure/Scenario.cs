@@ -18,6 +18,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private Func<TFChunkDbConfig, DbResult> _getDb;
 		private Func<ScavengeStateBuilder, ScavengeStateBuilder> _stateTransform;
 
+		private bool _mergeChunks;
 		private string _accumulatingCancellationTrigger;
 		private string _calculatingCancellationTrigger;
 		private string _executingChunkCancellationTrigger;
@@ -67,6 +68,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_stateTransform = builder => builder
 				.TransformBuilder(wrapped)
 				.MutateState(f);
+			return this;
+		}
+
+		public Scenario WithMergeChunks(bool mergeChunks = true) {
+			_mergeChunks = mergeChunks;
 			return this;
 		}
 
@@ -216,6 +222,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
 				cancellationCheckPeriod: cancellationCheckPeriod);
 
+			IChunkMerger chunkMerger = new ChunkMerger(
+				mergeChunks: _mergeChunks,
+				new ScaffoldChunkMergerBackend(log: log));
+
 			IIndexExecutor<string> indexExecutor = new IndexExecutor<string>(
 				indexScavenger: cancellationWrappedIndexScavenger,
 				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log),
@@ -226,6 +236,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			accumulator = new TracingAccumulator<string>(accumulator, Tracer);
 			calculator = new TracingCalculator<string>(calculator, Tracer);
 			chunkExecutor = new TracingChunkExecutor<string>(chunkExecutor, Tracer);
+			chunkMerger = new TracingChunkMerger(chunkMerger, Tracer);
 			indexExecutor = new TracingIndexExecutor<string>(indexExecutor, Tracer);
 			cleaner = new TracingCleaner(cleaner, Tracer);
 
@@ -240,6 +251,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				accumulator,
 				calculator,
 				chunkExecutor,
+				chunkMerger,
 				indexExecutor,
 				cleaner,
 				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow));
@@ -508,6 +520,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		private static void CheckIndex(LogRecord[][] expected, LogRecord[][] actual) {
+			if (expected == null) {
+				// test didn't ask us to check the index
+				return;
+			}
+
 			Assert.True(
 				expected.Length == actual.Length,
 				"IndexCheck. Wrong number of index-chunks. " +

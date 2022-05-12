@@ -16,6 +16,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IAccumulator<TStreamId> _accumulator;
 		private readonly ICalculator<TStreamId> _calculator;
 		private readonly IChunkExecutor<TStreamId> _chunkExecutor;
+		private readonly IChunkMerger _chunkMerger;
 		private readonly IIndexExecutor<TStreamId> _indexExecutor;
 		private readonly ICleaner _cleaner;
 		private readonly IScavengePointSource _scavengePointSource;
@@ -26,6 +27,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IAccumulator<TStreamId> accumulator,
 			ICalculator<TStreamId> calculator,
 			IChunkExecutor<TStreamId> chunkExecutor,
+			IChunkMerger chunkMerger,
 			IIndexExecutor<TStreamId> indexExecutor,
 			ICleaner cleaner,
 			IScavengePointSource scavengePointSource) {
@@ -34,6 +36,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_accumulator = accumulator;
 			_calculator = calculator;
 			_chunkExecutor = chunkExecutor;
+			_chunkMerger = chunkMerger;
 			_indexExecutor = indexExecutor;
 			_cleaner = cleaner;
 			_scavengePointSource = scavengePointSource;
@@ -116,7 +119,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
 				_chunkExecutor.Execute(executingChunks, _state, cancellationToken);
 				AfterChunkExecution(executingChunks.ScavengePoint, scavengerLogger, cancellationToken);
-				//qqqq note, for merging, that there is a config option to prevent merging.
+
+			} else if (checkpoint is ScavengeCheckpoint.MergingChunks mergingChunks) {
+				_chunkMerger.MergeChunks(mergingChunks, _state, scavengerLogger, cancellationToken);
+				AfterChunkMerging(mergingChunks.ScavengePoint, scavengerLogger, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
 				_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken);
@@ -188,6 +194,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		void AfterChunkExecution(
+			ScavengePoint scavengePoint,
+			ITFChunkScavengerLog scavengerLogger,
+			CancellationToken cancellationToken) {
+
+			_chunkMerger.MergeChunks(scavengePoint, _state, scavengerLogger, cancellationToken);
+			AfterChunkMerging(scavengePoint, scavengerLogger, cancellationToken);
+		}
+
+		void AfterChunkMerging(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
