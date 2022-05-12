@@ -615,7 +615,7 @@ namespace EventStore.Core {
 					//	_sqliteScavengeBackend.CheckpointStorage,
 					//	_sqliteScavengeBackend.ChunkTimeStampRanges,
 					//	_sqliteScavengeBackend.ChunkWeights,
-					//	new ScavengeTransaction(
+					//	new TransactionManager(
 					//		_sqliteScavengeBackend,
 					//		_sqliteScavengeBackend.CheckpointStorage));
 				} else {
@@ -632,8 +632,8 @@ namespace EventStore.Core {
 						checkpointStorage,
 						new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
 						new InMemoryChunkWeightScavengeMap(),
-						new ScavengeTransaction(
-							new InMemoryTransactionBackend(),
+						new TransactionManager<int>(
+							new InMemoryTransactionFactory(),
 							checkpointStorage));
 				}
 				

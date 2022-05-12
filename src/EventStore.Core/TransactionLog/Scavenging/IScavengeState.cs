@@ -17,23 +17,24 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateCommon {
 		// begin a transaction, returns the started transaction so that it can be
 		// committed or rolled back
-		IOpenTransaction BeginTransaction();
+		ITransactionCompleter BeginTransaction();
 	}
 
-	public interface IOpenTransaction {
+	// abstraction to allow the components to commit/rollback
+	public interface ITransactionCompleter {
 		void Rollback();
 		void Commit(ScavengeCheckpoint checkpoint);
 	}
 
-	public interface ITransaction : IOpenTransaction {
+	public interface ITransactionManager : ITransactionCompleter{
 		void Begin();
 	}
 
 	// abstraction for the backing store. memory, sqlite etc.
-	public interface ITransactionBackend {
-		void Begin();
-		void Rollback();
-		void Commit();
+	public interface ITransactionFactory<TTransaction> {
+		TTransaction Begin();
+		void Rollback(TTransaction transaction);
+		void Commit(TTransaction transaction);
 	}
 
 	//qq this summary comment will explain the general shape of the scavenge state - what it needs to be

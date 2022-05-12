@@ -182,7 +182,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var executing = Assert.IsType<ScavengeCheckpoint.ExecutingIndex>(checkpoint);
 		}
 
-		[Fact]
+		[Fact(Skip ="wip")]
 		public async Task cleaner_checkpoints_immediately() {
 			var t = 0;
 			var (state, db) = await new Scenario()

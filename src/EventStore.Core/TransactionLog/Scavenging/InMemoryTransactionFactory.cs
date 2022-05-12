@@ -1,17 +1,18 @@
 ﻿namespace EventStore.Core.TransactionLog.Scavenging {
-	public class InMemoryTransactionBackend : ITransactionBackend {
-		public InMemoryTransactionBackend() {
+	public class InMemoryTransactionFactory : ITransactionFactory<int> {
+		public InMemoryTransactionFactory() {
 		}
 
-		public void Begin() {
+		public int Begin() {
 			// sqlite implementation would open a transaction
+			return 5;
 		}
 
-		public void Commit() {
+		public void Commit(int transasction) {
 			// sqlite implementation would commit the transaction
 		}
 
-		public void Rollback() {
+		public void Rollback(int transaction) {
 			// sqlite implementation would roll back the transaction
 		}
 	}

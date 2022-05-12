@@ -4,20 +4,20 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class ScavengeTransactionTests {
-		class MockTransactionBackend : ITransactionBackend {
+		class MockTransactionFactory : ITransactionFactory<int> {
 			public int BeginCount { get; private set; }
 			public int CommitCount { get; private set; }
 			public int RollbackCount { get; private set; }
 
-			public void Begin() {
-				BeginCount++;
+			public int Begin() {
+				return BeginCount++;
 			}
 
-			public void Commit() {
+			public void Commit(int transaction) {
 				CommitCount++;
 			}
 
-			public void Rollback() {
+			public void Rollback(int transaction) {
 				RollbackCount++;
 			}
 		}
@@ -25,8 +25,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		[Fact]
 		public void CanCommitThenBegin() {
 			var storage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
-			var backend = new MockTransactionBackend();
-			var sut = new ScavengeTransaction(backend, storage);
+			var backend = new MockTransactionFactory();
+			var sut = new TransactionManager<int>(backend, storage);
 
 			var expectedCheckpoint = new ScavengeCheckpoint.Accumulating(
 				new ScavengePoint(default, default, default, default),
@@ -59,8 +59,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CanRollbackThenBegin() {
-			var backend = new MockTransactionBackend();
-			var sut = new ScavengeTransaction(
+			var backend = new MockTransactionFactory();
+			var sut = new TransactionManager<int>(
 				backend,
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
@@ -89,8 +89,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotBeginTwice() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
@@ -102,8 +102,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotCommitTwice() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
@@ -116,8 +116,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotCommitThenRollback() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
@@ -130,8 +130,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotRollbackTwice() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
@@ -144,8 +144,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotRollbackThenCommit() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			sut.Begin();
@@ -158,8 +158,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotCommitWithoutBeginning() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			Assert.Throws<InvalidOperationException>(() => {
@@ -169,8 +169,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public void CannotRollbackWithoutBeginning() {
-			var sut = new ScavengeTransaction(
-				new MockTransactionBackend(),
+			var sut = new TransactionManager<int>(
+				new MockTransactionFactory(),
 				new InMemoryScavengeMap<Unit, ScavengeCheckpoint>());
 
 			Assert.Throws<InvalidOperationException>(() => {

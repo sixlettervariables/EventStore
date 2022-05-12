@@ -3,10 +3,9 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteScavengeBackend<TStreamId> : ITransactionBackend, IDisposable {
+	public class SqliteScavengeBackend<TStreamId> : ITransactionFactory<SqliteTransaction>, IDisposable {
 		private const string DbFileName = "scavenging.db";
 		private SqliteConnection _connection;
-		private SqliteTransaction _transaction;
 
 		public IScavengeMap<TStreamId, Unit> CollisionStorage { get; private set; }
 		public IScavengeMap<ulong,TStreamId> Hashes { get; private set; }
@@ -61,51 +60,44 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			AllMaps = new AbstractSqliteBase[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
 				originalStorage, originalCollisionStorage, checkpointStorage, chunkTimeStampRanges, chunkWeights };
 
-			Begin();
+			var transaction = Begin();
 			
 			foreach (var map in AllMaps) {
 				map.Initialize();
 			}
 			
-			Commit();
+			Commit(transaction);
 		}
 
-		public void Begin() {
+		public SqliteTransaction Begin() {
 			if (_connection == null) {
 				throw new InvalidOperationException("Cannot start a scavenge state transaction without an open connection");
 			}
 
-			if (_transaction != null) {
-				throw new InvalidOperationException("Cannot start another scavenge state transaction");
-			}
-			
-			_transaction = _connection.BeginTransaction();
+			return _connection.BeginTransaction();
 		}
 
-		public void Rollback() {
-			if (_transaction == null) {
+		public void Rollback(SqliteTransaction transaction) {
+			if (transaction == null) {
 				throw new InvalidOperationException("Cannot rollback a scavenge state transaction without an active transaction");
 			}
-			
-			_transaction.Rollback();
-			_transaction.Dispose();
-			_transaction = null;
+
+			transaction.Rollback();
+			transaction.Dispose();
 		}
 
-		public void Commit() {
-			if (_transaction == null) {
+		public void Commit(SqliteTransaction transaction) {
+			if (transaction == null) {
 				throw new InvalidOperationException("Cannot commit a scavenge state transaction without an active transaction");
 			}
 			
-			_transaction.Commit();
-			_transaction.Dispose();
-			_transaction = null;
+			transaction.Commit();
+			transaction.Dispose();
 		}
 
 		public void Dispose()
 		{
 			_connection?.Dispose();
-			_transaction?.Dispose();
 		}
 	}
 }

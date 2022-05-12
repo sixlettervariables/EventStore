@@ -64,17 +64,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 			var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
 			var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
-			ITransactionBackend transactionBackend = new InMemoryTransactionBackend();
+			ITransactionFactory<int> transactionFactory = new InMemoryTransactionFactory();
 
 			if (_tracer != null)
-				transactionBackend = new TracingTransactionBackend(transactionBackend, _tracer);
+				transactionFactory = new TracingTransactionFactory<int>(transactionFactory, _tracer);
 
-			ITransaction transaction = new ScavengeTransaction(
-				transactionBackend,
+			ITransactionManager transactionManager = new TransactionManager<int>(
+				transactionFactory,
 				checkpointStorage);
 
 			if (_tracer != null) {
-				transaction = new TracingTransaction(transaction, _tracer);
+				transactionManager = new TracingTransactionManager(transactionManager, _tracer);
 				originalStorage = new TracingOriginalStreamScavengeMap<ulong>(originalStorage, _tracer);
 				originalCollisionStorage =
 					new TracingOriginalStreamScavengeMap<string>(originalCollisionStorage, _tracer);
@@ -92,7 +92,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				checkpointStorage,
 				chunkTimeStampRangesStorage,
 				chunkWeightStorage,
-				transaction);
+				transactionManager);
 
 			return scavengeState;
 		}

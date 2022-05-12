@@ -1,11 +1,11 @@
 ﻿using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class TracingTransaction : ITransaction {
-		private readonly ITransaction _wrapped;
+	public class TracingTransactionManager : ITransactionManager {
+		private readonly ITransactionManager _wrapped;
 		private readonly Tracer _tracer;
 
-		public TracingTransaction(ITransaction wrapped, Tracer tracer) {
+		public TracingTransactionManager(ITransactionManager wrapped, Tracer tracer) {
 			_wrapped = wrapped;
 			_tracer = tracer;
 		}

@@ -25,7 +25,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IScavengeMap<int, ChunkTimeStampRange> _chunkTimeStampRanges;
 		private readonly IChunkWeightScavengeMap _chunkWeights;
 		private readonly IScavengeMap<Unit, ScavengeCheckpoint> _checkpointStorage;
-		private readonly ITransaction _transaction;
+		private readonly ITransactionManager _transactionManager;
 
 		private readonly ILongHasher<TStreamId> _hasher;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
@@ -43,7 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeMap<Unit, ScavengeCheckpoint> checkpointStorage,
 			IScavengeMap<int, ChunkTimeStampRange> chunkTimeStampRanges,
 			IChunkWeightScavengeMap chunkWeights,
-			ITransaction transaction) {
+			ITransactionManager transactionManager) {
 
 			//qq inject this so that in log v3 we can have a trivial implementation
 			//qq to save us having to look up the stream names repeatedly
@@ -72,15 +72,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkTimeStampRanges = chunkTimeStampRanges;
 			_chunkWeights = chunkWeights;
 
-			_transaction = transaction;
+			_transactionManager = transactionManager;
 		}
 
 		// reuses the same transaction object for multiple transactions.
 		// caller is reponsible for committing, rolling back, or disposing
 		// the transaction before calling BeginTransaction again
-		public IOpenTransaction BeginTransaction() {
-			_transaction.Begin();
-			return _transaction;
+		public ITransactionCompleter BeginTransaction() {
+			_transactionManager.Begin();
+			return _transactionManager;
 		}
 
 		//qqqq where to wire in the json conversion

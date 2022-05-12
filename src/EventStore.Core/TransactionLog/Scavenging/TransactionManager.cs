@@ -1,17 +1,19 @@
 ﻿using System;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq own file. name
-	public class ScavengeTransaction : ITransaction {
-		private readonly ITransactionBackend _backend;
+	// This makes sure we dont accidentally start trying to nest transactions or begin them concurrently
+	// and facilities commiting the open transaction with a checkpoint
+	public class TransactionManager<TTransaction> : ITransactionManager {
+		private readonly ITransactionFactory<TTransaction> _factory;
 		private readonly IScavengeMap<Unit, ScavengeCheckpoint> _storage;
 		private bool _began;
+		private TTransaction _transaction;
 
-		public ScavengeTransaction(
-			ITransactionBackend backend,
+		public TransactionManager(
+			ITransactionFactory<TTransaction> factory,
 			IScavengeMap<Unit, ScavengeCheckpoint> storage) {
 
-			_backend = backend;
+			_factory = factory;
 			_storage = storage;
 		}
 
@@ -22,7 +24,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//qq this may be enough already, but it may also be useful to start storing up
 			// the updates in memory ourselves and write them when we complete the batch
 			// if so, do this later.
-			_backend.Begin();
+			_transaction = _factory.Begin();
 			_began = true;
 		}
 
@@ -30,7 +32,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (!_began)
 				throw new InvalidOperationException("Cannot rollback a transaction that has not begun.");
 
-			_backend.Rollback();
+			_factory.Rollback(_transaction);
 			_began = false;
 		}
 
@@ -41,7 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_storage[Unit.Instance] = checkpoint;
 
 			//qqqq if we crash while commiting, will it get rolled back properly
-			_backend.Commit();
+			_factory.Commit(_transaction);
 			_began = false;
 		}
 	}

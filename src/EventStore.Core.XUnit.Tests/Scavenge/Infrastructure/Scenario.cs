@@ -22,6 +22,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private string _calculatingCancellationTrigger;
 		private string _executingChunkCancellationTrigger;
 		private string _executingIndexEntryCancellationTrigger;
+		private bool _cleaningCancellationTrigger;
 		private (string Message, int Line)[] _expectedTrace;
 		private bool _unsafeIgnoreHardDeletes;
 
@@ -91,9 +92,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
-		//qqqqqqq in the morning put it back so its not async, the sqlite api doesn't benefit from this
 		public Scenario CancelDuringCleaning() {
-			//qqqqqqqqq_cleaningCancellationTrigger = true;
+			_cleaningCancellationTrigger = true;
 			return this;
 		}
 
@@ -185,6 +185,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					return f(entry);
 				});
 
+			//qqqqqqqq maybe _cleaningCancellationTrigger could work with the transaction commit
+			// maybe they alll could
 			var cancellationCheckPeriod = 1;
 			var checkpointPeriod = 2;
 
