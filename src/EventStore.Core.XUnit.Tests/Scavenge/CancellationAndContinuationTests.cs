@@ -182,16 +182,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var executing = Assert.IsType<ScavengeCheckpoint.ExecutingIndex>(checkpoint);
 		}
 
-		[Fact(Skip ="wip")]
+		[Fact]
 		public async Task cleaner_checkpoints_immediately() {
 			var t = 0;
 			var (state, db) = await new Scenario()
 				.WithDb(x => x
-					.Chunk(
-						Rec.Prepare(t++, "cd-cancel-index-execution"), //qq maybe dont need
-						Rec.Prepare(t++, "ab-1"))
+					.Chunk(Rec.Prepare(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
-				.CancelDuringCleaning()
+				.CancelWhenCheckpointing<ScavengeCheckpoint.Cleaning>()
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
 					Tracer.Line("    Begin"),
@@ -231,11 +229,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Begin"),
 					Tracer.Line("        Checkpoint: Executing index for SP-0"),
 					Tracer.Line("    Commit"),
-					Tracer.Line("Exception executing index"))
+					Tracer.Line("Done"),
+
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Exception cleaning"))
 				.RunAsync();
 
 			Assert.True(state.TryGetCheckpoint(out var checkpoint));
-			var executing = Assert.IsType<ScavengeCheckpoint.ExecutingIndex>(checkpoint);
+			var executing = Assert.IsType<ScavengeCheckpoint.Cleaning>(checkpoint);
 		}
 
 		[Fact]
@@ -337,9 +341,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Cleaning SP-0"),
-					Tracer.Line("Commit"),
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),
@@ -450,9 +459,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Cleaning SP-0"),
-					Tracer.Line("Commit"),
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),
@@ -560,9 +574,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Cleaning SP-0"),
-					Tracer.Line("Commit"),
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),
@@ -668,9 +687,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("Executing index from checkpoint: Executing index for SP-0"),
 					Tracer.Line("Done"),
 
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Cleaning SP-0"),
-					Tracer.Line("Commit"),
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),
@@ -690,8 +714,44 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var done = Assert.IsType<ScavengeCheckpoint.Done>(checkpoint);
 		}
 
-		//qqqqqqqqqqqqqqqqqqqqqqqq
-		//qq cancel and resume for any other stages we might add (merging, tidying)?
+		[Fact]
+		public async Task can_cancel_during_tidying_and_resume() {
+			var t = 0;
+			var scenario = new Scenario();
+			var (state, db) = await scenario
+				.WithDb(x => x
+					.Chunk(Rec.Prepare(t++, "ab-1"))
+					.Chunk(ScavengePointRec(t++)))
+				.CancelWhenCheckpointing<ScavengeCheckpoint.Cleaning>()
+				.RunAsync();
+
+			Assert.True(state.TryGetCheckpoint(out var checkpoint));
+			var executing = Assert.IsType<ScavengeCheckpoint.Cleaning>(checkpoint);
+
+			// now complete the scavenge
+			(state, _) = await new Scenario()
+				.WithTracerFrom(scenario)
+				.WithDb(db)
+				.WithState(x => x.ExistingState(state))
+				.AssertTrace(
+					Tracer.Line("Cleaning from checkpoint Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
+
+					Tracer.Line("Begin"),
+					Tracer.Line("    Checkpoint: Done SP-0"),
+					Tracer.Line("Commit"))
+				.RunAsync();
+
+			// scavenge completed
+			Assert.True(state.TryGetCheckpoint(out checkpoint));
+			var done = Assert.IsType<ScavengeCheckpoint.Done>(checkpoint);
+			//qqqqqqqq add some state checks once we have something to clean up
+		}
+	
+		//qq cancel and resume for any other stages we might add (merging)?
 
 		[Fact]
 		public async Task can_complete() {
@@ -745,9 +805,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Cleaning SP-0"),
-					Tracer.Line("Commit"),
+					Tracer.Line("Cleaning for SP-0"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("    Begin"),
+					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
+					Tracer.Line("    Commit"),
+					Tracer.Line("Done"),
 
 					Tracer.Line("Begin"),
 					Tracer.Line("    Checkpoint: Done SP-0"),

@@ -22,7 +22,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private string _calculatingCancellationTrigger;
 		private string _executingChunkCancellationTrigger;
 		private string _executingIndexEntryCancellationTrigger;
-		private bool _cleaningCancellationTrigger;
+		private Type _cancelWhenCheckpointingType;
 		private (string Message, int Line)[] _expectedTrace;
 		private bool _unsafeIgnoreHardDeletes;
 
@@ -92,8 +92,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
-		public Scenario CancelDuringCleaning() {
-			_cleaningCancellationTrigger = true;
+		public Scenario CancelWhenCheckpointing<TCheckpoint>() {
+			_cancelWhenCheckpointingType = typeof(TCheckpoint);
 			return this;
 		}
 
@@ -221,18 +221,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log),
 				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
-			var cleaner = new Cleaner(unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
+			ICleaner cleaner = new Cleaner(unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
 			accumulator = new TracingAccumulator<string>(accumulator, Tracer);
 			calculator = new TracingCalculator<string>(calculator, Tracer);
 			chunkExecutor = new TracingChunkExecutor<string>(chunkExecutor, Tracer);
 			indexExecutor = new TracingIndexExecutor<string>(indexExecutor, Tracer);
+			cleaner = new TracingCleaner(cleaner, Tracer);
 
 			var scavengeState = new ScavengeStateBuilder(hasher, metastreamLookup)
 				.TransformBuilder(_stateTransform)
+				.CancelWhenCheckpointing(_cancelWhenCheckpointingType, cancellationTokenSource)
 				.WithTracer(Tracer)
 				.Build();
-
 
 			var sut = new Scavenger<string>(
 				scavengeState,

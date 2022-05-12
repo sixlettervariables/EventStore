@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Scavenging;
@@ -10,6 +11,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		private ScavengeState<string> _preexisting;
 		private Tracer _tracer;
+		private Type _cancelWhenCheckpointingType;
+		private CancellationTokenSource _cancellationTokenSource;
 		private Action<ScavengeState<string>> _mutateState;
 
 		public ScavengeStateBuilder(
@@ -28,6 +31,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public ScavengeStateBuilder TransformBuilder(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) =>
 			f(this);
+
+		public ScavengeStateBuilder CancelWhenCheckpointing(Type type, CancellationTokenSource cts) {
+			_cancelWhenCheckpointingType = type;
+			_cancellationTokenSource = cts;
+			return this;
+		}
 
 		public ScavengeStateBuilder MutateState(Action<ScavengeState<string>> f) {
 			var wrapped = _mutateState;
@@ -72,6 +81,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			ITransactionManager transactionManager = new TransactionManager<int>(
 				transactionFactory,
 				checkpointStorage);
+
+			transactionManager = new AdHocTransactionManager(
+				transactionManager,
+				(continuation, checkpoint) => {
+					if (checkpoint.GetType() == _cancelWhenCheckpointingType) {
+						_cancellationTokenSource.Cancel();
+					}
+					continuation(checkpoint);
+				});
 
 			if (_tracer != null) {
 				transactionManager = new TracingTransactionManager(transactionManager, _tracer);

@@ -25,18 +25,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCleaner state,
 			CancellationToken cancellationToken) {
 
-			if (_unsafeIgnoreHardDeletes) {
-				var transaction = state.BeginTransaction();
-				try {
-					//qqq check cancellation sometimes
-					state.DeleteTombstonedOriginalStreams();
-					state.DeleteTombstonedMetastreams();
+			cancellationToken.ThrowIfCancellationRequested();
 
-					transaction.Commit(checkpoint);
-				} catch {
-					transaction.Rollback();
-					throw;
+			// we clean up in a transaction, not so that we can checkpoint, but just to save lots of
+			// implicit transactions from being created
+			var transaction = state.BeginTransaction();
+			try {
+				if (_unsafeIgnoreHardDeletes) {
+					state.DeleteTombstonedOriginalStreams();
+					cancellationToken.ThrowIfCancellationRequested();
+					state.DeleteTombstonedMetastreams();
 				}
+				transaction.Commit(checkpoint);
+			} catch {
+				transaction.Rollback();
+				throw;
 			}
 
 			//qq we could state.DeleteTombstonedMetastreams(); even if unsafeIgnoreHardDeletes is off

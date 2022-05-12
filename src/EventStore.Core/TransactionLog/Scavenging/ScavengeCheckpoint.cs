@@ -69,7 +69,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			public override string ToString() =>
-				$"Merging {ScavengePoint.GetName()}";
+				$"Merging for {ScavengePoint.GetName()}";
 		}
 
 		//qq name. if this is a phase at all.
@@ -79,7 +79,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			public override string ToString() =>
-				$"Cleaning {ScavengePoint.GetName()}";
+				$"Cleaning for {ScavengePoint.GetName()}";
 		}
 
 		public class Done : ScavengeCheckpoint {
