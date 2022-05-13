@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteChunkWeightScavengeMap :
@@ -8,6 +9,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private const string MapName = "ChunkWeightScavengeMap";
 
 		public SqliteChunkWeightScavengeMap(SqliteConnection connection) : base(MapName, connection) {
+		}
+
+		public bool AllWeightsAreZero() {
+			throw new NotImplementedException(); //qqq
 		}
 
 		public void IncreaseWeight(int logicalChunkNumber, float extraWeight) {

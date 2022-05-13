@@ -277,6 +277,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// For cleaner
 		//
 
+		public bool AllChunksExecuted() =>
+			_chunkWeights.AllWeightsAreZero();
+
 		public void DeleteTombstonedOriginalStreams() {
 			_originalStreamDatas.DeleteTombstoned();
 		}

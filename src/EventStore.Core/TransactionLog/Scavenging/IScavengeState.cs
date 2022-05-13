@@ -119,7 +119,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	public interface IScavengeStateForCleaner : IScavengeStateCommon {
-		// these are potentially longer operations so has cancellation support
+		bool AllChunksExecuted();
 		void DeleteTombstonedOriginalStreams();
 		void DeleteTombstonedMetastreams();
 	}

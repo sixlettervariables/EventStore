@@ -3,6 +3,15 @@
 		InMemoryScavengeMap<int, float>,
 		IChunkWeightScavengeMap {
 
+		public bool AllWeightsAreZero() {
+			foreach (var kvp in this) {
+				if (kvp.Value != 0) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		public void IncreaseWeight(int logicalChunkNumber, float extraWeight) {
 			// sqlite implementaiton would update table set weight = weight + extraWeight
 			if (!TryGetValue(logicalChunkNumber, out var weight))
