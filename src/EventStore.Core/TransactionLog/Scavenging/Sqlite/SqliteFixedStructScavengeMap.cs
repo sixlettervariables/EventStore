@@ -7,9 +7,14 @@ using Microsoft.Data.Sqlite;
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 {
 	public class SqliteFixedStructScavengeMap<TKey, TValue> :
-		AbstractSqliteBase,
+		ISqliteScavengeBackend,
 		IScavengeMap<TKey, TValue> where TValue : struct {
 		
+		private AddCommand _add;
+        private GetCommand _get;
+        private RemoveCommand _delete;
+        private FromCheckpointCommand _fromCheckpoint;
+        private EnumeratorCommand _enumerator;
 		private readonly byte[] _buffer;
 
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
@@ -19,11 +24,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			{typeof(string), nameof(SqliteType.Text)},
 		};
 
-		public SqliteFixedStructScavengeMap(string name, SqliteConnection connection) : base(connection) {
+		public SqliteFixedStructScavengeMap(string name) {
 			if (typeof(TValue).IsPrimitive) {
 				throw new ArgumentException($"Invalid type for value, use {nameof(SqliteScavengeMap<TKey,TValue>)} for primitive types!");
 			}
-			
+
 			_buffer = new byte[Marshal.SizeOf(typeof(TValue))];
 			TableName = name;
 			
@@ -50,18 +55,17 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			return _sqliteTypeMap.ContainsKey(typeof(T));
 		}
 
-		public override void Initialize() {
-			var keyType = GetSqliteTypeName<TKey>();
-			var valueType = GetSqliteTypeName<TValue>();
-			var sql = $"CREATE TABLE IF NOT EXISTS {TableName} (key {keyType} PRIMARY KEY, value {valueType} NOT NULL)";
+		public void Initialize(SqliteBackend sqlite) {
+			var keyType = SqliteTypeMapping.GetTypeName<TKey>();
+			var sql = $"CREATE TABLE IF NOT EXISTS {TableName} (key {keyType} PRIMARY KEY, value Blob NOT NULL)";
 			
-			InitializeDb(sql);
-		}
-		
-		protected override string GetSqliteTypeName<T>() {
-			return typeof(T).IsValueType && !typeof(T).IsPrimitive
-				? nameof(SqliteType.Blob)
-				: base.GetSqliteTypeName<T>();	
+			sqlite.InitializeDb(sql);
+			
+			_add = new AddCommand(TableName, sqlite);
+			_get = new GetCommand(TableName, sqlite);
+			_delete = new RemoveCommand(TableName, sqlite);
+			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
+			_enumerator = new EnumeratorCommand(TableName, sqlite);
 		}
 
 		public TValue this[TKey key] {
@@ -69,30 +73,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 		}
 
 		private void AddValue(TKey key, TValue value) {
-			var sql = $"INSERT INTO {TableName} VALUES($key, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
-			
 			MemoryMarshal.Write(_buffer, ref value);
-			
-			ExecuteNonQuery(sql, parameters => {
-				parameters.AddWithValue("$key", key);
-				parameters.AddWithValue("$value", _buffer);
-			});
+			_add.Execute(key, _buffer);
 		}
 
 		public bool TryGetValue(TKey key, out TValue value) {
-			var sql = $"SELECT value FROM {TableName} WHERE key = $key";
-			return ExecuteSingleRead(sql, parameters => {
-				parameters.AddWithValue("$key", key);
-			}, reader => GetValueField(0, reader), out value);
+			return _get.TryExecute(key, out value);
 		}
 
 		public bool TryRemove(TKey key, out TValue value) {
-			var selectSql = $"SELECT value FROM {TableName} WHERE key = $key";
-			var deleteSql = $"DELETE FROM {TableName} WHERE key = $key";
-			
-			return ExecuteReadAndDelete(selectSql, deleteSql, parameters => {
-				parameters.AddWithValue("$key", key);
-			}, reader => GetValueField(0, reader), out value);
+			return _delete.TryExecute(key, out value);
 		}
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() {
@@ -104,21 +94,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 		}
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
-			var sql = $"SELECT key, value FROM {TableName} WHERE key > $key";
-
-			return ExecuteReader(sql, parameters => {
-				parameters.AddWithValue("$key", checkpoint);
-			}, reader => new KeyValuePair<TKey, TValue>(
-				reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
+			return _fromCheckpoint.Execute(checkpoint);
 		}
-
-		//qq remove public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() {
-		//	var sql = $"SELECT key, value FROM {TableName}";
-		//	return ExecuteReader(sql, p => { }, reader => new KeyValuePair<TKey, TValue>(
-		//		reader.GetFieldValue<TKey>(0), GetValueField(1, reader))).GetEnumerator();
-		//}
 		
-		private TValue GetValueField(int ordinal, SqliteDataReader r) {
+		private static TValue GetValueField(int ordinal, SqliteDataReader r) {
 			var bytes = (byte[])r.GetValue(ordinal);
 			return MemoryMarshal.Read<TValue>(bytes);
 		}
@@ -126,5 +105,118 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 		//qq remove IEnumerator IEnumerable.GetEnumerator() {
 		//	return GetEnumerator();
 		//}
+		
+		private class AddCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _cmd;
+			private readonly SqliteParameter _keyParam;
+			private readonly SqliteParameter _valueParam;
+
+			public AddCommand(string tableName, SqliteBackend sqlite) {
+				var sql = $"INSERT INTO {tableName} VALUES($key, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
+				_cmd = sqlite.CreateCommand();
+				_cmd.CommandText = sql;
+				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_valueParam = _cmd.Parameters.Add("$value", SqliteType.Blob);
+				_cmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public void Execute(TKey key, byte[] value) {
+				_keyParam.Value = key;
+				_valueParam.Value = value;
+				_sqlite.ExecuteNonQuery(_cmd);
+			}
+		}
+		private class GetCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _cmd;
+			private readonly SqliteParameter _keyParam;
+
+			public GetCommand(string tableName, SqliteBackend sqlite) {
+				var selectSql = $"SELECT value FROM {tableName} WHERE key = $key";
+				_cmd = sqlite.CreateCommand();
+				_cmd.CommandText = selectSql;
+				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_cmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public bool TryExecute(TKey key, out TValue value) {
+				_keyParam.Value = key;
+				return _sqlite.ExecuteSingleRead(_cmd, reader => GetValueField(0, reader), out value);
+			}
+		}
+		private class RemoveCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _selectCmd;
+			private readonly SqliteCommand _deleteCmd;
+			private readonly SqliteParameter _selectKeyParam;
+			private readonly SqliteParameter _deleteKeyParam;
+
+			public RemoveCommand(string tableName, SqliteBackend sqlite) {
+				var selectSql = $"SELECT value FROM {tableName} WHERE key = $key";
+				_selectCmd = sqlite.CreateCommand();
+				_selectCmd.CommandText = selectSql;
+				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_selectCmd.Prepare();
+
+				var deleteSql = $"DELETE FROM {tableName} WHERE key = $key";
+				_deleteCmd = sqlite.CreateCommand();
+				_deleteCmd.CommandText = deleteSql;
+				_deleteKeyParam = _deleteCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_deleteCmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public bool TryExecute(TKey key, out TValue value) {
+				_selectKeyParam.Value = key;
+				_deleteKeyParam.Value = key;
+				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd,
+					reader => GetValueField(0, reader), out value);
+			}
+		}
+		private class FromCheckpointCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _cmd;
+			private readonly SqliteParameter _keyParam;
+
+			public FromCheckpointCommand(string tableName, SqliteBackend sqlite) {
+				var sql = $"SELECT key, value FROM {tableName} WHERE key > $key";
+				_cmd = sqlite.CreateCommand();
+				_cmd.CommandText = sql;
+				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_cmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public IEnumerable<KeyValuePair<TKey, TValue>> Execute(TKey key) {
+				_keyParam.Value = key;
+				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
+					reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
+			}
+		}
+		private class EnumeratorCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _cmd;
+
+			public EnumeratorCommand(string tableName, SqliteBackend sqlite) {
+				var sql = $"SELECT key, value FROM {tableName}";
+				_cmd = sqlite.CreateCommand();
+				_cmd.CommandText = sql;
+				_cmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public IEnumerator<KeyValuePair<TKey, TValue>> Execute() {
+				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
+					reader.GetFieldValue<TKey>(0), GetValueField(1, reader))).GetEnumerator();
+			}
+		}
 	}
 }

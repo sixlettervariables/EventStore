@@ -8,6 +8,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private const string ExpectedJournalMode = "wal";
 		private const int ExpectedSynchronousValue = 1; // Normal
 		private SqliteConnection _connection;
+		private SqliteBackend _sqliteBackend;
 
 		public IScavengeMap<TStreamId, Unit> CollisionStorage { get; private set; }
 		public IScavengeMap<ulong,TStreamId> Hashes { get; private set; }
@@ -18,50 +19,46 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public IScavengeMap<Unit,ScavengeCheckpoint> CheckpointStorage { get; private set; }
 		public IScavengeMap<int,ChunkTimeStampRange> ChunkTimeStampRanges { get; private set; }
 		public IChunkWeightScavengeMap ChunkWeights { get; private set; }
-		private AbstractSqliteBase[] AllMaps { get; set; }
-
-		public SqliteScavengeBackend() {
-
-		}
+		private ISqliteScavengeBackend[] AllMaps { get; set; }
 
 		public void Initialize(string dir = ".") {
 			OpenDbConnection(dir);
 			ConfigureFeatures();
 
-			var collisionStorage = new SqliteFixedStructScavengeMap<TStreamId, Unit>("CollisionStorageMap", _connection);
+			var collisionStorage = new SqliteFixedStructScavengeMap<TStreamId, Unit>("CollisionStorageMap");
 			CollisionStorage = collisionStorage;
 
-			var hashes = new SqliteScavengeMap<ulong, TStreamId>("HashesMap", _connection);
+			var hashes = new SqliteScavengeMap<ulong, TStreamId>("HashesMap");
 			Hashes = hashes;
 
-			var metaStorage = new SqliteFixedStructScavengeMap<ulong, DiscardPoint>("MetaStorageMap", _connection);
+			var metaStorage = new SqliteFixedStructScavengeMap<ulong, DiscardPoint>("MetaStorageMap");
 			MetaStorage = metaStorage;
 			
-			var metaCollisionStorage = new SqliteFixedStructScavengeMap<TStreamId, DiscardPoint>("MetaCollisionMap", _connection);
+			var metaCollisionStorage = new SqliteFixedStructScavengeMap<TStreamId, DiscardPoint>("MetaCollisionMap");
 			MetaCollisionStorage = metaCollisionStorage;
 			
-			var originalStorage = new SqliteOriginalStreamScavengeMap<ulong>("OriginalStreamStorageMap", _connection);
+			var originalStorage = new SqliteOriginalStreamScavengeMap<ulong>("OriginalStreamStorageMap");
 			OriginalStorage = originalStorage;
 			
-			var originalCollisionStorage = new SqliteOriginalStreamScavengeMap<TStreamId>("OriginalStreamCollisionStorageMap", _connection);
+			var originalCollisionStorage = new SqliteOriginalStreamScavengeMap<TStreamId>("OriginalStreamCollisionStorageMap");
 			OriginalCollisionStorage = originalCollisionStorage;
 			
-			var checkpointStorage = new SqliteScavengeCheckpointMap<TStreamId>(_connection);
+			var checkpointStorage = new SqliteScavengeCheckpointMap<TStreamId>();
 			CheckpointStorage = checkpointStorage;
 			
-			var chunkTimeStampRanges = new SqliteFixedStructScavengeMap<int, ChunkTimeStampRange>("ChunkTimeStampRangeMap", _connection);
+			var chunkTimeStampRanges = new SqliteFixedStructScavengeMap<int, ChunkTimeStampRange>("ChunkTimeStampRangeMap");
 			ChunkTimeStampRanges = chunkTimeStampRanges;
 			
-			var chunkWeights = new SqliteChunkWeightScavengeMap(_connection);
+			var chunkWeights = new SqliteChunkWeightScavengeMap();
 			ChunkWeights = chunkWeights;
 
-			AllMaps = new AbstractSqliteBase[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
+			AllMaps = new ISqliteScavengeBackend[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
 				originalStorage, originalCollisionStorage, checkpointStorage, chunkTimeStampRanges, chunkWeights };
 
 			var transaction = Begin();
 			
 			foreach (var map in AllMaps) {
-				map.Initialize();
+				map.Initialize(_sqliteBackend);
 			}
 			
 			Commit(transaction);
@@ -74,6 +71,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			connectionStringBuilder.DataSource = Path.Combine(dir, DbFileName);
 			_connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
 			_connection.Open();
+
+			_sqliteBackend = new SqliteBackend(_connection);
 		}
 
 		private void ConfigureFeatures() {
@@ -102,7 +101,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				throw new InvalidOperationException("Cannot start a scavenge state transaction without an open connection");
 			}
 
-			return _connection.BeginTransaction();
+			return _sqliteBackend.BeginTransaction();
 		}
 
 		public void Rollback(SqliteTransaction transaction) {
@@ -112,6 +111,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			transaction.Rollback();
 			transaction.Dispose();
+			_sqliteBackend.ClearTransaction();
 		}
 
 		public void Commit(SqliteTransaction transaction) {
@@ -121,6 +121,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			
 			transaction.Commit();
 			transaction.Dispose();
+			_sqliteBackend.ClearTransaction();
 		}
 
 		public void Dispose() {

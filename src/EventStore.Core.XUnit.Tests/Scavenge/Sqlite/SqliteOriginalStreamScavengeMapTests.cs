@@ -12,8 +12,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_set_original_stream_data() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
@@ -32,8 +32,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_overwrite_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OverwriteOriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OverwriteOriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[33] = new OriginalStreamData {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
@@ -61,8 +61,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_tombstone_of_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
@@ -83,8 +83,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_tombstone_of_non_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut.SetTombstone(33);
 			
@@ -96,8 +96,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_stream_metadata_of_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData() {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
@@ -122,8 +122,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_stream_metadata_without_max_age() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var metadata = new StreamMetadata(
 				maxCount: 33,
@@ -140,8 +140,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_stream_metadata_without_max_count() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var metadata = new StreamMetadata(
 				maxAge: TimeSpan.FromDays(13),
@@ -158,8 +158,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_stream_metadata_without_truncating() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var metadata = new StreamMetadata(
 				maxAge: TimeSpan.FromDays(13),
@@ -176,8 +176,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_stream_metadata_of_non_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var metadata = new StreamMetadata(
 				maxAge: TimeSpan.FromDays(13),
@@ -196,8 +196,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_discard_points_of_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData() {
 				MaxAge = TimeSpan.FromDays(13),
@@ -217,8 +217,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_set_discard_points_of_non_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var discardPoint = DiscardPoint.DiscardIncluding(5);
 			var maybeDiscardPoint = DiscardPoint.DiscardIncluding(12);
@@ -233,8 +233,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_get_stream_execution_details() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData() {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
@@ -250,8 +250,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_try_get_stream_execution_details_when_only_tombstoned() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 			
 			sut.SetTombstone(33);
 
@@ -260,8 +260,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_try_get_stream_execution_details_of_non_existing() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			Assert.False(sut.TryGetChunkExecutionInfo(33, out var v));
 			Assert.Equal(default, v);
@@ -269,8 +269,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_enumerate_all_items() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var osd = GetOriginalStreamTestData();
 			
@@ -305,8 +305,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_enumerate_from_checkpoint() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var osd = GetOriginalStreamTestData();
 			
@@ -329,8 +329,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_remove_value_from_map() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var osd = GetOriginalStreamTestData();
 			
@@ -348,8 +348,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void can_try_remove_value_from_map() {
-			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			Assert.False(sut.TryRemove(33, out _));
 		}
