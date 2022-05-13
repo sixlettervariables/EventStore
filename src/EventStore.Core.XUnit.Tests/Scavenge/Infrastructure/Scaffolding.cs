@@ -331,7 +331,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return new ScaffoldChunkReaderForExecutor(_chunkSize, chunkNum, _log[chunkNum]);
 		}
 
-		public bool TrySwitchChunk(
+		public void SwitchChunk(
 			ScaffoldChunk chunk,
 			bool verifyHash,
 			bool removeChunksWithGreaterNumbers,
@@ -339,7 +339,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			_log[chunk.LogicalChunkNumber] = chunk.Records;
 			newFileName = $"chunk{chunk.LogicalChunkNumber}";
-			return true;
 		}
 	}
 

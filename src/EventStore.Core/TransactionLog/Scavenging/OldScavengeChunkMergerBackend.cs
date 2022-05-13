@@ -4,7 +4,6 @@ using EventStore.Core.TransactionLog.Chunks;
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class OldScavengeChunkMergerBackend : IChunkMergerBackend {
 		private readonly TFChunkDb _db;
-		private readonly long _maxChunkDataSize;
 		private readonly bool _unsafeIgnoreHardDeletes;
 
 		public OldScavengeChunkMergerBackend(

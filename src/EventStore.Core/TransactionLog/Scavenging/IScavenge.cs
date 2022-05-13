@@ -273,7 +273,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		IChunkReaderForExecutor<TStreamId> GetChunkReaderFor(long position);
 
-		bool TrySwitchChunk(
+		void SwitchChunk(
 			TChunk chunk,
 			bool verifyHash,
 			bool removeChunksWithGreaterNumbers,

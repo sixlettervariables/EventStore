@@ -25,25 +25,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return ret;
 		}
 
-		public bool TrySwitchChunk(
+		public void SwitchChunk(
 			TChunk chunk,
 			bool verifyHash,
 			bool removeChunksWithGreaterNumbers,
 			out string newFileName) {
 
-			var ret = _wrapped.TrySwitchChunk(
+			_wrapped.SwitchChunk(
 				chunk,
 				verifyHash,
 				removeChunksWithGreaterNumbers,
 				out newFileName);
 
-			if (ret) {
-				_tracer.Trace($"Switched in chunk {newFileName}");
-			} else {
-				_tracer.Trace($"Did not switch in chunk {newFileName}");
-			}
-
-			return ret;
+			_tracer.Trace($"Switched in chunk {newFileName}");
 		}
 	}
 }

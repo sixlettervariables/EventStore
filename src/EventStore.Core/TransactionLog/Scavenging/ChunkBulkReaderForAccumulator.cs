@@ -149,7 +149,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return new ChunkReaderForExecutor(tfChunk);
 		}
 
-		public bool TrySwitchChunk(
+		public void SwitchChunk(
 			TFChunk chunk,
 			bool verifyHash,
 			bool removeChunksWithGreaterNumbers,
@@ -161,12 +161,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				removeChunksWithGreaterNumbers);
 
 			if (tfChunk == null) {
-				newFileName = default;
-				return false;
-			} else {
-				newFileName = tfChunk.FileName;
-				return true;
+				throw new Exception(); //qq detail, old scavenge handles this but it looks like its impossible
 			}
+
+			newFileName = tfChunk.FileName;
 		}
 	}
 

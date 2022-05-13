@@ -62,6 +62,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 					if (physicalWeight >= scavengePoint.Threshold || _unsafeIgnoreHardDeletes) {
 						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
+
+						state.ResetChunkWeights(
+							physicalChunk.ChunkStartNumber,
+							physicalChunk.ChunkEndNumber);
 					}
 
 					cancellationToken.ThrowIfCancellationRequested();
@@ -71,6 +75,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							scavengePoint,
 							physicalChunk.ChunkEndNumber));
 				} catch {
+					//qq here might be sensible place, the old scavenge handles various exceptions
+					// FileBeingDeletedException, OperationCanceledException, Exception
+					// with logging and without stopping the scavenge i think. consider what we want to do
 					transaction.Rollback();
 					throw;
 				}
@@ -187,21 +194,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// 3. write the posmap
 			// 4. finalise the chunk
 			// 5. swap it in to the chunkmanager
-			if (_chunkManager.TrySwitchChunk(
+			_chunkManager.SwitchChunk(
 				newChunk.WrittenChunk,
 				verifyHash: default, //qq
 				removeChunksWithGreaterNumbers: default, //qq
-				out var newFileName)) {
-				//qq what is the new file name of an inmemory chunk :/
-				//qq log
-				state.ResetChunkWeights(
-					chunk.ChunkStartNumber,
-					chunk.ChunkEndNumber);
-			} else {
-				//qq log
-				// dont reset the weights, we couldn't switch it in.
-				//qqqqq what if _unsafeIgnoreHardDeletes is true, this situation is a serious error i think
-			}
+				out var newFileName);
+			//qq what is the new file name of an inmemory chunk :/
+			//qq log
 		}
 
 		private bool ShouldDiscard(
