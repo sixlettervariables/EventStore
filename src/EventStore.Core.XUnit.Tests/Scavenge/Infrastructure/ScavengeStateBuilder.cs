@@ -5,6 +5,7 @@ using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class ScavengeStateBuilder : IDisposable {
@@ -81,7 +82,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					_sqliteBackend.CheckpointStorage,
 					_sqliteBackend.ChunkTimeStampRanges,
 					_sqliteBackend.ChunkWeights,
-					_sqliteBackend);
+					new TransactionManager<SqliteTransaction>(_sqliteBackend, _sqliteBackend.CheckpointStorage));
 			}
 			
 			

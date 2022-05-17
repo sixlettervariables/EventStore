@@ -12,8 +12,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public IScavengeMap<TStreamId, Unit> CollisionStorage { get; private set; }
 		public IScavengeMap<ulong,TStreamId> Hashes { get; private set; }
-		public IScavengeMap<ulong,DiscardPoint> MetaStorage { get; private set; }
-		public IScavengeMap<TStreamId,DiscardPoint> MetaCollisionStorage { get; private set; }
+		public IMetastreamScavengeMap<ulong> MetaStorage { get; private set; }
+		public IMetastreamScavengeMap<TStreamId> MetaCollisionStorage { get; private set; }
 		public IOriginalStreamScavengeMap<ulong> OriginalStorage { get; private set; }
 		public IOriginalStreamScavengeMap<TStreamId> OriginalCollisionStorage { get; private set; }
 		public IScavengeMap<Unit,ScavengeCheckpoint> CheckpointStorage { get; private set; }
@@ -31,10 +31,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			var hashes = new SqliteScavengeMap<ulong, TStreamId>("HashesMap");
 			Hashes = hashes;
 
-			var metaStorage = new SqliteFixedStructScavengeMap<ulong, DiscardPoint>("MetaStorageMap");
+			var metaStorage = new SqliteMetastreamScavengeMap<ulong>("MetaStorageMap");
 			MetaStorage = metaStorage;
 			
-			var metaCollisionStorage = new SqliteFixedStructScavengeMap<TStreamId, DiscardPoint>("MetaCollisionMap");
+			var metaCollisionStorage = new SqliteMetastreamScavengeMap<TStreamId>("MetaCollisionMap");
 			MetaCollisionStorage = metaCollisionStorage;
 			
 			var originalStorage = new SqliteOriginalStreamScavengeMap<ulong>("OriginalStreamStorageMap");
