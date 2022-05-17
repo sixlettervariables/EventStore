@@ -54,8 +54,9 @@ namespace EventStore.Core.Helpers {
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void TrySwitchState(State from, State to) {
-			if (Interlocked.CompareExchange(ref _state, (int)to, (int)from) != (int)from)
-				throw new InvalidOperationException($"Failed to transition from state: {from} to {to}.");
+			var was = (State)Interlocked.CompareExchange(ref _state, (int)to, (int)from);
+			if (was != from)
+				throw new InvalidOperationException($"Failed to transition buffer from state: {from} to {to}. Was {was}.");
 		}
 	}
 }
