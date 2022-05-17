@@ -17,6 +17,18 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 			BinaryReader reader,
 			byte version,
 			long logPosition,
+			ReadSpecs readSpecs) {
+
+			//qq temporary plaster to avoid tests fighting over the static buffer
+			lock (_streamIdBuffer) {
+				return ReadFromImpl(reader, version, logPosition, readSpecs);
+			}
+		}
+
+		private static BasicPrepareLogRecord ReadFromImpl(
+			BinaryReader reader,
+			byte version,
+			long logPosition,
 			ReadSpecs readSpecs)
 		{
 			if (version != LogRecordVersion.LogRecordV0 && version != LogRecordVersion.LogRecordV1)
@@ -86,7 +98,7 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 				metadataSize);
 
 			WriteStreamIdToBuffer(buffer, ref offset, streamId);
-			_streamIdBuffer.Release();
+			_streamIdBuffer.Release(); //qq danger of not releasing if we throw before here
 
 			if (includeData) {
 				Debug.Assert(dataPosition != -1);
