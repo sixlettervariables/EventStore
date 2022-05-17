@@ -5,10 +5,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EventStore.Core.Data;
+using EventStore.Core.Helpers;
 using EventStore.Core.Index;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
+using EventStore.Core.LogV2;
 using EventStore.Core.Services;
+using EventStore.Core.TransactionLog;
 using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
@@ -110,7 +113,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_metastreamLookup = metastreamLookup;
 		}
 
-		public IEnumerable<RecordForAccumulator<string>> ReadChunk(int logicalChunkNumber) {
+		public IEnumerable<RecordForAccumulator<string>> ReadChunk(
+			int logicalChunkNumber,
+			ReusableObject<RecordForAccumulator<string>.OriginalStreamRecord> originalStreamRecord,
+			ReusableObject<RecordForAccumulator<string>.MetadataStreamRecord> metadataStreamRecord,
+			ReusableObject<RecordForAccumulator<string>.TombStoneRecord> tombStoneRecord) {
+
 			if (logicalChunkNumber >= _log.Length) {
 				throw new ArgumentOutOfRangeException(
 					nameof(logicalChunkNumber),
@@ -118,31 +126,64 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					null);
 			}
 
-			foreach (var record in _log[logicalChunkNumber]) {
-				if (!(record is PrepareLogRecord prepare))
-					continue;
+			var streamIdConverter = new LogV2StreamIdConverter();
+			var reusableRecordBuffer = new ReusableBuffer(1024);
+			var reusableBasicPrepare = ReusableObject.Create(new BasicPrepareLogRecord());
 
-				if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
-					yield return new RecordForAccumulator<string>.TombStoneRecord {
-						EventNumber = prepare.ExpectedVersion + 1,
-						LogPosition = prepare.LogPosition,
-						StreamId = prepare.EventStreamId,
-						TimeStamp = prepare.TimeStamp,
-					};
-				} else if (_metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
-					yield return new RecordForAccumulator<string>.MetadataStreamRecord {
-						EventNumber = prepare.ExpectedVersion + 1,
-						LogPosition = prepare.LogPosition,
-						Metadata = StreamMetadata.TryFromJsonBytes(prepare),
-						StreamId = prepare.EventStreamId,
-						TimeStamp = prepare.TimeStamp,
-					};
-				} else {
-					yield return new RecordForAccumulator<string>.OriginalStreamRecord {
-						LogPosition = prepare.LogPosition,
-						StreamId = prepare.EventStreamId,
-						TimeStamp = prepare.TimeStamp,
-					};
+			void OnRecordDispose() {
+				reusableBasicPrepare.Release();
+				reusableRecordBuffer.Release();
+			}
+
+			var readSpecs = new ReadSpecsBuilder()
+				.SkipCommitRecords()
+				.SkipSystemRecords()
+				.ReadBasicPrepareRecords(
+					includeData: (streamId, _) => _metastreamLookup.IsMetaStream(streamIdConverter.ToStreamId(streamId)),
+					includeMetadata: delegate { return false; },
+					basicPrepareRecordFactory: size => {
+						var buffer = reusableRecordBuffer.AcquireAsByteArray(size);
+						var basicPrepare = reusableBasicPrepare.Acquire(new BasicPrepareInitParams(buffer, OnRecordDispose));
+						return basicPrepare;
+					}
+				);
+
+			var chunkBytes = new byte[1024];
+
+			using (var chunkBuffer = new MemoryStream(chunkBytes))
+			using (var chunkWriter = new BinaryWriter(chunkBuffer))
+			using (var chunkReader = new BinaryReader(chunkBuffer)) {
+
+				foreach (var record in _log[logicalChunkNumber]) {
+					if (!(record is PrepareLogRecord prepare))
+						continue;
+
+					// write and then read to end up with a BasicPrepareLogRecord
+					chunkBuffer.Position = 0;
+					record.WriteTo(chunkWriter);
+					chunkBuffer.Position = 0;
+					var recordType = (LogRecordType)chunkReader.ReadByte();
+					var version = chunkReader.ReadByte();
+					var logPosition = chunkReader.ReadInt64();
+
+					// expects the reader to have already read the type, version and position
+					var basicPrepare = BasicPrepareLogRecordReader.ReadFrom(
+						chunkReader,
+						version: version,
+						logPosition: logPosition,
+						readSpecs: readSpecs);
+
+
+					var streamId = streamIdConverter.ToStreamId(basicPrepare.EventStreamId);
+					var initParams = new RecordForAccumulatorInitParams<string>(basicPrepare, streamId);
+
+					if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
+						yield return tombStoneRecord.Acquire(initParams);
+					} else if (_metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
+						yield return metadataStreamRecord.Acquire(initParams);
+					} else {
+						yield return originalStreamRecord.Acquire(initParams);
+					}
 				}
 			}
 		}
