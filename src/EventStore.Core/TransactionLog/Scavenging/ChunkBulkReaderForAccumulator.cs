@@ -30,7 +30,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			// 1 kb should be more than enough to fit the largest metadata record in usual cases
 			var reusableRecordBuffer = new ReusableBuffer(1024);
-			var reusableBasicPrepare = new ReusableObject<BasicPrepareLogRecord>(() => new BasicPrepareLogRecord());
+			var reusableBasicPrepare = ReusableObject.Create(new BasicPrepareLogRecord());
 
 			void OnRecordDispose() {
 				reusableBasicPrepare.Release();

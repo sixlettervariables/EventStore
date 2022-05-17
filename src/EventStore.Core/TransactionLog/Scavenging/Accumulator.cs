@@ -60,12 +60,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var scavengePoint = checkpoint.ScavengePoint;
 
 			// reusable objects to avoid GC pressure
-			var originalStreamRecord = new ReusableObject<RecordForAccumulator<TStreamId>.OriginalStreamRecord>(
-				() => new RecordForAccumulator<TStreamId>.OriginalStreamRecord());
-			var metadataStreamRecord = new ReusableObject<RecordForAccumulator<TStreamId>.MetadataStreamRecord>(
-				() => new RecordForAccumulator<TStreamId>.MetadataStreamRecord());
-			var tombstoneRecord = new ReusableObject<RecordForAccumulator<TStreamId>.TombStoneRecord>(
-				() => new RecordForAccumulator<TStreamId>.TombStoneRecord());
+			var originalStreamRecord = ReusableObject.Create(
+				new RecordForAccumulator<TStreamId>.OriginalStreamRecord());
+			var metadataStreamRecord = ReusableObject.Create(
+				new RecordForAccumulator<TStreamId>.MetadataStreamRecord());
+			var tombstoneRecord = ReusableObject.Create(
+				new RecordForAccumulator<TStreamId>.TombStoneRecord());
 
 			while (AccumulateChunkAndRecordRange(
 					scavengePoint,

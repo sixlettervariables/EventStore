@@ -7,6 +7,11 @@ namespace EventStore.Core.Helpers {
 	// If used correctly, there should not be any contention since there can be only one user of the object at a time.
 	// However, some synchronization is done since the Acquire() and Release() methods are allowed to be called from
 	// different threads.
+	public static class ReusableObject {
+		public static ReusableObject<T> Create<T>(T t) where T : IReusableObject =>
+			new ReusableObject<T>(t);
+	}
+
 	public class ReusableObject<TObject> where TObject : IReusableObject{
 		private readonly TObject _object;
 		private int _state;
@@ -17,9 +22,9 @@ namespace EventStore.Core.Helpers {
 			Acquired = 2
 		}
 
-		public ReusableObject(Func<TObject> objectFactory) {
+		public ReusableObject(TObject obj) {
 			_state = (int) State.Free;
-			_object = objectFactory();
+			_object = obj;
 		}
 
 		public TObject Acquire(IReusableObjectInitParams initParams) {
