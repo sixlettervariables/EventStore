@@ -6,14 +6,6 @@ namespace EventStore.Common.Utils {
 		public static void Skip(this BinaryReader reader, params int[] bytes) =>
 			reader.BaseStream.Skip(bytes);
 
-		public static (int lengthSize,int stringSize) SkipString(this BinaryReader reader) {
-			var originalPosition = reader.BaseStream.Position;
-			var stringSize = ReadStringSize(reader);
-			var lengthSize = (int) (reader.BaseStream.Position - originalPosition);
-			reader.Skip(stringSize);
-			return (lengthSize, stringSize);
-		}
-
 		public static int ReadStringSize(this BinaryReader reader) => Read7BitEncodedInt(reader);
 
 		public static bool TryReadFull(this BinaryReader reader, byte[] buffer, int index, int count) {

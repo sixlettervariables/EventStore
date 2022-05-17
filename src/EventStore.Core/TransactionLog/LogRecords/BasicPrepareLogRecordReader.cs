@@ -11,6 +11,7 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 	public static class BasicPrepareLogRecordReader {
 		private const byte PrepareRecordVersion = 1;
 		private static readonly ReusableBuffer _streamIdBuffer = new ReusableBuffer(256);
+		private static readonly ReusableBuffer _eventTypeBuffer = new ReusableBuffer(256);
 
 		public static BasicPrepareLogRecord ReadFrom(
 			BinaryReader reader,
@@ -34,7 +35,7 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 
 			// it is necessarily to do an early read of the stream id since reading the data/metadata depends on which
 			// stream is being read. we thus use a reusable buffer for the stream id to avoid allocations.
-			var streamId = ReadStreamId(reader, _streamIdBuffer);
+			var streamId = ReadString(reader, _streamIdBuffer);
 
 			/* event id */
 			reader.ReadInt64();
@@ -45,7 +46,8 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 			reader.ReadInt64();
 
 			var timestamp = reader.ReadInt64();
-			reader.SkipString(); /* event type */
+			ReadString(reader, _eventTypeBuffer); /* event type */
+			_eventTypeBuffer.Release();
 
 			var includeData = readSpecs.IncludePrepareData(streamId, expectedVersion + 1);
 			var includeMetadata = readSpecs.IncludePrepareMetadata(streamId, expectedVersion + 1);
@@ -99,13 +101,13 @@ namespace EventStore.Core.TransactionLog.LogRecords {
 			return basicPrepare;
 		}
 
-		private static ReadOnlySpan<byte> ReadStreamId(BinaryReader reader, ReusableBuffer buffer) {
-			var streamIdSize = reader.ReadStringSize();
-			var streamIdBuffer = buffer.AcquireAsByteArray(streamIdSize);
-			if (!reader.TryReadFull(streamIdBuffer, 0, streamIdSize))
-				throw new Exception($"Failed to read stream id.");
+		private static ReadOnlySpan<byte> ReadString(BinaryReader reader, ReusableBuffer buffer) {
+			var stringSize = reader.ReadStringSize();
+			var stringBuffer = buffer.AcquireAsByteArray(stringSize);
+			if (!reader.TryReadFull(stringBuffer, 0, stringSize))
+				throw new Exception($"Failed to read string.");
 
-			return streamIdBuffer.AsSpan(0, streamIdSize);
+			return stringBuffer.AsSpan(0, stringSize);
 		}
 
 		private static void ReadDataOrMetadataInfo(
