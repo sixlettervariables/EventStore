@@ -145,8 +145,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						var buffer = reusableRecordBuffer.AcquireAsByteArray(size);
 						var basicPrepare = reusableBasicPrepare.Acquire(new BasicPrepareInitParams(buffer, OnRecordDispose));
 						return basicPrepare;
-					}
-				);
+					})
+				.Build();
 
 			var chunkBytes = new byte[1024];
 

@@ -1,5 +1,4 @@
 using System;
-using EventStore.Core.TransactionLog.LogRecords;
 
 namespace EventStore.Core.TransactionLog {
 	public class ReadSpecsBuilder {
@@ -29,10 +28,6 @@ namespace EventStore.Core.TransactionLog {
 		public ReadSpecsBuilder SkipCommitRecords() {
 			_skipCommitRecords = true;
 			return this;
-		}
-
-		public static implicit operator ReadSpecs(ReadSpecsBuilder builder) {
-			return builder.Build();
 		}
 
 		public ReadSpecs Build() {

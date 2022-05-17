@@ -47,8 +47,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						var buffer = reusableRecordBuffer.AcquireAsByteArray(size);
 						var basicPrepare = reusableBasicPrepare.Acquire(new BasicPrepareInitParams(buffer, OnRecordDispose));
 						return basicPrepare;
-					}
-				);
+					})
+				.Build();
 		}
 
 		public IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(
