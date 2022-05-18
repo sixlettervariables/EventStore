@@ -62,7 +62,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var replicationChk = _replicationChk.ReadNonFlushed();
 			while (replicationChk == -1 ||
-			       globalStartPos + localPos < replicationChk) {
+			       globalStartPos + localPos <= replicationChk) {
 				var result = chunk.TryReadClosestForward(localPos, _readSpecs);
 
 				if (!result.Success)
