@@ -248,6 +248,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (_metastreamLookup.IsMetaStream(originalStreamId)) {
 				// record in a metadata stream of a metadata stream: $$$$xyz
 				// this does not set metadata for $$xyz (which is fixed at maxcount1)
+				// (see IndexReader.GetStreamMetadataCached)
 				// but it does, itself, have a fixed metadta of maxcount1, so move the discard point.
 			} else {
 				// record is in a standard metadata stream: $$xyz

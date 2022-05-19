@@ -7,12 +7,6 @@ using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class UnsafeIgnoreHardDeletesTests {
-		//qq UNSAFE IGNORE HARD DELETES
-		// - it would mean the scavenge would have to make sure it removed all the records from all the
-		//   chunks and the index (i.e. threshold 0, or 1, //qq and never keep unscavenged if smaller
-		// - also it goes without saying that bad things will happen if they mix chunks in from
-		//   a node that has not had the scavenge that removed the events
-
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
@@ -58,7 +52,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			// the second scavenge with unsafeharddeletes
 			(state, db) = await new Scenario()
-				//qq.WithTracerFrom(scenario)
 				.WithDb(db)
 				.WithState(x => x.ExistingState(state))
 				.WithUnsafeIgnoreHardDeletes()

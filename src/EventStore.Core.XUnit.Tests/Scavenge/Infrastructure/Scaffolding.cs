@@ -36,7 +36,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_effectiveNow = effectiveNow;
 		}
 
-		public Task<ScavengePoint> GetLatestScavengePointAsync() {
+		public Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
 			ScavengePoint scavengePoint = default;
 			foreach (var record in AllRecords()) {
 				if (record is PrepareLogRecord prepare &&
@@ -58,7 +58,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		//qq maybe actually add it to the log, or not if we get rid of this soon enough
 		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
-			var latestScavengePoint = await GetLatestScavengePointAsync();
+			var latestScavengePoint = await GetLatestScavengePointOrDefaultAsync();
 			var actualVersion = latestScavengePoint != null
 				? latestScavengePoint.EventNumber
 				: -1;
@@ -88,7 +88,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			_log[_log.Length - 1] = newChunk.ToArray();
 
-			var scavengePoint = await GetLatestScavengePointAsync();
+			var scavengePoint = await GetLatestScavengePointOrDefaultAsync();
 			return scavengePoint;
 		}
 

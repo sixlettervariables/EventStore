@@ -15,7 +15,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		//qq wip
-		public async Task<ScavengePoint> GetLatestScavengePointAsync() {
+		public async Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
 			var readTcs = new TaskCompletionSource<ResolvedEvent[]>();
 			var endStreamPosition = -1;
 
@@ -87,7 +87,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			await writeTcs.Task;
 
-			var scavengePoint = await GetLatestScavengePointAsync();
+			var scavengePoint = await GetLatestScavengePointOrDefaultAsync();
 
 			if (scavengePoint.EventNumber != expectedVersion + 1)
 				throw new Exception("dfglskjas"); //qq detail

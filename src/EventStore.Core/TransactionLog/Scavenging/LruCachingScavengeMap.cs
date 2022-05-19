@@ -1,7 +1,4 @@
-﻿//qq implement.consider whether decorator that adds a bloom filter would be useful as well as
-// caching in certain cases too.
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using EventStore.Core.DataStructures;
 
 namespace EventStore.Core.TransactionLog.Scavenging {

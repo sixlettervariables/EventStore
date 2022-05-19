@@ -11,7 +11,7 @@ using EventStore.Core.TransactionLog.Chunks.TFChunk;
 using EventStore.Core.TransactionLog.LogRecords;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq own files for stuff in here
+	//qq own files for stuff in here, to be placed in DbAccess
 	public class ChunkReaderForAccumulator<TStreamId> : IChunkReaderForAccumulator<TStreamId> {
 		private readonly TFChunkManager _manager;
 		private readonly IMetastreamLookup<TStreamId> _metaStreamLookup;

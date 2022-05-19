@@ -132,22 +132,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		async Task StartNewAsync(
+		private async Task StartNewAsync(
 			ScavengePoint prevScavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
 			// prevScavengePoint is the previous one that was completed
-			// lastScavengePoint is the latest one in the database
+			// latestScavengePoint is the latest one in the database
 			// nextScavengePoint is the one we are about to scavenge up to
-			// Get the latest scavengePoint and scavenge from prevScavengePoint to there.
-			// If there is no latest scavengePoint, or it _is_ the prev, then create a new one.
 
-			//qq draw from request, with default such that any chunk with
-			//non-zero weight will be executed
+			// threshold < 0: execute all chunks, even those with no weight
+			// threshold = 0: execute all chunks with weight greater than 0
+			// threshold > 0: execute all chunks above a certain weight
 			var threshold = 0;
 			ScavengePoint nextScavengePoint;
-			var latestScavengePoint = await _scavengePointSource.GetLatestScavengePointAsync();
+			var latestScavengePoint = await _scavengePointSource.GetLatestScavengePointOrDefaultAsync();
 			if (latestScavengePoint == null) {
 				// no latest scavenge point, create the first one
 				nextScavengePoint = await _scavengePointSource
@@ -171,7 +170,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterAccumulation(nextScavengePoint, scavengerLogger, cancellationToken);
 		}
 
-		void AfterAccumulation(
+		private void AfterAccumulation(
 			ScavengePoint scavengepoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
@@ -180,7 +179,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterCalculation(scavengepoint, scavengerLogger, cancellationToken);
 		}
 
-		void AfterCalculation(
+		private void AfterCalculation(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
@@ -189,7 +188,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterChunkExecution(scavengePoint, scavengerLogger, cancellationToken);
 		}
 
-		void AfterChunkExecution(
+		private void AfterChunkExecution(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
@@ -198,7 +197,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterChunkMerging(scavengePoint, scavengerLogger, cancellationToken);
 		}
 
-		void AfterChunkMerging(
+		private void AfterChunkMerging(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
@@ -207,7 +206,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterIndexExecution(scavengePoint, cancellationToken);
 		}
 
-		void AfterIndexExecution(
+		private void AfterIndexExecution(
 			ScavengePoint scavengePoint,
 			CancellationToken cancellationToken) {
 
@@ -215,7 +214,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AfterCleaning(scavengePoint);
 		}
 
-		void AfterCleaning(ScavengePoint scavengePoint) {
+		private void AfterCleaning(ScavengePoint scavengePoint) {
 			//qq check this is the right scavengepoint
 			_state.SetCheckpoint(new ScavengeCheckpoint.Done(scavengePoint));
 		}

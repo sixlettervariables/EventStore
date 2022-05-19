@@ -39,7 +39,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IMetastreamScavengeMap<TStreamId> metaCollisionStorage,
 			IOriginalStreamScavengeMap<ulong> originalStorage,
 			IOriginalStreamScavengeMap<TStreamId> originalCollisionStorage,
-			//qq wanna key to store multiple checkpoints?
 			IScavengeMap<Unit, ScavengeCheckpoint> checkpointStorage,
 			IScavengeMap<int, ChunkTimeStampRange> chunkTimeStampRanges,
 			IChunkWeightScavengeMap chunkWeights,
@@ -86,14 +85,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint) =>
 			_checkpointStorage.TryGetValue(Unit.Instance, out checkpoint);
 
-
-
-
-
-		//
-		// STUFF THAT CAME FROM COLLISION MANAGER
-		//
-
 		//qq method? property? enumerable? array? clunky allocations at the moment.
 		public IEnumerable<TStreamId> Collisions() {
 			return _collisionDetector.GetAllCollisions();
@@ -104,13 +95,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			out OriginalStreamData originalStreamData) =>
 
 			_originalStreamDatas.TryGetValue(streamId, out originalStreamData);
-
-
-
-
-
-
-
 
 		//
 		// FOR ACCUMULATOR
@@ -147,9 +131,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkTimeStampRanges[logicalChunkNumber] = range;
 		}
 
-
-
-
 		//
 		// FOR CALCULATOR
 		//
@@ -160,7 +141,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			return _originalStreamDatas.Enumerate(checkpoint);
 		}
-
 
 		public void SetOriginalStreamDiscardPoints(
 			StreamHandle<TStreamId> handle,
@@ -178,12 +158,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public bool TryGetChunkTimeStampRange(int logicalChunkNumber, out ChunkTimeStampRange range) =>
 			_chunkTimeStampRanges.TryGetValue(logicalChunkNumber, out range);
 
-
-
-
 		//
 		// FOR CHUNK EXECUTOR
 		//
+
 		public float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) =>
 			_chunkWeights.SumChunkWeights(startLogicalChunkNumber, endLogicalChunkNumber);
 
