@@ -37,9 +37,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				_nonCollisions.SetDiscardPoint(_hasher.Hash(streamId), discardPoint);
 		}
 
-		public void DeleteTombstoned() {
-			_collisions.DeleteTombstoned();
-			_nonCollisions.DeleteTombstoned();
+		public void DeleteAll() {
+			_collisions.DeleteAll();
+			_nonCollisions.DeleteAll();
 		}
 	}
 }

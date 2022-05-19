@@ -33,6 +33,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//qq is this used in a path where allocations are ok.. albeit a pretty small one.
 		//would IEnumerable better, consider threading
 		public T[] GetAllCollisions() => _collisions
+			.AllRecords()
 			.Select(x => x.Key)
 			.OrderBy(x => x)
 			.ToArray();

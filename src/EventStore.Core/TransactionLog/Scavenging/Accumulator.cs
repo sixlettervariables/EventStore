@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using EventStore.Core.Helpers;
 using EventStore.Core.LogAbstraction;
@@ -8,17 +8,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly int _chunkSize;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
+		private readonly IIndexReaderForAccumulator<TStreamId> _index;
 		private readonly int _cancellationCheckPeriod;
 
 		public Accumulator(
 			int chunkSize,
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkReaderForAccumulator<TStreamId> chunkReader,
+			IIndexReaderForAccumulator<TStreamId> index,
 			int cancellationCheckPeriod) {
 
 			_chunkSize = chunkSize;
 			_metastreamLookup = metastreamLookup;
 			_chunkReader = chunkReader;
+			_index = index;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
 		}
 
@@ -58,6 +61,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//qq is the plus 1 necessaryily ok, bounds?
 			var logicalChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
+			var weights = new WeightAccumulator(state);
 
 			// reusable objects to avoid GC pressure
 			var originalStreamRecord = ReusableObject.Create(
@@ -70,6 +74,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			while (AccumulateChunkAndRecordRange(
 					scavengePoint,
 					state,
+					weights,
 					logicalChunkNumber,
 					originalStreamRecord,
 					metadataStreamRecord,
@@ -82,6 +87,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private bool AccumulateChunkAndRecordRange(
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
+			WeightAccumulator weights,
 			int logicalChunkNumber,
 			ReusableObject<RecordForAccumulator<TStreamId>.OriginalStreamRecord> originalStreamRecord,
 			ReusableObject<RecordForAccumulator<TStreamId>.MetadataStreamRecord> metadataStreamRecord,
@@ -94,6 +100,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				var ret = AccumulateChunk(
 					scavengePoint,
 					state,
+					weights,
 					logicalChunkNumber,
 					originalStreamRecord,
 					metadataStreamRecord,
@@ -112,6 +119,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// empty range, no need to store it.
 				}
 
+				weights.Flush();
 				transaction.Commit(new ScavengeCheckpoint.Accumulating(
 					scavengePoint,
 					doneLogicalChunkNumber: logicalChunkNumber));
@@ -128,6 +136,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private bool AccumulateChunk(
 			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
+			WeightAccumulator weights,
 			int logicalChunkNumber,
 			ReusableObject<RecordForAccumulator<TStreamId>.OriginalStreamRecord> originalStreamRecord,
 			ReusableObject<RecordForAccumulator<TStreamId>.MetadataStreamRecord> metadataStreamRecord,
@@ -166,11 +175,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							originalStreamRecord.Release();
 							break;
 						case RecordForAccumulator<TStreamId>.MetadataStreamRecord x:
-							ProcessMetastreamRecord(x, state);
+							ProcessMetastreamRecord(x, state, weights);
 							metadataStreamRecord.Release();
 							break;
 						case RecordForAccumulator<TStreamId>.TombStoneRecord x:
-							ProcessTombstone(x, state);
+							ProcessTombstone(x, state, weights);
 							tombStoneRecord.Release();
 							break;
 						default:
@@ -207,16 +216,34 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//   - store the metadata against the original stream so the calculator can calculate the
 		//         discard point.
 		//   - update the discard point of the metadatastream
+		//   - increase the weight of the chunk with the old metadata if applicable
 		// the actual type of the record isn't relevant. if it is in a metadata stream it affects
 		// the metadata. if its data parses to streammetadata then thats the metadata. if it doesn't
 		// parse, then it clears the metadata.
 		private void ProcessMetastreamRecord(
 			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
-			IScavengeStateForAccumulator<TStreamId> state) {
+			IScavengeStateForAccumulator<TStreamId> state,
+			WeightAccumulator weights) {
 
 			var originalStreamId = _metastreamLookup.OriginalStreamOf(record.StreamId);
 			state.DetectCollisions(originalStreamId);
 			state.DetectCollisions(record.StreamId);
+
+			if (record.EventNumber < 0)
+				throw new InvalidOperationException(
+					$"Found metadata in transaction in stream {record.StreamId}");
+
+			CheckMetadataOrdering(record, out var isInOrder, out var replacedPosition);
+
+			if (replacedPosition.HasValue) {
+				var logicalChunkNumber = (int)(replacedPosition.Value / _chunkSize);
+				weights.OnDiscard(logicalChunkNumber: logicalChunkNumber);
+			}
+
+			if (!isInOrder) {
+				//qq definitely log a warning, perhaps to the scavenge log, this should be rare.
+				return;
+			}
 
 			if (_metastreamLookup.IsMetaStream(originalStreamId)) {
 				// record in a metadata stream of a metadata stream: $$$$xyz
@@ -228,10 +255,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				state.SetOriginalStreamMetadata(originalStreamId, record.Metadata);
 			}
 
-			if (record.EventNumber < 0)
-				throw new InvalidOperationException(
-					$"Found metadata in transaction in stream {record.StreamId}");
-
 			// Update the discard point
 			var discardPoint = DiscardPoint.DiscardBefore(record.EventNumber);
 			state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
@@ -240,9 +263,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// For every tombstone
 		//   - check if the stream collides
 		//   - set the istombstoned flag to true
+		//   - increase the weight of the chunk with the old metadata if applicable
 		private void ProcessTombstone(
 			RecordForAccumulator<TStreamId>.TombStoneRecord record,
-			IScavengeStateForAccumulator<TStreamId> state) {
+			IScavengeStateForAccumulator<TStreamId> state,
+			WeightAccumulator weights) {
 
 			state.DetectCollisions(record.StreamId);
 
@@ -263,6 +288,70 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var metastreamId = _metastreamLookup.MetaStreamOf(originalStreamId);
 			state.SetMetastreamTombstone(metastreamId);
+
+			// unlike metadata, a tombstone still takes effect even it is out of order in the log
+			// (because the index will still bless it with a max event number in the indexentry)
+			// so we don't need to check for order, but just need to get the last metadata record
+			// if any, and add weight for it.
+			var eventInfos = _index.ReadEventInfoBackward(
+				streamId: metastreamId,
+				fromEventNumber: record.EventNumber,
+				maxCount: 1);
+
+			foreach (var eventInfo in eventInfos) {
+				var logicalChunkNumber = (int)(eventInfo.LogPosition / _chunkSize);
+				weights.OnDiscard(logicalChunkNumber: logicalChunkNumber);
+			}
+		}
+
+		private void CheckMetadataOrdering(
+			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
+			out bool isInOrder,
+			out long? replacedPosition) {
+
+			// We have just received a metadata record.
+			// we need to achieve two things here
+			// 1. determine if this record is in order. if not we will skip over it and not apply it.
+			// 2. add appropriate weights
+			//     - this is the first metadata record -> no weight to add.
+			//     - we are displacing a record -> add weight to its chunk
+			//     - we are skipping over this record -> add weight to this records chunk
+			//
+			// todo: consider searching the rest of the eventInfos in the stream, not just 100 events
+			// but the chances of that many consecutive invalid metastream records being written is slim,
+			// and if the writes didn't produce the desired effect it is likely the user wrote the
+			// metadata successfully afterwards anyway.
+
+			// start from the event before us if possible, to see which event we are replacing.
+			var fromEventNumber = record.EventNumber == 0
+				? record.EventNumber
+				: record.EventNumber - 1;
+
+			var eventInfos = _index.ReadEventInfoForward(
+				streamId: record.StreamId,
+				fromEventNumber: fromEventNumber,
+				maxCount: 100);
+
+			isInOrder = true;
+			foreach (var eventInfo in eventInfos) {
+				if (eventInfo.LogPosition < record.LogPosition &&
+					eventInfo.EventNumber >= record.EventNumber) {
+
+					// found an event that is before us in the log but has our event number or higher.
+					// that record is the metadata that we will keep, skipping over this one.
+					isInOrder = false;
+				}
+			}
+
+			if (isInOrder) {
+				if (eventInfos.Length > 0 && eventInfos[0].EventNumber < record.EventNumber) {
+					replacedPosition = eventInfos[0].LogPosition;
+				} else {
+					replacedPosition = null;
+				}
+			} else {
+				replacedPosition = record.LogPosition;
+			}
 		}
 	}
 }

@@ -15,7 +15,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			sut[4] = "4";
 
 			Assert.Collection(
-				sut.FromCheckpoint(2),
+				sut.ActiveRecordsFromCheckpoint(2),
 				x => Assert.Equal("3", x.Value),
 				x => Assert.Equal("4", x.Value));
 		}

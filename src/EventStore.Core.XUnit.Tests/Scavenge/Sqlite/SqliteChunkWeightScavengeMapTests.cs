@@ -84,7 +84,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			sut.ResetChunkWeights(1, 3);
 			
-			Assert.Collection(sut,
+			Assert.Collection(sut.AllRecords(),
 				item => Assert.Equal(new KeyValuePair<int,float>(0, 0.1f), item),
 				item => Assert.Equal(new KeyValuePair<int,float>(4, 0.1f), item));
 		}

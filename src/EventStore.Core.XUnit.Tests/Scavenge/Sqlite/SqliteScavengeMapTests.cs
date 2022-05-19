@@ -116,7 +116,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 			sut[3] = 1;
 			sut[4] = 0;
 			
-			Assert.Collection(sut,
+			Assert.Collection(sut.AllRecords(),
 				item => Assert.Equal(new KeyValuePair<int,int>(0,4), item),
 				item => Assert.Equal(new KeyValuePair<int,int>(1,3), item),
 				item => Assert.Equal(new KeyValuePair<int,int>(2,2), item),
@@ -135,7 +135,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 			sut[3] = 1;
 			sut[4] = 0;
 			
-			Assert.Collection(sut.FromCheckpoint(2),
+			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
 				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
 				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
 		}

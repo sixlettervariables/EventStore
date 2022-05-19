@@ -80,7 +80,15 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			}, reader => reader.GetFieldValue<TValue>(0), out value);
 		}
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> FromCheckpoint(TKey checkpoint) {
+		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() {
+			throw new NotImplementedException(); //qqqqq all records
+		}
+
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() {
+			throw new NotImplementedException(); //qqqqq records whose status is active
+		}
+
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
 			var sql = $"SELECT key, value FROM {TableName} WHERE key > $key";
 
 			return ExecuteReader(sql, parameters => {
@@ -89,14 +97,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 				reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1)));
 		}
 
-		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() {
-			var sql = $"SELECT key, value FROM {TableName}";
-			return ExecuteReader(sql, p => { }, reader => new KeyValuePair<TKey, TValue>(
-				reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1))).GetEnumerator();
-		}
+		//qq remove public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() {
+		//	var sql = $"SELECT key, value FROM {TableName}";
+		//	return ExecuteReader(sql, p => { }, reader => new KeyValuePair<TKey, TValue>(
+		//		reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1))).GetEnumerator();
+		//}
 
-		IEnumerator IEnumerable.GetEnumerator() {
-			return GetEnumerator();
-		}
+		////qq remove IEnumerator IEnumerable.GetEnumerator() {
+		//	return GetEnumerator();
+		//}
 	}
 }

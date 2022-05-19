@@ -36,10 +36,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}.ToJsonBytes());
 
 		public static ScavengePoint ScavengePoint(int chunk, long eventNumber) => new ScavengePoint(
-			//qq 1024*1024 is the chunk size, want less magic
-			position: 1024 * 1024 * chunk,
+			position: PositionOfChunk(chunk),
 			eventNumber: eventNumber,
 			effectiveNow: EffectiveNow,
 			threshold: 0);
+
+		//qq 1024*1024 is the chunk size, want less magic
+		public static long PositionOfChunk(int logicalChunkNumber) => 1024 * 1024 * logicalChunkNumber;
 	}
 }

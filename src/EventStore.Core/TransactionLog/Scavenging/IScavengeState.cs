@@ -58,10 +58,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// that we might remove events from, so that later we can scavenge the index without looking anything
 	// up in the log.
 
-
 	// accumulator iterates through the log, spotting metadata records
 	// put in the data that the chunk and ptable scavenging require
-	public interface IScavengeStateForAccumulator<TStreamId> : IScavengeStateCommon {
+	public interface IScavengeStateForAccumulator<TStreamId> :
+		IScavengeStateCommon,
+		IIncreaseChunkWeights {
+
 		// call this for each record as we accumulate through the log so that we can spot every hash
 		// collision to save ourselves work later.
 		// this affects multiple parts of the scavengestate and must be called within a transaction so
@@ -74,6 +76,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		void SetMetastreamTombstone(TStreamId metastreamId);
 
 		void SetOriginalStreamMetadata(TStreamId originalStreamId, StreamMetadata metadata);
+
 		void SetOriginalStreamTombstone(TStreamId originalStreamId);
 
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
@@ -90,13 +93,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	public interface IScavengeStateForCalculator<TStreamId> :
-		IScavengeStateForCalculatorReadOnly<TStreamId> {
+		IScavengeStateForCalculatorReadOnly<TStreamId>,
+		IIncreaseChunkWeights {
 
 		void SetOriginalStreamDiscardPoints(
 			StreamHandle<TStreamId> streamHandle,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint);
+	}
 
+	public interface IIncreaseChunkWeights {
 		void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight);
 	}
 
@@ -120,7 +127,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	public interface IScavengeStateForCleaner : IScavengeStateCommon {
 		bool AllChunksExecuted();
-		void DeleteTombstonedOriginalStreams();
-		void DeleteTombstonedMetastreams();
+		void DeleteMetastreamData();
+		void DeleteOriginalStreamData(bool deleteArchived);
 	}
 }

@@ -18,25 +18,27 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public OriginalStreamData this[TKey key] { set => _wrapped[key] = value; }
 
-		public void DeleteTombstoned() {
-			_wrapped.DeleteTombstoned();
+		public void DeleteMany(bool deleteArchived) {
+			_wrapped.DeleteMany(deleteArchived);
 		}
 
-		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> FromCheckpoint(TKey checkpoint) {
-			return _wrapped.FromCheckpoint(checkpoint);
-		}
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> AllRecords() =>
+			_wrapped.AllRecords();
 
-		public IEnumerator<KeyValuePair<TKey, OriginalStreamData>> GetEnumerator() {
-			return _wrapped.GetEnumerator();
-		}
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecords() =>
+			_wrapped.ActiveRecords();
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
+			_wrapped.ActiveRecordsFromCheckpoint(checkpoint);
 
 		public void SetDiscardPoints(
 			TKey key,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint) {
 
-			_tracer.Trace($"SetDiscardPoints({key}, {discardPoint}, {maybeDiscardPoint})");
-			_wrapped.SetDiscardPoints(key, discardPoint, maybeDiscardPoint);
+			_tracer.Trace($"SetDiscardPoints({key}, {status}, {discardPoint}, {maybeDiscardPoint})");
+			_wrapped.SetDiscardPoints(key, status, discardPoint, maybeDiscardPoint);
 		}
 
 		public void SetMetadata(TKey key, StreamMetadata metadata) {
@@ -57,10 +59,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public bool TryRemove(TKey key, out OriginalStreamData value) {
 			return _wrapped.TryRemove(key, out value);
-		}
-
-		IEnumerator IEnumerable.GetEnumerator() {
-			return ((IEnumerable)_wrapped).GetEnumerator();
 		}
 	}
 }

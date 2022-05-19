@@ -5,13 +5,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// but the idea of this is we load some context into this class for the given stream
 	// and then it helps us calculate and make decisions about what to keep.
 	// and the calculations can be done on demand.
-	// and can be unit tested separately.
+	// and can be unit tested separately if necessary
 	// reused between streams to avoid allocations.
-	//qq the observation here is that various properties exist for the stream, which we might
-	// or might not need to calculate, and want to be clear that they are not mutating.
-	// factoring them out here helps to manage this more cleanly, rather than having a rather large
-	// method
-
 	public class StreamCalculator<TStreamId> {
 		public StreamCalculator(
 			IIndexReaderForCalculator<TStreamId> index,
@@ -85,5 +80,41 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// We can discard the event when it is as old or older than the cutoff
 		public DateTime? CutoffTime => ScavengePoint.EffectiveNow - OriginalStreamData.MaxAge;
+
+		// Calculates whether this stream needs recalculating, assuming the metadata and istombstoned
+		// do not change (either of these updates will cause the calculator to reactivate it).
+		public CalculationStatus CalculateStatus() {
+			if (OriginalStreamData.IsTombstoned) {
+				// discard points will not move after this, BUT it cannot be deleted because we might
+				// run a scavenge with UnsafeHardDeletes in which case we will need to know this is
+				// tombstoned in order to discard the tombstone from the index.
+				return CalculationStatus.Archived;
+			}
+
+			if (OriginalStreamData.MaxAge.HasValue) {
+				//  because time will have passed so discard points might need moving
+				return CalculationStatus.Active;
+			}
+
+			if (OriginalStreamData.MaxCount.HasValue) {
+				// new evernts might have been added so discard point might need moving
+				// (unless the accumulator tracked when new events have been written per stream, but
+				// this would likely not be worth it.
+				return CalculationStatus.Active;
+			}
+
+			if (OriginalStreamData.TruncateBefore.HasValue &&
+				LastEventNumber < OriginalStreamData.TruncateBefore) {
+
+				// unspent TB. new events would cause the discard point to move
+				return CalculationStatus.Active;
+			}
+
+			// Here it is not tombstoned, and the metadata is either a spent TB
+			// or empty (which could happen if there was metadata that was
+			// subsequently cleared).
+			// Discard points will no longer move, we can delete it.
+			return CalculationStatus.Spent;
+		}
 	}
 }

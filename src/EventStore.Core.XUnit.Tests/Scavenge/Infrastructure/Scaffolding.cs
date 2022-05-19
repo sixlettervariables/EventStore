@@ -189,6 +189,71 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 	}
 
+	public class ScaffoldIndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
+		private readonly LogRecord[][] _log;
+
+		public ScaffoldIndexReaderForAccumulator(LogRecord[][] log) {
+			_log = log;
+		}
+
+		public EventInfo[] ReadEventInfoBackward(
+			string streamId,
+			long fromEventNumber,
+			int maxCount) {
+
+			var result = new List<EventInfo>();
+
+			foreach (var chunk in _log.Reverse()) {
+				foreach (var record in chunk.Reverse()) {
+					if (result.Count >= maxCount)
+						goto Done;
+
+					if (!(record is PrepareLogRecord prepare))
+						continue;
+
+					if (prepare.ExpectedVersion + 1 < fromEventNumber)
+						continue;
+
+					if (prepare.EventStreamId != streamId)
+						continue;
+
+					result.Add(new EventInfo(prepare.LogPosition, prepare.ExpectedVersion + 1));
+				}
+			}
+
+			Done:
+			return result.ToArray();
+		}
+
+		public EventInfo[] ReadEventInfoForward(
+			string streamId,
+			long fromEventNumber,
+			int maxCount) {
+
+			var result = new List<EventInfo>();
+
+			foreach (var chunk in _log) {
+				foreach (var record in chunk) {
+					if (result.Count >= maxCount)
+						goto Done;
+
+					if (!(record is PrepareLogRecord prepare))
+						continue;
+
+					if (prepare.ExpectedVersion + 1 < fromEventNumber)
+						continue;
+
+					if (prepare.EventStreamId != streamId)
+						continue;
+
+					result.Add(new EventInfo(prepare.LogPosition, prepare.ExpectedVersion + 1));
+				}
+			}
+
+			Done:
+			return result.ToArray();
+		}
+	}
 
 	public class ScaffoldIndexForScavenge : IIndexReaderForCalculator<string> {
 		private readonly LogRecord[][] _log;

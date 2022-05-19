@@ -31,5 +31,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public static (string, int)  Line(string x, [CallerLineNumber] int sourceLineNumber = 0) =>
 			(x, sourceLineNumber);
+
+		// :S
+		public static (string, int) AnythingElse { get; } = ("ANYTHING_ELSE", 0);
 	}
 }

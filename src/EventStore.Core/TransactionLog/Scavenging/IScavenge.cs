@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EventStore.Common.Utils;
@@ -202,6 +201,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ReusableObject<RecordForAccumulator<TStreamId>.TombStoneRecord> tombStoneRecord);
 	}
 
+	public interface IIndexReaderForAccumulator<TStreamId> {
+		//qq maybe we can do better than allocating an array for the return
+		EventInfo[] ReadEventInfoForward(
+			TStreamId streamId,
+			long fromEventNumber,
+			int maxCount);
+
+		//qq maybe we can do better than allocating an array for the return
+		EventInfo[] ReadEventInfoBackward(
+			TStreamId streamId,
+			long fromEventNumber,
+			int maxCount);
+	}
+
 	//qq could use streamdata? its a class though
 	public abstract class RecordForAccumulator<TStreamId>: IDisposable, IReusableObject {
 		public TStreamId StreamId => _streamId;
@@ -227,6 +240,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_basicPrepare?.Dispose();
 		}
 
+		// Record in original stream
 		public class OriginalStreamRecord : RecordForAccumulator<TStreamId> { }
 
 		// Record in metadata stream
@@ -513,11 +527,29 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq for everything in here consider signed/unsigned and the number of bits and whether it needs to
 	// but nullable vs, say, using -1 to mean no value.
 	//qq consider whether to make this immutable or reusable and make sure we are using it appropriately.
+	public enum CalculationStatus {
+		// Invalid
+		None = 0,
+
+		// Needs to be processed by calculator next time
+		Active = 1,
+
+		// Can be skipped over by calculator next time
+		Archived = 2,
+
+		// Can be deleted by cleaner when there are no chunks pending execution
+		Spent = 3,
+	}
+
 	public class OriginalStreamData {
+
 		public static OriginalStreamData Empty { get; } = new OriginalStreamData(); //qq maybe dont need
 
 		public OriginalStreamData() {
 		}
+
+		// Populated by Accumulator and Calculator. Read by Calculator and Cleaner.
+		public CalculationStatus Status { get; set; }
 
 		// Populated by Accumulator. Read by Calculator.
 		// (MaxAge also read by ChunkExecutor)
@@ -727,10 +759,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq we should definitely log out the collisions as they are found, and log out the whole list of collisions
 	// when starting a scavenge.
 	//
-	//qq tidying: after a scavenge there are probaly some entries in the scavenge state that we can skip
-	// calculation for. for example if it was tombtoned. and perhaps tb
-	// as long as the tb was fully executed. but we need to keep the discard points because the chunks
-	// might not all have been executed.
 
 
 
@@ -738,21 +766,22 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 
 	// GDPR
-	// the chunk weights are only approximate because
-	//   - they dont include metadata records (there arent usually many of these per stream though)
-	//   - they don't include uncommitted transactions
+	// the chunk weights do not account for uncommitted transactions, and then we don't scavenge
+	// events in transactions anyway.
 	// 
 	// therefore gdpr limitations
-	//   - dont put personal data in metadata, cant guarnatee it will get scavenged
-	//   - dont put personal data in transactions, it wont (and never was) be scavenged if the
-	//     transaction is committed in a different chunk to when it was opened, or if it was left open
-	//     because that information is not local to the chunk we are scavenging.
+	//   - dont put personal data in transactions, it isn't scavenged. it also never was be scavenged if
+	//     the transaction is committed in a different chunk to when it was opened, or if it was left
+	//     open because that information is not local to the chunk we are scavenging.
 	//       - although we _could_ accumulate a list of open transactions it seems like its an occasional
 	//         batch operation that isn't quite the same thing as the scavenge, especially as
 	//         transactions are legacy and not an ongoing concern.
 	//   - if the user swaps in a chunk from another node, it might contain data that we have already
-	//     scavenged. //qq we need some way to figure that out and scavenge that chunk if they have strict
-	//     data removal concerns.. 
+	//     scavenged. //qqqqq we need some way to figure that out and scavenge that chunk if they have
+	//     strict data removal concerns.. 
+	//   - duplicate/out of order events are not always readable from the index. we will want a separate
+	//     tool that goes through and removes them from a log.
+
 
 
 
@@ -777,7 +806,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//    - bump the chunk schema version
 	//    - have old scavenge check for scavengepoints and abort?
 
-	//qqqq need comment/plan about that flag that allows the last event to be removed.
 	//qqqq need comment/plan on out of order and duplicate events
 
 	//qq note, probably need to complain if the ptable is a 32bit table
@@ -891,8 +919,23 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//
 	//qq REDACTION
 	//  needs notes
+	//   but if we accumulate a list of redactions, perhaps row per redaction, or row per chunk
+	//    - they probably dont affect the calculator (because they just swap one event for another)
+	//    - the chunk executor can just swap them in with appropriate padding or mapping
+	//         - although we do need to make sure we execute the chunks with redactions in
+	//           perhaps the chunk executor should execute a chunk if it meets the threshold OR has any
+	//           redactions to implement
+	//    - the index executor leaves the entries as is
+	//    - cleaner probably needs to tidy up the implemented redactions, or at least archive them
+	//      unless whatever is in the log already counts as a sufficient archive
 
-
+	//qq DB TRUNCATION
+	// if the database needs to be truncated, but we have already accumulated beyond that point...
+	// ideally we do sometihng that makes that impossible. but otherwise it would be good to detect
+	// that the accumulator had gone further than where we have been truncated to.
+	// can we make it impossible? perhaps if we only accumulate once the scavenge point has been
+	// replicated, perhaps thats what happens? if we can make it impossible we should throw a massive
+	// error either on start or on attempting to scavenge if somehow the impossible has happened
 
 
 
@@ -951,9 +994,43 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq make sure we never interact with index entries beyong the scavengepoint because we don't know
 	// whether they are collisions or not
 
+	//qq does IgnoreUnsafeHardDelete have any implications for hash collisions?
+	// no. phew. 
+
+	//qq is the chunk timestamp range stuff affected by chunk merging? shouldn't be but check
+
 	//qq add a test that covers a chunk becoming empty on scavenge
 	//qqqqq this should not care that it is persisted in a log record
 	// these are json serialized in the checkpoint,
+
+
+
+	//qq dont forget to consider whether to keep unscavenged chunks or not.
+
+	//qq we want to be able to set the chunk weight threshold in three different ways
+	// a. execute ALL chunks, even those with no weight
+	// b. execute all chunks with positive weight
+	// c. execute a subset of chunks above a certain weight
+	//
+	// so we execute a chunk c if c.weight > threshold.
+	//
+	// to achieve (a) we set threshold = -1
+	// to achieve (b) we set threshold = 0
+	// to achieve (c) we set threshold > 0
+
+	//qqqq its rather important that (b) does guarantee that all records that should be
+	// removed are removed, add tests.
+
+	//qqqq if a chunk is bigger after being scavenged, perhaps we should keep the old, but then
+	// what should we do with the weight, halve it? but only if the thresold is positive, because
+	// if it is 0 then we need to keep the new chunk for gdpr. so this is probably an optimisation
+	// we can add later.
+
+	//qqqqq what if the user runs a threshold=-1 scavenge, so we scavenge chunks that actually have
+	// nothing to remove. what does old scavenge do with those chunks, if it does something efficient
+	// then perhaps we should too.
+
+
 	public class ScavengePoint {
 		public ScavengePoint(long position, long eventNumber, DateTime effectiveNow, int threshold) {
 			Position = position;

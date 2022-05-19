@@ -60,7 +60,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						physicalChunk.ChunkStartNumber,
 						physicalChunk.ChunkEndNumber);
 
-					if (physicalWeight >= scavengePoint.Threshold || _unsafeIgnoreHardDeletes) {
+					if (physicalWeight > scavengePoint.Threshold || _unsafeIgnoreHardDeletes) {
 						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
 
 						state.ResetChunkWeights(
@@ -78,6 +78,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq here might be sensible place, the old scavenge handles various exceptions
 					// FileBeingDeletedException, OperationCanceledException, Exception
 					// with logging and without stopping the scavenge i think. consider what we want to do
+					// but be careful that if we allow the scavenge to continue without having executed
+					// this chunk, we can't assume later that the scavenge was really completed, which
+					// has implications for the cleaning phase, especially with _unsafeIgnoreHardDeletes
 					transaction.Rollback();
 					throw;
 				}

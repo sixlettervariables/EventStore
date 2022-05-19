@@ -23,11 +23,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				discardPoint: discardPoint);
 		}
 
-		public void DeleteTombstoned() {
-			foreach (var kvp in this) {
-				if (kvp.Value.IsTombstoned) {
-					TryRemove(kvp.Key, out _);
-				}
+		public void DeleteAll() {
+			foreach (var kvp in AllRecords()) {
+				TryRemove(kvp.Key, out _);
 			}
 		}
 	}

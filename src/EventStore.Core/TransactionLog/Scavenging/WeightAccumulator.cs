@@ -1,14 +1,14 @@
 ﻿using System.Collections.Generic;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class WeightCalculator<TStreamId> {
+	public class WeightAccumulator {
 		const float DiscardWeight = 2.0f;
 		const float MaybeDiscardWeight = 1.0f;
 
-		private readonly IScavengeStateForCalculator<TStreamId> _state;
+		private readonly IIncreaseChunkWeights _state;
 		private readonly Dictionary<int, float> _weights;
 
-		public WeightCalculator(IScavengeStateForCalculator<TStreamId> state) {
+		public WeightAccumulator(IIncreaseChunkWeights state) {
 			_state = state;
 			_weights = new Dictionary<int, float>();
 		}

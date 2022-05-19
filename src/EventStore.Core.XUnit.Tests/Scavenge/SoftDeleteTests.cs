@@ -32,5 +32,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						x.Recs[1].KeepIndexes(0, 1),
 					});
 		}
+
+		//qqqq probably want other tests in here,
+		// e.g. that it works correctly being recreated after a cleanup
 	}
 }

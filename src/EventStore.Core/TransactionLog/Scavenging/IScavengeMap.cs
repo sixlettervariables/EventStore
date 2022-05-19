@@ -15,11 +15,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//  - one that stores a small number of variable sized keys (e.g. for stream names)
 	//  - one that stores a large number of items where the key is a hash and the value is a stream name
 	//      may or may not be a separate implemention on the grounds that the values are variable size
-	public interface IScavengeMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>> {
+	public interface IScavengeMap<TKey, TValue> {
 		bool TryGetValue(TKey key, out TValue value);
 		TValue this[TKey key] { set; }
 		//qq we can have void Remove(TKey) if that is easier to implement
 		bool TryRemove(TKey key, out TValue value);
-		IEnumerable<KeyValuePair<TKey, TValue>> FromCheckpoint(TKey checkpoint);
+		IEnumerable<KeyValuePair<TKey, TValue>> AllRecords();
+		IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords();
+		IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint);
 	}
 }

@@ -209,7 +209,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			data.DiscardPoint = DiscardPoint.DiscardIncluding(5);
 			data.MaybeDiscardPoint = DiscardPoint.DiscardIncluding(12);
-			sut.SetDiscardPoints(33, data.DiscardPoint, data.MaybeDiscardPoint);
+			sut.SetDiscardPoints(33, default, data.DiscardPoint, data.MaybeDiscardPoint); //qq consider default
 
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
@@ -222,7 +222,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			var discardPoint = DiscardPoint.DiscardIncluding(5);
 			var maybeDiscardPoint = DiscardPoint.DiscardIncluding(12);
-			sut.SetDiscardPoints(33, discardPoint, maybeDiscardPoint);
+			sut.SetDiscardPoints(33, default, discardPoint, maybeDiscardPoint); //qq consider default
 
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData() {
@@ -280,7 +280,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[3] = osd[3];
 			sut[4] = osd[4];
 
-			Assert.Collection(sut,
+			Assert.Collection(sut.AllRecords(), //qq probably need test for .ActiveRecords()
 				item => {
 					Assert.Equal(0, item.Key);
 					Assert.Equal(osd[0], item.Value, OriginalStreamDataComparer.Default);
@@ -316,7 +316,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[3] = osd[3];
 			sut[4] = osd[4];
 			
-			Assert.Collection(sut.FromCheckpoint(2),
+			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
 				item => {
 					Assert.Equal(3, item.Key);
 					Assert.Equal(osd[3], item.Value, OriginalStreamDataComparer.Default);

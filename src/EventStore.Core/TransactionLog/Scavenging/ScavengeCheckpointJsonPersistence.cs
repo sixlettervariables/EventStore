@@ -10,14 +10,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public enum Stage {
-			None,
-			Accumulating,
-			Calculating,
-			ExecutingChunks,
-			MergingChunks,
-			ExecutingIndex,
-			Cleaning,
-			Done,
+			None = 0,
+			Accumulating = 1,
+			Calculating = 2,
+			ExecutingChunks = 3,
+			MergingChunks = 4,
+			ExecutingIndex = 5,
+			Cleaning = 6,
+			Done = 7,
 		}
 
 		public ScavengePoint ScavengePoint { get; set; }

@@ -10,11 +10,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		void SetDiscardPoints(
 			TKey key,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint);
 
 		bool TryGetChunkExecutionInfo(TKey key, out ChunkExecutionInfo info);
 
-		void DeleteTombstoned();
+		void DeleteMany(bool deleteArchived);
 	}
 }

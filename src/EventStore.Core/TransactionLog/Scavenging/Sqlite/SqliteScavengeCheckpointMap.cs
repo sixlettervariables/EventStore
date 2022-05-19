@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
@@ -44,16 +43,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				}, out value);
 		}
 
-		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> FromCheckpoint(Unit checkpoint) {
+		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> AllRecords() {
 			throw new NotImplementedException();
 		}
 
-		public IEnumerator<KeyValuePair<Unit, ScavengeCheckpoint>> GetEnumerator() {
+		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> ActiveRecords() {
 			throw new NotImplementedException();
 		}
 
-		IEnumerator IEnumerable.GetEnumerator() {
-			return GetEnumerator();
+		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> ActiveRecordsFromCheckpoint(Unit checkpoint) {
+			throw new NotImplementedException();
 		}
 	}
 }

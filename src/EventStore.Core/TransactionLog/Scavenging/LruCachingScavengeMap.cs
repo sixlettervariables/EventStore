@@ -22,13 +22,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() =>
-			_wrapped.GetEnumerator();
+		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() =>
+			_wrapped.AllRecords();
 
-		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() =>
+			_wrapped.ActiveRecords();
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> FromCheckpoint(TKey checkpoint) =>
-			_wrapped.FromCheckpoint(checkpoint);
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
+			_wrapped.ActiveRecordsFromCheckpoint(checkpoint);
 
 		public bool TryGetValue(TKey key, out TValue value) {
 			if (_cache.TryGet(key, out value))

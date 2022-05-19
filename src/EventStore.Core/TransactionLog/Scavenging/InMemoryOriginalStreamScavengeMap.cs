@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -17,11 +18,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				MaxCount = x.MaxCount,
 				TruncateBefore = x.TruncateBefore,
 
-				// sqlite implementation would just set this column
+				// sqlite implementation would insert the record or update these columns
+				Status = CalculationStatus.Active, //qqq sqlite to do this
 				IsTombstoned = true,
 			};
 		}
-
 
 		public void SetMetadata(TKey key, StreamMetadata metadata) {
 			if (!TryGetValue(key, out var x))
@@ -32,7 +33,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				DiscardPoint = x.DiscardPoint,
 				IsTombstoned = x.IsTombstoned,
 
-				// sqlite implementation would just set these columns
+				// sqlite implementation would insert the record or update these columns
+				Status = CalculationStatus.Active, //qqq sqlite to do this
 				MaxAge = metadata.MaxAge,
 				MaxCount = metadata.MaxCount,
 				TruncateBefore = metadata.TruncateBefore,
@@ -41,6 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void SetDiscardPoints(
 			TKey key,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint) {
 
@@ -55,7 +58,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				MaxCount = x.MaxCount,
 				TruncateBefore = x.TruncateBefore,
 
-				// sqlite implementation would just set these columns
+				// sqlite implementation would insert the record or update these columns
+				Status = status,
 				DiscardPoint = discardPoint,
 				MaybeDiscardPoint = maybeDiscardPoint,
 			};
@@ -77,9 +81,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return true;
 		}
 
-		public void DeleteTombstoned() {
-			foreach (var kvp in this) {
-				if (kvp.Value.IsTombstoned) {
+		protected override bool Filter(KeyValuePair<TKey, OriginalStreamData> kvp) => 
+			//qqqqq implement in sqlite with a where in the enumeration
+			kvp.Value.Status == CalculationStatus.Active;
+			
+		public void DeleteMany(bool deleteArchived) {
+			foreach (var kvp in AllRecords()) {
+				if ((kvp.Value.Status == CalculationStatus.Spent) ||
+					(kvp.Value.Status == CalculationStatus.Archived && deleteArchived)) {
+
 					TryRemove(kvp.Key, out _);
 				}
 			}

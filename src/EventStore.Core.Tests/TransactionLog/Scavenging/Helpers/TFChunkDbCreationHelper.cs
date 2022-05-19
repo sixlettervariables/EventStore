@@ -123,7 +123,10 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 
 					LogRecord record;
 
-					var expectedVersion = transInfo.FirstPrepareId == rec.Id ? streamVersion : ExpectedVersion.Any;
+					var expectedVersion =
+						(rec.EventNumber - 1) ??
+						(transInfo.FirstPrepareId == rec.Id ? streamVersion : ExpectedVersion.Any);
+
 					switch (rec.Type) {
 						case Rec.RecType.Prepare: {
 							record = CreateLogRecord(rec, transInfo, logPos, expectedVersion);

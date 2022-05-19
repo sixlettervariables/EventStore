@@ -63,6 +63,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public void SetTombstone(TKey key) {
+			//qqqq needs to update the status to Active
 			var sql =
 				$"INSERT INTO {TableName} (key, isTombstoned) VALUES($key, 1) " + 
 				"ON CONFLICT(key) DO UPDATE SET isTombstoned=1";
@@ -73,6 +74,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public void SetMetadata(TKey key, StreamMetadata metadata) {
+			//qqqq needs to update the status to Active
 			var sql =
 				$"INSERT INTO {TableName} (key, maxAge, maxCount, truncateBefore) VALUES($key, $maxAge, $maxCount, $truncateBefore) " + 
 				"ON CONFLICT(key) DO UPDATE SET maxAge=$maxAge, maxCount=$maxCount, truncateBefore=$truncateBefore";
@@ -85,7 +87,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			});
 		}
 		
-		public void SetDiscardPoints(TKey key, DiscardPoint discardPoint, DiscardPoint maybeDiscardPoint) {
+		public void SetDiscardPoints(TKey key, CalculationStatus status, DiscardPoint discardPoint, DiscardPoint maybeDiscardPoint) {
+			//qqqq needs to update the status to the param
 			var sql =
 				$"INSERT INTO {TableName} (key, discardPoint, maybeDiscardPoint) VALUES($key, $discardPoint, $maybeDiscardPoint) " + 
 				"ON CONFLICT(key) DO UPDATE SET discardPoint=$discardPoint, maybeDiscardPoint=$maybeDiscardPoint";
@@ -109,8 +112,17 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				return new ChunkExecutionInfo(isTombstoned: false, discardPoint, maybeDiscardPoint, maxAge);//qq store istombstoned in the table
 			}, out details);
 		}
-		
-		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> FromCheckpoint(TKey checkpoint) {
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> AllRecords() {
+			throw new NotImplementedException(); //qqqqq all records
+		}
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecords() {
+			throw new NotImplementedException(); //qqqqq records whose status is active
+		}
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
+			//qqqq needs to return only active records
 			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key " +
 			          $"FROM {TableName} WHERE key > $key";
 
@@ -120,22 +132,22 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				reader.GetFieldValue<TKey>(6), ReadOriginalStreamData(reader)));
 		}
 
-		public IEnumerator<KeyValuePair<TKey, OriginalStreamData>> GetEnumerator() {
-			var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key " + "" +
-			          $"FROM {TableName}";
+		//qq remove public IEnumerator<KeyValuePair<TKey, OriginalStreamData>> GetEnumerator() {
+		//	var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, key " + "" +
+		//	          $"FROM {TableName}";
 
-			return ExecuteReader(sql, p => {}, reader => new KeyValuePair<TKey, OriginalStreamData>(
-				reader.GetFieldValue<TKey>(6), ReadOriginalStreamData(reader))).GetEnumerator();
-		}
+		//	return ExecuteReader(sql, p => {}, reader => new KeyValuePair<TKey, OriginalStreamData>(
+		//		reader.GetFieldValue<TKey>(6), ReadOriginalStreamData(reader))).GetEnumerator();
+		//}
 
-		public void DeleteTombstoned() {
+		public void DeleteMany(bool deleteArchived) {
 			throw new NotImplementedException();
-			//qqqq delete where is tombstoned
+			//qqqq delete according to the status and the flags
 		}
 
-		IEnumerator IEnumerable.GetEnumerator() {
-			return GetEnumerator();
-		}
+		//qq remove IEnumerator IEnumerable.GetEnumerator() {
+		//	return GetEnumerator();
+		//}
 		
 		private OriginalStreamData ReadOriginalStreamData(SqliteDataReader reader) {
 			var d = new OriginalStreamData();

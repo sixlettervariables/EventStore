@@ -84,6 +84,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var (state, _) = await new Scenario()
 				.WithDb(x => x
 					.Chunk(
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
 						Rec.Prepare(t++, "cd-cancel-chunk-execution"))
 					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenExecutingChunk("cd-cancel-chunk-execution")
@@ -107,7 +110,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 1, Discard before 1)"),
+					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
 
@@ -166,7 +170,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -226,7 +229,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -317,8 +319,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 1, Discard before 1)"),
-					// no discard points to set for cd-cancel-accumulation (hash 100)
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 1, Discard before 1)"),
+					Tracer.Line("        SetDiscardPoints(100, Spent, Keep all, Keep all)"),
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 100"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
@@ -337,12 +339,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 2-2"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk2"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 2"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -424,7 +424,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 2, Discard before 2)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 2, Discard before 2)"),
 					// throw while calculating 100
 					Tracer.Line("    Rollback"),
 					Tracer.Line("Exception calculating"))
@@ -466,7 +466,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -513,10 +512,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var (state, db) = await scenario
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1))
 					.Chunk(
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "$$ab-2", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "cd-cancel-chunk-execution"),
 						Rec.Prepare(t++, "ab-2"))
@@ -546,7 +545,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(ab-1, Discard before 1, Discard before 1)"),
+					Tracer.Line("        SetDiscardPoints(ab-1, Active, Discard before 1, Discard before 1)"),
 					// no discard points to set for ab-2
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Id: ab-2"),
 					Tracer.Line("    Commit"),
@@ -561,7 +560,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 1-1"),
@@ -617,8 +615,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Checkpoint: Done SP-0"),
 					Tracer.Line("Commit"))
 				.RunAsync(x => new[] {
-					x.Recs[0].KeepIndexes(0, 1),
-					x.Recs[1].KeepIndexes(0, 1, 2),
+					x.Recs[0].KeepIndexes(0),
+					x.Recs[1].KeepIndexes(1, 2, 3, 4),
 					x.Recs[2],
 				});
 
@@ -667,7 +665,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 3, Discard before 3)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 3, Discard before 3)"),
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -819,7 +817,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 1, Discard before 1)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 1, Discard before 1)"),
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),

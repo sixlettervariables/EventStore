@@ -45,6 +45,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public static bool operator >(DiscardPoint x, DiscardPoint y) =>
 			x.FirstEventNumberToKeep > y.FirstEventNumberToKeep;
 
+		public static bool operator <=(DiscardPoint x, DiscardPoint y) =>
+			x.FirstEventNumberToKeep <= y.FirstEventNumberToKeep;
+
+		public static bool operator >=(DiscardPoint x, DiscardPoint y) =>
+			x.FirstEventNumberToKeep >= y.FirstEventNumberToKeep;
+
 		public static bool operator ==(DiscardPoint x, DiscardPoint y) =>
 			x.FirstEventNumberToKeep == y.FirstEventNumberToKeep;
 

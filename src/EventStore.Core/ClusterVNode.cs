@@ -575,6 +575,7 @@ namespace EventStore.Core {
 						metastreamLookup,
 						streamIdConverter,
 						db.Config.ReplicationCheckpoint),
+					index: new IndexReaderForAccumulator<string>(),
 					cancellationCheckPeriod: cancellationCheckPeriod);
 
 				var calculator = new Calculator<string>(

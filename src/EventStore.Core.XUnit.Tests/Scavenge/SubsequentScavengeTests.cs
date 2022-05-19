@@ -42,7 +42,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 1, Discard before 1)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 1, Discard before 1)"),
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -207,6 +207,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
 						StreamHandle.ForHash<string>(98),
+						CalculationStatus.Active,
 						DiscardPoint.DiscardBefore(5),
 						DiscardPoint.DiscardBefore(5));
 					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
@@ -233,7 +234,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-1 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 7, Discard before 7)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 7, Discard before 7)"),
 					Tracer.Line("        Checkpoint: Calculating SP-1 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -328,6 +329,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
 						StreamHandle.ForHash<string>(98),
+						CalculationStatus.Active,
 						DiscardPoint.DiscardBefore(5),
 						DiscardPoint.DiscardBefore(5));
 					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
@@ -354,7 +356,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("        Checkpoint: Calculating SP-2 done None"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Discard before 9, Discard before 9)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 9, Discard before 9)"),
 					Tracer.Line("        Checkpoint: Calculating SP-2 done Hash: 98"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -619,6 +621,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public async Task cannot_move_discard_points_backward() {
+			// scavenge where SP-0 has been run. about to run SP-1
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
@@ -639,6 +642,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
 						StreamHandle.ForHash<string>(98),
+						CalculationStatus.Active,
 						DiscardPoint.DiscardBefore(2),
 						DiscardPoint.DiscardBefore(2));
 					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(

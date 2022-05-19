@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -15,25 +14,23 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public bool TryGetValue(TKey key, out TValue value) => _dict.TryGetValue(key, out value);
 
-		public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() =>
+		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() =>
 			// naive copy so we can write to the values for the keys that we are iterating through.
 			_dict
 				.ToDictionary(x => x.Key, x => x.Value)
-				.OrderBy(x => x.Key)
-				.GetEnumerator();
+				.OrderBy(x => x.Key);
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> FromCheckpoint(TKey checkpoint) =>
-			// naive copy so we can write to the values for the keys that we are iterating through.
-			_dict
-				.ToDictionary(x => x.Key, x => x.Value)
-				.OrderBy(x => x.Key)
-				.SkipWhile(x => Comparer<TKey>.Default.Compare(x.Key, checkpoint) <= 0);
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() =>
+			AllRecords().Where(Filter);
 
-		IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
+			ActiveRecords().SkipWhile(x => Comparer<TKey>.Default.Compare(x.Key, checkpoint) <= 0);
 
 		public bool TryRemove(TKey key, out TValue value) {
 			_dict.TryGetValue(key, out value);
 			return _dict.Remove(key);
 		}
+
+		protected virtual bool Filter(KeyValuePair<TKey, TValue> kvp) => true;
 	}
 }

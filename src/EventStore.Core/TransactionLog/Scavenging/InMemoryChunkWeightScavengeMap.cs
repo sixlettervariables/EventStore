@@ -4,7 +4,7 @@
 		IChunkWeightScavengeMap {
 
 		public bool AllWeightsAreZero() {
-			foreach (var kvp in this) {
+			foreach (var kvp in AllRecords()) {
 				if (kvp.Value != 0) {
 					return false;
 				}

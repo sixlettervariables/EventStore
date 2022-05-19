@@ -6,7 +6,7 @@ using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// for testing functionality that isn't specific to particular discard criteria
-	public class MiscelaneousTests {
+	public class MiscellaneousTests {
 		[Fact]
 		public async Task metadata_first() {
 			var t = 0;
@@ -75,13 +75,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public async Task metadata_for_metadata_stream_gets_scavenged() {
+			// currently requires a threshold = -1 scavenge to force this.
+			// see comments in accumulator.cs
 			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "$$$$ab-1", "$metadata", metadata: MaxCount1),
 						Rec.Prepare(t++, "$$$$ab-1", "$metadata", metadata: MaxCount2))
-					.Chunk(ScavengePointRec(t++)))
+					.Chunk(ScavengePointRec(t++, threshold: -1)))
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(1),
 						x.Recs[1],
@@ -108,16 +110,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
-		public async Task metadata_metadata_applies_to_any_type() {
+		public async Task unusual_metadata_still_takes_effect() {
 			var t = 0;
 			await new Scenario()
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1"),
-						Rec.Prepare(t++, "$$ab-1"))
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"),
+						// this 'metadata' record has a strange type, and does not parse to metadata
+						// still, its effect is to reset the metadata of the stream.
+						Rec.Prepare(
+							transaction: t++,
+							stream: "$$ab-1",
+							eventType: "sneaky",
+							data: BitConverter.GetBytes(0xBAD_1DEA)))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
-						x.Recs[0].KeepIndexes(1),
+						x.Recs[0].KeepIndexes(1, 2, 3),
 						x.Recs[1],
 					});
 		}

@@ -149,7 +149,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// Get the latest scavengePoint and scavenge from prevScavengePoint to there.
 			// If there is no latest scavengePoint, or it _is_ the prev, then create a new one.
 
-			var threshold = 1; //qq draw from request, with default
+			//qq draw from request, with default such that any chunk with
+			//non-zero weight will be executed
+			var threshold = 0;
 			ScavengePoint nextScavengePoint;
 			var latestScavengePoint = await _scavengePointSource.GetLatestScavengePointAsync();
 			if (latestScavengePoint == null) {

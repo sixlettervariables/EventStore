@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
@@ -10,6 +11,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			return self.Where((x, i) => indexes.Contains(i)).ToArray();
 		}
+
+		public static T[] KeepNone<T>(this T[] self) => Array.Empty<T>();
+
+		public static T[] KeepAll<T>(this T[] self) => self;
 	}
 
 }

@@ -41,21 +41,24 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void SetDiscardPoints(
 			StreamHandle<TStreamId> handle,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint) {
 
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
 					_nonCollisions.SetDiscardPoints(
-						handle.StreamHash,
-						discardPoint,
-						maybeDiscardPoint);
+						key: handle.StreamHash,
+						status: status,
+						discardPoint: discardPoint,
+						maybeDiscardPoint: maybeDiscardPoint);
 					break;
 				case StreamHandle.Kind.Id:
 					_collisions.SetDiscardPoints(
-						handle.StreamId,
-						discardPoint,
-						maybeDiscardPoint);
+						key: handle.StreamId,
+						status: status,
+						discardPoint: discardPoint,
+						maybeDiscardPoint: maybeDiscardPoint);
 					break;
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
@@ -67,9 +70,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				? _collisions.TryGetChunkExecutionInfo(streamId, out info)
 				: _nonCollisions.TryGetChunkExecutionInfo(_hasher.Hash(streamId), out info);
 
-		public void DeleteTombstoned() {
-			_collisions.DeleteTombstoned();
-			_nonCollisions.DeleteTombstoned();
+		public void DeleteMany(bool deleteArchived) {
+			_collisions.DeleteMany(deleteArchived: deleteArchived);
+			_nonCollisions.DeleteMany(deleteArchived: deleteArchived);
 		}
 	}
 }

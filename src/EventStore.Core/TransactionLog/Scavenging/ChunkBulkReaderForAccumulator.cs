@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using EventStore.Core.Data;
 using EventStore.Core.Helpers;
 using EventStore.Core.Index;
 using EventStore.Core.LogAbstraction;
@@ -307,6 +308,24 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				streamId = prepare.EventStreamId;
 				return true;
 			}
+		}
+	}
+
+	public class IndexReaderForAccumulator<TStreamId> : IIndexReaderForAccumulator<TStreamId> {
+		public EventInfo[] ReadEventInfoBackward(
+			TStreamId streamId,
+			long fromEventNumber,
+			int maxCount) {
+
+			throw new NotImplementedException();
+		}
+
+		public EventInfo[] ReadEventInfoForward(
+			TStreamId streamId,
+			long fromEventNumber,
+			int maxCount) {
+
+			throw new NotImplementedException();
 		}
 	}
 }

@@ -48,7 +48,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 			sut[3] = DiscardPoint.DiscardBefore(40);
 			sut[4] = DiscardPoint.DiscardBefore(50);
 			
-			Assert.Collection(sut,
+			Assert.Collection(sut.AllRecords(),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(0, DiscardPoint.DiscardBefore(10)), item),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(1, DiscardPoint.DiscardBefore(20)), item),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(2, DiscardPoint.DiscardBefore(30)), item),
@@ -67,7 +67,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 			sut[3] = DiscardPoint.DiscardBefore(40);
 			sut[4] = DiscardPoint.DiscardBefore(50);
 			
-			Assert.Collection(sut.FromCheckpoint(2),
+			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(3, DiscardPoint.DiscardBefore(40)), item),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(4, DiscardPoint.DiscardBefore(50)), item));
 		}

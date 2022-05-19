@@ -157,7 +157,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// FOR CALCULATOR
 		//
 
-		//qq name
+		//qq name.. something to do with active?
 		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge(
 			StreamHandle<TStreamId> checkpoint) {
 
@@ -167,10 +167,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public void SetOriginalStreamDiscardPoints(
 			StreamHandle<TStreamId> handle,
+			CalculationStatus status,
 			DiscardPoint discardPoint,
 			DiscardPoint maybeDiscardPoint) {
 
-			_originalStreamDatas.SetDiscardPoints(handle, discardPoint, maybeDiscardPoint);
+			_originalStreamDatas.SetDiscardPoints(handle, status, discardPoint, maybeDiscardPoint);
 		}
 
 		public void IncreaseChunkWeight(int logicalChunkNumber, float extraWeight) {
@@ -280,12 +281,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public bool AllChunksExecuted() =>
 			_chunkWeights.AllWeightsAreZero();
 
-		public void DeleteTombstonedOriginalStreams() {
-			_originalStreamDatas.DeleteTombstoned();
+		public void DeleteOriginalStreamData(bool deleteArchived) {
+			_originalStreamDatas.DeleteMany(deleteArchived: deleteArchived);
 		}
 
-		public void DeleteTombstonedMetastreams() {
-			_metastreamDatas.DeleteTombstoned();
+		public void DeleteMetastreamData() {
+			_metastreamDatas.DeleteAll();
 		}
 	}
 }

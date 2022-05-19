@@ -37,7 +37,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCalculator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			var weights = new WeightCalculator<TStreamId>(state);
+			var weights = new WeightAccumulator(state);
 			var scavengePoint = checkpoint.ScavengePoint;
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
 			var eventCalc = new EventCalculator<TStreamId>(_chunkSize, state, scavengePoint, streamCalc);
@@ -49,6 +49,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// those that have metadata or tombstones)
 			// - for each one use the accumulated data to set/update the discard points of the stream.
 			// - along the way add weight to the affected chunks.
+			// note that the discard points will never discard the last event from the stream.
+			// there are limited scenarios when we do want to do this, (metadata streams when the main
+			// stream is tombstoned, and when UnsafeIgnoreHardDeletes is true) and they are governed by
+			// the IsTombstoned flags.
 			var originalStreamsToScavenge = state.OriginalStreamsToScavenge(
 				checkpoint: checkpoint?.DoneStreamHandle ?? default);
 
@@ -57,6 +61,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var transaction = state.BeginTransaction();
 			try {
 				foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
+					if (originalStreamData.Status != CalculationStatus.Active)
+						throw new InvalidOperationException(
+							$"Attempted to calculate a {originalStreamData.Status} record: {originalStreamData}");
+
 					//qqqqqqqqqqqqqqqqqqq
 					// it would be neat if this interface gave us some hint about the location of
 					// the DP so that we could set it in a moment cheaply without having to search.
@@ -74,33 +82,38 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					//qq tidy: we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
 					// is completely spent, which might have a bearing on the above.
 					streamCalc.SetStream(originalStreamHandle, originalStreamData);
+					var newStatus = streamCalc.CalculateStatus();
 
 					CalculateDiscardPointsForOriginalStream(
 						eventCalc,
 						weights,
 						originalStreamHandle,
 						scavengePoint,
-						out var adjustedDiscardPoint,
-						out var adjustedMaybeDiscardPoint);
+						out var newDiscardPoint,
+						out var newMaybeDiscardPoint);
 
 					// don't allow the discard point to move backwards
-					if (adjustedDiscardPoint < originalStreamData.DiscardPoint) {
-						adjustedDiscardPoint = originalStreamData.DiscardPoint;
+					if (newDiscardPoint < originalStreamData.DiscardPoint) {
+						newDiscardPoint = originalStreamData.DiscardPoint;
 					}
 
 					// don't allow the maybe discard point to move backwards
-					if (adjustedMaybeDiscardPoint < originalStreamData.MaybeDiscardPoint) {
-						adjustedMaybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
+					if (newMaybeDiscardPoint < originalStreamData.MaybeDiscardPoint) {
+						newMaybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
 					}
 
-					if (adjustedDiscardPoint == originalStreamData.DiscardPoint &&
-						adjustedMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
+
+					if (newStatus == originalStreamData.Status &&
+						newDiscardPoint == originalStreamData.DiscardPoint &&
+						newMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
+
 						// nothing to update for this stream
 					} else {
 						state.SetOriginalStreamDiscardPoints(
 							streamHandle: originalStreamHandle,
-							discardPoint: adjustedDiscardPoint,
-							maybeDiscardPoint: adjustedMaybeDiscardPoint);
+							status: newStatus,
+							discardPoint: newDiscardPoint,
+							maybeDiscardPoint: newMaybeDiscardPoint);
 					}
 
 					// Check cancellation occasionally
@@ -146,7 +159,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// came out as last time.
 		private void CalculateDiscardPointsForOriginalStream(
 			EventCalculator<TStreamId> eventCalc,
-			WeightCalculator<TStreamId> weights,
+			WeightAccumulator weights,
 			StreamHandle<TStreamId> originalStreamHandle,
 			ScavengePoint scavengePoint,
 			out DiscardPoint discardPoint,

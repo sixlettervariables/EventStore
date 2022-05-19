@@ -6,6 +6,6 @@
 
 		void SetDiscardPoint(TKey key, DiscardPoint discardPoint);
 
-		void DeleteTombstoned();
+		void DeleteAll();
 	}
 }

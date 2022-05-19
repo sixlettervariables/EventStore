@@ -135,20 +135,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			switch (checkpoint.Kind) {
 				case StreamHandle.Kind.None:
 					// no checkpoint, emit everything
-					collisionsEnumerable = _collisions;
-					nonCollisionsEnumerable = _nonCollisions;
+					collisionsEnumerable = _collisions.ActiveRecords();
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecords();
 					break;
 
 				case StreamHandle.Kind.Id:
 					// checkpointed in the collisions. emit the rest of those, then the non-collisions
-					collisionsEnumerable = _collisions.FromCheckpoint(checkpoint.StreamId);
-					nonCollisionsEnumerable = _nonCollisions;
+					collisionsEnumerable = _collisions.ActiveRecordsFromCheckpoint(checkpoint.StreamId);
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecords();
 					break;
 
 				case StreamHandle.Kind.Hash:
 					// checkpointed in the noncollisions. emit the rest of those
 					collisionsEnumerable = Enumerable.Empty<KeyValuePair<TKey, TValue>>();
-					nonCollisionsEnumerable = _nonCollisions.FromCheckpoint(checkpoint.StreamHash);
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecordsFromCheckpoint(checkpoint.StreamHash);
 					break;
 
 				default:

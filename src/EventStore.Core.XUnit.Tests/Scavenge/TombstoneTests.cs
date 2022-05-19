@@ -40,7 +40,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		[Fact]
 		public async Task tombstone_with_metadata() {
 			var t = 0;
-			await new Scenario()
+			var (state, db) = await new Scenario()
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
@@ -54,6 +54,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					x.Recs[0].KeepIndexes(3),
 					x.Recs[1],
 				});
+
+			Assert.True(state.TryGetOriginalStreamData("ab-1", out _));
+			Assert.False(state.TryGetMetastreamData("$$ab-1", out _));
 		}
 
 		[Fact]
