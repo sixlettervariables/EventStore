@@ -1,4 +1,5 @@
 ﻿using System;
+using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq name
@@ -103,10 +104,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return CalculationStatus.Active;
 			}
 
-			if (OriginalStreamData.TruncateBefore.HasValue &&
-				LastEventNumber < OriginalStreamData.TruncateBefore) {
+			var tb = OriginalStreamData.TruncateBefore;
+			if (tb.HasValue &&
+				tb != EventNumber.DeletedStream &&
+				LastEventNumber < tb) {
 
-				// unspent TB. new events would cause the discard point to move
+				// unspent TB. new events would cause the discard point to move.
+				// EventNumber.DeletedStream counts as spent because we would only need to
+				// recalculate if a new event is written but in that case the database will
+				// create for us a new metadta record, too.
 				return CalculationStatus.Active;
 			}
 

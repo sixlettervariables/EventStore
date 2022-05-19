@@ -76,6 +76,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
+		public async Task truncate_before_max() {
+			await RunAsync(
+				expected: CalculationStatus.Spent,
+				metadata: SoftDelete,
+				numEvents: 6,
+				isTombstoned: false);
+		}
+
+		[Fact]
 		public async Task tombstoned() {
 			await RunAsync(
 				expected: CalculationStatus.Archived,
@@ -120,6 +129,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				isTombstoned: true);
 		}
 
+		[Fact]
+		public async Task tombstoned_and_truncate_before_max() {
+			await RunAsync(
+				expected: CalculationStatus.Archived,
+				metadata: SoftDelete,
+				numEvents: 6,
+				isTombstoned: true);
+		}
 
 		[Fact]
 		public async Task blank() {
