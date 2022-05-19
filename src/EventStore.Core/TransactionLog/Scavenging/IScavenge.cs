@@ -205,26 +205,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//qq could use streamdata? its a class though
 	public abstract class RecordForAccumulator<TStreamId>: IDisposable, IReusableObject {
 		public TStreamId StreamId => _streamId;
-		public long LogPosition => _basicPrepare.LogPosition;
-		public DateTime TimeStamp => _basicPrepare.TimeStamp;
+		public long LogPosition => _prepareView.LogPosition;
+		public DateTime TimeStamp => _prepareView.TimeStamp;
 
 		private TStreamId _streamId;
-		private BasicPrepareLogRecord _basicPrepare;
+		private PrepareLogRecordView _prepareView;
 
 		public virtual void Initialize(IReusableObjectInitParams initParams) {
 			var p = (RecordForAccumulatorInitParams<TStreamId>)initParams;
-			_basicPrepare = p.BasicPrepare;
+			_prepareView = p.PrepareView;
 			_streamId = p.StreamId;
 		}
 
 		public virtual void Reset() {
 			_streamId = default;
-			_basicPrepare = default;
+			_prepareView = default;
 		}
 
 		public void Dispose()
 		{
-			_basicPrepare?.Dispose();
+			_prepareView?.Dispose();
 		}
 
 		public class OriginalStreamRecord : RecordForAccumulator<TStreamId> { }
@@ -233,10 +233,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public class MetadataStreamRecord : RecordForAccumulator<TStreamId> {
 			public StreamMetadata Metadata {
 				//qq potential for .ToArray() optimization?
-				get { return _metadata ?? (_metadata = StreamMetadata.TryFromJsonBytes(_basicPrepare.Data.ToArray())); }
+				get { return _metadata ?? (_metadata = StreamMetadata.TryFromJsonBytes(_prepareView.Data.ToArray())); }
 			}
 			private StreamMetadata _metadata;
-			public long EventNumber => _basicPrepare.ExpectedVersion + 1;
+			public long EventNumber => _prepareView.ExpectedVersion + 1;
 			public override void Reset() {
 				base.Reset();
 				_metadata = default;
@@ -247,15 +247,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// old scavenge, index writer and index committer are set up to handle
 			// tombstones that have abitrary event numbers, so lets handle them here
 			// in case it used to be possible to create them.
-			public long EventNumber => _basicPrepare.ExpectedVersion + 1;
+			public long EventNumber => _prepareView.ExpectedVersion + 1;
 		}
 	}
 
 	public struct RecordForAccumulatorInitParams<TStreamId> : IReusableObjectInitParams {
-		public readonly BasicPrepareLogRecord BasicPrepare;
+		public readonly PrepareLogRecordView PrepareView;
 		public readonly TStreamId StreamId;
-		public RecordForAccumulatorInitParams(BasicPrepareLogRecord basicPrepare, TStreamId streamId) {
-			BasicPrepare = basicPrepare;
+		public RecordForAccumulatorInitParams(PrepareLogRecordView prepareLogRecordView, TStreamId streamId) {
+			PrepareView = prepareLogRecordView;
 			StreamId = streamId;
 		}
 	}

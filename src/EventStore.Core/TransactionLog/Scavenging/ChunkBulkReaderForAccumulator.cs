@@ -16,7 +16,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IMetastreamLookup<TStreamId> _metaStreamLookup;
 		private readonly IStreamIdConverter<TStreamId> _streamIdConverter;
 		private readonly ICheckpoint _replicationChk;
-		private readonly ReadSpecs _readSpecs;
+		private readonly Func<int, byte[]> _getBuffer;
+		private readonly Action _releaseBuffer;
+		private readonly ReusableObject<PrepareLogRecordView> _reusablePrepareView;
 
 		public ChunkReaderForAccumulator(
 			TFChunkManager manager,
@@ -28,27 +30,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_streamIdConverter = streamIdConverter;
 			_replicationChk = replicationChk;
 
-			// 1 kb should be more than enough to fit the largest metadata record in usual cases
-			var reusableRecordBuffer = new ReusableBuffer(1024);
-			var reusableBasicPrepare = ReusableObject.Create(new BasicPrepareLogRecord());
+			var reusableRecordBuffer = new ReusableBuffer(8192);
 
-			void OnRecordDispose() {
-				reusableBasicPrepare.Release();
-				reusableRecordBuffer.Release();
-			}
-
-			_readSpecs = new ReadSpecsBuilder()
-				.SkipCommitRecords()
-				.SkipSystemRecords()
-				.ReadBasicPrepareRecords(
-					(streamId, _) => _metaStreamLookup.IsMetaStream(_streamIdConverter.ToStreamId(streamId)),
-					delegate { return false; },
-					size => {
-						var buffer = reusableRecordBuffer.AcquireAsByteArray(size);
-						var basicPrepare = reusableBasicPrepare.Acquire(new BasicPrepareInitParams(buffer, OnRecordDispose));
-						return basicPrepare;
-					})
-				.Build();
+			_getBuffer = size => reusableRecordBuffer.AcquireAsByteArray(size);
+			_releaseBuffer = () => reusableRecordBuffer.Release();
+			_reusablePrepareView = ReusableObject.Create(new PrepareLogRecordView());
 		}
 
 		public IEnumerable<RecordForAccumulator<TStreamId>> ReadChunk(
@@ -63,33 +49,38 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var replicationChk = _replicationChk.ReadNonFlushed();
 			while (replicationChk == -1 ||
 			       globalStartPos + localPos <= replicationChk) {
-				var result = chunk.TryReadClosestForward(localPos, _readSpecs);
+				var result = chunk.TryReadClosestForwardRaw(localPos, _getBuffer);
 
 				if (!result.Success)
 					break;
 
-				switch (result.LogRecord.RecordType) {
+				switch (result.RecordType) {
 					case LogRecordType.Prepare:
-						if (!(result.LogRecord is BasicPrepareLogRecord basicPrepare))
-							throw new ArgumentOutOfRangeException(nameof(result.LogRecord), "Expected basic prepare log record.");
-						var streamId = _streamIdConverter.ToStreamId(basicPrepare.EventStreamId);
-						var initParams = new RecordForAccumulatorInitParams<TStreamId>(basicPrepare, streamId);
-						if (basicPrepare.PrepareFlags.HasFlag(PrepareFlags.DeleteTombstone)) {
-							yield return tombStoneRecord.Acquire(initParams);
+						var prepareViewInitParams = new PrepareLogRecordViewInitParams(result.Record, result.Length, _reusablePrepareView.Release);
+						var prepareView = _reusablePrepareView.Acquire(prepareViewInitParams);
+
+						var streamId = _streamIdConverter.ToStreamId(prepareView.EventStreamId);
+						var recordInitParams = new RecordForAccumulatorInitParams<TStreamId>(prepareView, streamId);
+
+						if (prepareView.Flags.HasFlag(PrepareFlags.DeleteTombstone)) {
+							yield return tombStoneRecord.Acquire(recordInitParams);
 						} else if (_metaStreamLookup.IsMetaStream(streamId)) {
-							yield return metadataStreamRecord.Acquire(initParams);
+							yield return metadataStreamRecord.Acquire(recordInitParams);
 						} else {
-							yield return originalStreamRecord.Acquire(initParams);
+							yield return originalStreamRecord.Acquire(recordInitParams);
 						}
 						break;
-					case LogRecordType.Skipped:
+					case LogRecordType.Commit:
+						break;
+					case LogRecordType.System:
 						break;
 					default:
-						throw new ArgumentOutOfRangeException(nameof(result.LogRecord.RecordType),
-							$"Unexpected log record type: {result.LogRecord.RecordType}");
+						throw new ArgumentOutOfRangeException(nameof(result.RecordType),
+							$"Unexpected log record type: {result.RecordType}");
 				}
 
 				localPos = result.NextPosition;
+				_releaseBuffer();
 			}
 		}
 	}

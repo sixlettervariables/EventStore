@@ -30,5 +30,9 @@ namespace EventStore.Core.TransactionLog {
 			IncludePrepareMetadata = includePrepareMetadata;
 			BasicPrepareRecordFactory = basicPrepareRecordFactory;
 		}
+
+		public byte[] GetRecordBuffer(int length) {
+			throw new NotImplementedException();
+		}
 	}
 }
