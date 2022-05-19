@@ -30,7 +30,6 @@
 		public float SumChunkWeights(int startLogicalChunkNumber, int endLogicalChunkNumber) {
 			// sqlite implementation would select sum weight from table where chunkNumber in range
 
-			//qq todo: add tests that check that the chunk weights are processed correctly
 			var totalWeight = 0f;
 			for (var i = startLogicalChunkNumber; i <= endLogicalChunkNumber; i++) {
 				if (TryGetValue(i, out var weight)) {

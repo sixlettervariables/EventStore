@@ -1,15 +1,12 @@
-﻿using System;
-using EventStore.Core.Index.Hashes;
-using EventStore.Core.TransactionLog.Scavenging;
+﻿using EventStore.Core.TransactionLog.Scavenging;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// generally the properties we need of the CollisionManager are tested at a higher
 	// level. but a couple of fiddly bits are checked in here
 	public class CollisionMapTests {
-		//qq rename
 		[Fact]
-		public void foo_attempt_at_originalstreamdatas() {
+		public void sanity() {
 			var collisions = new InMemoryScavengeMap<string, Unit>();
 			var sut = GenSut(collisions);
 

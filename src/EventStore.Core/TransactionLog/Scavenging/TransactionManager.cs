@@ -21,9 +21,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (_began)
 				throw new InvalidOperationException("Cannot begin a transaction that has already begun.");
 
-			//qq this may be enough already, but it may also be useful to start storing up
-			// the updates in memory ourselves and write them when we complete the batch
-			// if so, do this later.
 			_transaction = _factory.Begin();
 			_began = true;
 		}
@@ -42,7 +39,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_storage[Unit.Instance] = checkpoint;
 
-			//qqqq if we crash while commiting, will it get rolled back properly
 			_factory.Commit(_transaction);
 			_began = false;
 		}

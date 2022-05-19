@@ -43,9 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			//qq there is no point scavenging beyond the scavenge point
-			//qqqq is +1 ok range wise? same for accumulator
-			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0; //qq necessarily zero?
+			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint)) {
@@ -82,16 +80,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		//qqqq the scavenge point can, itself, be in a merged chunk.
-		// we can decide here whether to
-		// 1. scavenge the merge chunk with it in, and respect the scavenge
-		//    point as we go. currently this respects the discard points, which is enough to also
-		//    respect the scavenge point, but using the scavenge point directly would be more efficient
-		//    if there is any chance a record will be the other side of it. OR
-		// 2. not to scavenge the chunk with the discard point in it, so every chunk we execute only has
-		//    records that are before the scavenge point.
-		//    see how awkward the former is when we bring in the older logic. remember not scavenging
-		//    things has implications for gdpr.
 		private IEnumerable<IChunkReaderForExecutor<TStreamId>> GetAllPhysicalChunks(
 			int startFromChunk,
 			ScavengePoint scavengePoint) {
@@ -99,6 +87,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var scavengePos = _chunkSize * startFromChunk;
 			var upTo = scavengePoint.Position;
 			while (scavengePos < upTo) {
+				// in bounds because we stop before the scavenge point
 				var physicalChunk = _chunkManager.GetChunkReaderFor(scavengePos);
 
 				if (!physicalChunk.IsReadOnly)
@@ -168,6 +157,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			if (!record.IsScavengable)
 				return false;
+
+			//qq shortcut for efficiency
+			//if (record.LogPosition >= scavengePoint.Position)
+			//	return false;
 
 			if (record.EventNumber < 0) {
 				// we could discard from transactions sometimes, either by accumulating a state for them

@@ -14,9 +14,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	//      because we rarely if ever need to store the stream name, and the hashes are fixed size
 	//   2. when being read, inform the caller whether the key hash collides or not
 	//
-	// for retrieval, if you have the key then you can always get the value
-	// if you have the hash then what? //qq
-	// and you can iterate through everything.
+	// for retrieval, if you have the key (and it has been checked for collision) then this
+	// will look in the right submap. if you have a handle then this will look into the submap
+	// according to the kind of handle.
 	public class CollisionMap<TKey, TValue> {
 		private readonly IScavengeMap<ulong, TValue> _nonCollisions;
 		private readonly IScavengeMap<TKey, TValue> _collisions;
@@ -35,16 +35,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_collisions = collisions;
 		}
 
-		//qq important precondition: the key must already be checked for whether it collides.
+		// the key must already be checked for collisions so that we know if it _isCollision
 		public bool TryGetValue(TKey key, out TValue value) =>
 			_isCollision(key)
 				? _collisions.TryGetValue(key, out value)
 				: _nonCollisions.TryGetValue(_hasher.Hash(key), out value);
 
-		//qq
-		// perhaps the difference is when providing a handle we are saying we know how we want to look
-		// this up (we know if it is a collision), and if we provide the full key we are saying 
-		// 'dont care whether it is a collision or not'.
 		public bool TryGetValue(StreamHandle<TKey> handle, out TValue value) {
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
@@ -56,48 +52,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		//qqqqqq consider this api and its preconditions. would it be better to have an indexer setter
-		// and indeed an indexer getter
-		// make sure to document the preconditions.
-		public TValue this[StreamHandle<TKey> handle] {
-			get {
-				if (!TryGetValue(handle, out var v))
-					throw new KeyNotFoundException(); //qq detail
-				return v;
-			}
-			set {
-				switch (handle.Kind) {
-					case StreamHandle.Kind.Hash:
-						_nonCollisions[handle.StreamHash] = value;
-						break;
-					case StreamHandle.Kind.Id:
-						_collisions[handle.StreamId] = value;
-						break;
-					default:
-						throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
-				}
-			}
-		}
-
-		//qq it is required that the key we use is already checked for collisions.
-		//qq ok, in a nutshell my idea of mapping the streams to their metadata won't work because
-		// say we have metdatas for two streams, and the stream names happen to collide, but one of the
-		// streams doesn't actually exist, then the index check cant detect the collision, and one
-		// streams metadata may overwrite the other.
-		// put another way, this violates the requirement that we check the keys for collisions with
-		// other keys before using them to store data against here, because we can only check for
-		// collisions of things actually present in the log. or put a third way, only names in the log
-		// can be used as keys.
-		//
-		// SO we can't use the stream names as keys in the map - we have to use the metadata stream names
-		// will that work? should do. we will key against the metadta streams, because indeed every
-		// stream that needs scavenging is associated with a metadata stream. when we scavenge a chunk we
-		// can determine the metadata stream for each record we find easily, and see if it exists. i
-		// think it's fine.
 		public TValue this[TKey key] {
 			get {
 				if (!TryGetValue(key, out var v))
-					throw new KeyNotFoundException(); //qq detail
+					throw new KeyNotFoundException($"Could not find key {key}");
 				return v;
 			}
 
@@ -111,10 +69,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		// when a key that didn't used to be a collision, becomes a collision.
+		// the remove and the add must be performed atomically.
+		// but the overall operation is idempotent
 		public void NotifyCollision(TKey key) {
 			var hash = _hasher.Hash(key);
-			//qq the remove and the add must be performed atomically.
-			// but the overall operation is idempotent
 			if (_nonCollisions.TryRemove(hash, out var value)) {
 				_collisions[key] = value;
 			} else {
@@ -123,8 +81,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		//qq name
-		//qq generalize so that it isn't for streams specifically
 		// overall sequence is collisions ++ noncollisions
 		public IEnumerable<(StreamHandle<TKey> Handle, TValue Value)> Enumerate(
 			StreamHandle<TKey> checkpoint) {
@@ -152,7 +108,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					break;
 
 				default:
-					throw new Exception("thdfhrgls"); //qq argument out of range details
+					throw new ArgumentOutOfRangeException(nameof(checkpoint), checkpoint.Kind, null);
 			}
 
 			foreach (var kvp in collisionsEnumerable) {

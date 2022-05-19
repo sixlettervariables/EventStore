@@ -23,7 +23,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public Scavenger(
 			IScavengeState<TStreamId> state,
-			//qq might need to be factories if we need to instantiate new when calling start()
 			IAccumulator<TStreamId> accumulator,
 			ICalculator<TStreamId> calculator,
 			IChunkExecutor<TStreamId> chunkExecutor,
@@ -45,10 +44,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public async Task RunAsync(
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
-
-			//qqqq something needs to write a scavengepoint into the log.. is that part of starting
-			// a scavenge when there isn't one running? perhaps need to forward the write to the leader,
-			// need to use optimistic concurrency so two nodes dont do this concurrently.
 
 			//qq similar to TFChunkScavenger.Scavenge. consider what we want to log exactly
 			var sw = Stopwatch.StartNew();
@@ -133,16 +128,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				AfterCleaning(cleaning.ScavengePoint);
 
 			} else {
-				throw new Exception($"unexpected checkpoint {checkpoint}"); //qq details
+				throw new Exception($"Unexpected checkpoint: {checkpoint}");
 			}
 		}
 
-		//qq name
-		//qqqqqqq look over this, test.
 		async Task StartNewAsync(
 			ScavengePoint prevScavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
+
 			// prevScavengePoint is the previous one that was completed
 			// lastScavengePoint is the latest one in the database
 			// nextScavengePoint is the one we are about to scavenge up to

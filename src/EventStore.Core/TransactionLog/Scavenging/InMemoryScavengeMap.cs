@@ -24,6 +24,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			AllRecords().Where(Filter);
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
+			// skip those which are before or equal to the checkpoint.
 			ActiveRecords().SkipWhile(x => Comparer<TKey>.Default.Compare(x.Key, checkpoint) <= 0);
 
 		public bool TryRemove(TKey key, out TValue value) {

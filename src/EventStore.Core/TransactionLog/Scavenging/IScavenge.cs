@@ -468,6 +468,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// this unifies the entries, some just have the hash (when we know they do not collide)
 	// some contain the full stream id (when they do collide)
 	//qq consider explicit layout
+	// todo: 
 	public readonly struct StreamHandle<TStreamId> {
 
 		public readonly StreamHandle.Kind Kind;

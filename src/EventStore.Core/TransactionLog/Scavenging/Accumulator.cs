@@ -58,7 +58,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			//qq is the plus 1 necessaryily ok, bounds?
+			// bounds are ok because we wont try to read past the scavenge point
 			var logicalChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
 			var weights = new WeightAccumulator(state);

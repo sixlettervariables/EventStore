@@ -29,12 +29,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// State that is scoped to the event.
 		public EventInfo EventInfo { get; private set; }
 
-		//qq consider this inequality
 		public bool IsLastEventInStream => EventInfo.EventNumber == Stream.LastEventNumber;
 
 		public bool IsOnOrAfterScavengePoint => EventInfo.LogPosition >= ScavengePoint.Position;
 
-		//qq consider caching
 		public int LogicalChunkNumber => (int)(EventInfo.LogPosition / ChunkSize);
 
 		public DiscardDecision DecideEvent() {
@@ -70,31 +68,31 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			// up to maxage. keep if there is no maxage restriction
-			if (!Stream.CutoffTime.HasValue) {
+			var cutoffTime = Stream.CutoffTime;
+			if (!cutoffTime.HasValue) {
 				return DiscardDecision.Keep;
 			}
 
 			// there is a maxage restriction
-			return ShouldDiscardForMaxAge(Stream.CutoffTime.Value);
+			return ShouldDiscardForMaxAge(cutoffTime.Value);
 		}
 
 		private DiscardDecision ShouldDiscardForMaxAge(DateTime cutoffTime) {
 			// establish a the range that the event was definitely created between.
-			if (!State.TryGetChunkTimeStampRange(LogicalChunkNumber, out var timeStampRange)) {
-				throw new Exception("Couldn't get TimeStamp range"); //qq details
+			if (!State.TryGetChunkTimeStampRange(LogicalChunkNumber, out var createdAtRange)) {
+				throw new Exception($"Could not get TimeStamp range for chunk {LogicalChunkNumber}");
 			}
 
 			// range is guanranteed to be non-empty
-			//qq consider whether either/both of these should include equal-to.
-			if (cutoffTime < timeStampRange.Min) {
+			if (cutoffTime < createdAtRange.Min) {
 				return DiscardDecision.Keep;
 			}
 
-			if (cutoffTime > timeStampRange.Max) {
+			if (createdAtRange.Max < cutoffTime) {
 				return DiscardDecision.Discard;
 			}
 
-			// must be between min and max inclusive
+			// it must be between min and max inclusive
 			return DiscardDecision.MaybeDiscard;
 		}
 	}

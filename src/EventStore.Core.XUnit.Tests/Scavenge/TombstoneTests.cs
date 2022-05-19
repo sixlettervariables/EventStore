@@ -6,8 +6,6 @@ using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TombstoneTests {
-		//qqq we will probably want a set of these to test out collisions when there are tombstones
-		// and a set for collisions when there is metadata (maybe combination metadata and tombstone)
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;

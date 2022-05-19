@@ -65,22 +65,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						throw new InvalidOperationException(
 							$"Attempted to calculate a {originalStreamData.Status} record: {originalStreamData}");
 
-					//qqqqqqqqqqqqqqqqqqq
-					// it would be neat if this interface gave us some hint about the location of
-					// the DP so that we could set it in a moment cheaply without having to search.
-					// although, if its a wal that'll be cheap anyway.
-					// if the scavengemap supports RMW that might have a bearing too, but for now maybe
-					// this is just overcomplicating things.
+					// todo: if sqlite lets us update the 'current' row before continuing on to the next
+					// then this could take advantage of that.
 
-					//qq there is probably scope for a few optimisations here eg, we could store on the
-					// originalstreamdata what the lasteventnumber was at the point of calculating the 
-					// discard points. then we could spot here that if the last event number hasn't moved
-					// and the the metadata hasn't changed, then the DP wont have moved for maxcount.
-					// consider the equivalent for the other discard criteria, and see whether the time/space
-					// tradeoff is worth it.
-					//
-					//qq tidy: we might also remove from OriginalStreamsToScavenge when the TB or tombstone 
-					// is completely spent, which might have a bearing on the above.
 					streamCalc.SetStream(originalStreamHandle, originalStreamData);
 					var newStatus = streamCalc.CalculateStatus();
 
@@ -133,8 +120,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					}
 				}
 
-				//qqqqqq consider/test this
-				// we have an open transaction here so we have to commit something
 				// if we processed some streams, the last one is in the calculator
 				// if we didn't process any streams, the calculator contains the default
 				// none handle, which is probably appropriate to commit in that case
@@ -170,7 +155,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			discardPoint = DiscardPoint.KeepAll;
 			maybeDiscardPoint = DiscardPoint.KeepAll;
 
-			const int maxCount = 100; //qq what would be sensible? probably pretty large
+			const int maxCount = 100; //qq tuning: what would be sensible? probably pretty large
 
 			var first = true;
 
@@ -179,8 +164,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// note: when the handle is a hash the ReadEventInfoForward call is index-only
 				// note: the event infos are not necessarily contiguous
 				//qq limit the read to the scavengepoint too?
-				//qq ReadEventInfoForward deduplicates according to skipindexscanonread
-				//qqqq (but currently only if there is a collision).
+				//qqq ReadEventInfoForward deduplicates according to skipindexscanonread
+				// (but currently only if there is a collision).
 				var slice = _index.ReadEventInfoForward(
 					originalStreamHandle,
 					fromEventNumber,
@@ -223,7 +208,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							return;
 
 						default:
-							throw new Exception("sdfhg"); //qq detail
+							throw new Exception(
+								$"Invalid discard decision for stream {originalStreamHandle}.");
 					}
 				}
 
@@ -240,13 +226,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						// - the stream might have events after the scavenge point and olscavenge
 						//   has removed the ones before
 						// we didn't find anything to discard, so keep everything.
-						// in these situatiosn what discard point should we return, or do we need to abort
 						discardPoint = DiscardPoint.KeepAll;
 						maybeDiscardPoint = DiscardPoint.KeepAll;
 						return;
 					} else {
 						// we found some and discarded them all, oops.
-						//qq maybe we could have the state look up the stream name
 						throw new Exception(
 							$"Discarded all events for stream {originalStreamHandle}. " +
 							$"This should be impossible.");

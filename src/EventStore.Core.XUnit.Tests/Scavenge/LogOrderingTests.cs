@@ -8,8 +8,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class LogDisorderingTests {
 		// if a metadata was ever written with the wrong event number (e.g. 0) due to old bugs
 		// the rest of the system will not respect it, so scavenge must not either
-		//qqq note that since the index does not necessarily read the out of order metadata, it cannot
-		// be reliably scavenged - we will want another database tool to spot and remove such records
 		[Fact]
 		public async Task wrong_order_metadata_does_not_apply() {
 			var t = 0;
