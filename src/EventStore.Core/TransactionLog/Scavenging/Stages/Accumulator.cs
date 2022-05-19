@@ -175,11 +175,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							originalStreamRecord.Release();
 							break;
 						case RecordForAccumulator<TStreamId>.MetadataStreamRecord x:
-							ProcessMetastreamRecord(x, state, weights);
+							ProcessMetastreamRecord(x, scavengePoint, state, weights);
 							metadataStreamRecord.Release();
 							break;
 						case RecordForAccumulator<TStreamId>.TombStoneRecord x:
-							ProcessTombstone(x, state, weights);
+							ProcessTombstone(x, scavengePoint, state, weights);
 							tombStoneRecord.Release();
 							break;
 						default:
@@ -222,6 +222,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// parse, then it clears the metadata.
 		private void ProcessMetastreamRecord(
 			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
+			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			WeightAccumulator weights) {
 
@@ -233,7 +234,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				throw new InvalidOperationException(
 					$"Found metadata in transaction in stream {record.StreamId}");
 
-			CheckMetadataOrdering(record, out var isInOrder, out var replacedPosition);
+			CheckMetadataOrdering(record, scavengePoint, out var isInOrder, out var replacedPosition);
 
 			if (replacedPosition.HasValue) {
 				var logicalChunkNumber = (int)(replacedPosition.Value / _chunkSize);
@@ -267,6 +268,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		//   - increase the weight of the chunk with the old metadata if applicable
 		private void ProcessTombstone(
 			RecordForAccumulator<TStreamId>.TombStoneRecord record,
+			ScavengePoint scavengePoint,
 			IScavengeStateForAccumulator<TStreamId> state,
 			WeightAccumulator weights) {
 
@@ -297,7 +299,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var eventInfos = _index.ReadEventInfoBackward(
 				streamId: metastreamId,
 				fromEventNumber: record.EventNumber,
-				maxCount: 1);
+				maxCount: 1,
+				scavengePoint: scavengePoint);
 
 			foreach (var eventInfo in eventInfos) {
 				var logicalChunkNumber = (int)(eventInfo.LogPosition / _chunkSize);
@@ -307,6 +310,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private void CheckMetadataOrdering(
 			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
+			ScavengePoint scavengePoint,
 			out bool isInOrder,
 			out long? replacedPosition) {
 
@@ -331,7 +335,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var eventInfos = _index.ReadEventInfoForward(
 				streamId: record.StreamId,
 				fromEventNumber: fromEventNumber,
-				maxCount: 100);
+				maxCount: 100,
+				scavengePoint: scavengePoint);
 
 			isInOrder = true;
 			foreach (var eventInfo in eventInfos) {

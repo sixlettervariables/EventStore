@@ -199,7 +199,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public EventInfo[] ReadEventInfoBackward(
 			string streamId,
 			long fromEventNumber,
-			int maxCount) {
+			int maxCount,
+			ScavengePoint scavengePoint) {
 
 			var result = new List<EventInfo>();
 
@@ -228,7 +229,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public EventInfo[] ReadEventInfoForward(
 			string streamId,
 			long fromEventNumber,
-			int maxCount) {
+			int maxCount,
+			ScavengePoint scavengePoint) {
 
 			var result = new List<EventInfo>();
 

@@ -297,7 +297,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public EventInfo[] ReadEventInfoBackward(
 			TStreamId streamId,
 			long fromEventNumber,
-			int maxCount) {
+			int maxCount,
+			ScavengePoint scavengePoint) {
 
 			throw new NotImplementedException();
 		}
@@ -305,7 +306,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public EventInfo[] ReadEventInfoForward(
 			TStreamId streamId,
 			long fromEventNumber,
-			int maxCount) {
+			int maxCount,
+			ScavengePoint scavengePoint) {
 
 			throw new NotImplementedException();
 		}
