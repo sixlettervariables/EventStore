@@ -193,8 +193,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					return f(entry);
 				});
 
-			//qqqqqqqq maybe _cleaningCancellationTrigger could work with the transaction commit
-			// maybe they alll could
 			var cancellationCheckPeriod = 1;
 			var checkpointPeriod = 2;
 

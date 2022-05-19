@@ -4,7 +4,6 @@ using System.Threading;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq add logging to this and the other stages
 	public class ChunkExecutor<TStreamId, TChunk> : IChunkExecutor<TStreamId> {
 
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
@@ -43,10 +42,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengeCheckpoint.ExecutingChunks checkpoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			CancellationToken cancellationToken) {
-
-			//qq would we want to run in parallel? (be careful with scavenge state interactions
-			// in that case, especially writes and storing checkpoints)
-			//qq order by the weight? maybe just iterate backwards.
 
 			//qq there is no point scavenging beyond the scavenge point
 			//qqqq is +1 ok range wise? same for accumulator
@@ -120,46 +115,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			IChunkReaderForExecutor<TStreamId> chunk,
 			CancellationToken cancellationToken) {
-
-			//qq the other reason we might want to not scanvenge this chunk is if the posmap would make
-			// it bigger
-			// than the original... limited concern because of the threshold above BUT we could address
-			// by using a padding/scavengedevent system event to prevent having to write a posmap
-			// this is the kind of decision we can make in here, local to the chunk.
-			// knowing the numrecordstodiscard could be useful here, if we are just discarding a small
-			// number then we'd probably pad them with 'gone' events instead of adding a posmap.
-
-			//qq in ExecuteChunk could also be a reasonable place to do a best effort at removing commit
-			// records if all the prepares for the commit are in this chunk (typically the case) and they
-			// are all scavenged, then we can remove the commit as well i think. this is probably what
-			// the old scavenge does. check
-
-			//qq old scavenge says 'never delete the very first prepare in a transaction'
-			// hopefully we can account for that here? although maybe it means our count of
-			// records to scavenge that was calculated index only might end up being approximate.
-
-			//qqqq TRANSACTIONS
-			//qq add tests that makes sure its ok when we have uncommitted transactions that "collide"
-			//
-			// ChunkExecutor:
-			// - we can only scavenge a record if we know what event number it is, for which we need the commit
-			//   record. so perhaps we only scavenge the events in a transaction (and the commit record)
-			//   if the transaction was committed in the same chunk that it was started. this is pretty much
-			//   what the old scavenge does too.
-			//
-			//  TRANSACTIONS IN OLD SCAVENGE
-			//   - looks like uncommitted prepares are generally kept, maybe unless the stream is hard deleted
-			//   - looks like even committed prepares are only removed if the commit is in the same chunk
-			// - uncommitted transactions are not present in the index, neither are commit records
-			//
-			//qq what if the lastevent in a stream is in a transaction?
-			//     we need to make sure we keep it, even though it doesn't have a expectedversion
-			//     so we can do just like old scavenge. if we cant establish the expectedversion then just keep it
-			//     if we can establish the expected version then we can compare it to the discard point.
-			//qq can we scavenge stuff better if the stream is known to be hard deleted - yes, we can get rid of
-			// everything except the begin records (just like old scavenge)
-			//   note in this case the lasteventnumber is the tombstone, which is not in a transaction.
-
 
 			// 1. open the chunk, probably with the bulk reader
 			var newChunk = _chunkManager.CreateChunkWriter(

@@ -156,7 +156,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private static bool IsMetadata(IPrepareLogRecord<TStreamId> prepare) {
 			// prepare.EventType comparer equals metadataeventtype
-			return true; //qqqq
+			return true;
 		}
 
 		private static bool IsTombStone(IPrepareLogRecord<TStreamId> prepare) {
@@ -250,19 +250,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 	}
 
-	//qq
-	//public class ChunkBulkReaderForScavenge<TStreamId> : IChunkReaderForChunkExecutor<TStreamId> {
-	//	public IEnumerable<RecordForScavenge<TStreamId>> Read(TFChunk chunk) {
-	//		throw new NotImplementedException();
-	//		//using var reader = chunk.AcquireReader();
-	//		//var start = 0;
-	//		//var count = ChunkHeader.Size + chunk.ChunkFooter.PhysicalDataSize;
-
-	//		//yield return new RecordForScavenge(); //qq
-	//	}
-	//}
-
-	//qq
 	public class IndexScavenger : IIndexScavenger {
 		private readonly ITableIndex _tableIndex;
 
@@ -276,11 +263,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IIndexScavengerLog log,
 			CancellationToken cancellationToken) {
 
-			//qqq pass scavengePoint into tableindex
-			// have it store it in the ptable header, and probaly min it on merge,
-			// so it can tell whether any particular ptable can be skipped with respect
-			// to a given scavenge point. in this way we save going back to the beginning
-			// if we stop the scavenge during the index execution
 			_tableIndex.Scavenge(shouldKeep, log, cancellationToken);
 		}
 	}

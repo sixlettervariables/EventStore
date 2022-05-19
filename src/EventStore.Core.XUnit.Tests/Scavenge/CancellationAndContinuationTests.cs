@@ -749,12 +749,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 		[Fact]
-		public async Task can_cancel_during_tidying_and_resume() {
+		public async Task can_cancel_during_cleaning_and_resume() {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1"))
+					.Chunk(
+						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: TruncateBefore1),
+						Rec.Prepare(t++, "ab-1"),
+						Rec.Prepare(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
 				.CancelWhenCheckpointing<ScavengeCheckpoint.Cleaning>()
 				.RunAsync();
@@ -782,10 +785,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// scavenge completed
 			Assert.True(state.TryGetCheckpoint(out checkpoint));
 			var done = Assert.IsType<ScavengeCheckpoint.Done>(checkpoint);
-			//qqqqqqqq add some state checks once we have something to clean up
+
+			Assert.False(state.TryGetOriginalStreamData("ab-1", out _));
+			Assert.False(state.TryGetMetastreamData("$$ab-1", out _));
 		}
-	
-		//qq cancel and resume for merging?
 
 		[Fact]
 		public async Task can_complete() {

@@ -416,7 +416,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public ScaffoldChunkManagerForScavenge(int chunkSize, LogRecord[][] log) {
 			_chunkSize = chunkSize;
-			//qqqqq should we pass in the original log, or copy of log
 			_log = log;
 		}
 

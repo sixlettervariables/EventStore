@@ -58,7 +58,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var payload = new ScavengePointPayload {
 				Threshold = threshold,
 			};
-			//qqq for that matter perhaps the scavengepoint stream itself should have metadata set
 
 			//qq do these calls automatically timeout, or might they hang? old scavenge uses them to
 			// log, but perhaps that is less critical

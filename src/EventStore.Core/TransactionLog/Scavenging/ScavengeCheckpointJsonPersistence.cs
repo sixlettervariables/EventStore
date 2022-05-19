@@ -42,9 +42,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					return new ScavengeCheckpoint.Cleaning(ScavengePoint);
 				case Stage.Done:
 					return new ScavengeCheckpoint.Done(ScavengePoint);
-				//qqqqqq add other cases
 				default:
-					throw new ArgumentOutOfRangeException(); //qq detail
+					throw new ArgumentOutOfRangeException(
+						nameof(CheckpointStage),
+						CheckpointStage,
+						null);
 			}
 		}
 
@@ -87,7 +89,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					break;
 
 				default:
-					throw new ArgumentOutOfRangeException(); //qq detail
+					throw new ArgumentOutOfRangeException(
+						nameof(checkpoint),
+						checkpoint,
+						null);
 			}
 
 			return dto;

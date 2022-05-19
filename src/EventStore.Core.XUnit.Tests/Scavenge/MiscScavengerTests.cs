@@ -76,11 +76,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		//qq now that we are keying on the metadta streams, does that mean that we don't
-		// need to many cases here? like whether or not the original streams collide might not be
-		// relevant any more.
-		//
-		//qqqqqqqqqqqqq do we want to bake tombstones into here as well
 		[Fact]
 		public async Task metadata_colliding() {
 			var t = 0;

@@ -83,9 +83,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return _transactionManager;
 		}
 
-		//qqqq where to wire in the json conversion
-		// and, we probably want to spot corrupt checkpoint and treat it differently to 
-		// no checkpoint. perhaps require deleting the whole scavenge state?
 		public bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint) =>
 			_checkpointStorage.TryGetValue(Unit.Instance, out checkpoint);
 
