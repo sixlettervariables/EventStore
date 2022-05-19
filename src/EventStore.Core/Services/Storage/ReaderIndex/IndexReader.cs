@@ -241,6 +241,8 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
+		//qq skipindexscanonread.
+		//qq possibly/probably needs reversing
 		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
 			var entries = _tableIndex.GetRange(stream, fromEventNumber, fromEventNumber + maxCount - 1);
 			var eventInfos = new List<EventInfo>();
