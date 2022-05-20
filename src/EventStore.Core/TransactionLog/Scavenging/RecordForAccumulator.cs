@@ -35,7 +35,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public class MetadataStreamRecord : RecordForAccumulator<TStreamId> {
 			public StreamMetadata Metadata {
 				//qq potential for .ToArray() optimization?
-				get { return _metadata ?? (_metadata = StreamMetadata.TryFromJsonBytes(_prepareView.Data.ToArray())); }
+				get { return _metadata ?? (_metadata = StreamMetadata.TryFromJsonBytes(_prepareView.Version, _prepareView.Data.ToArray())); }
 			}
 			private StreamMetadata _metadata;
 			public long EventNumber => _prepareView.ExpectedVersion + 1;

@@ -601,7 +601,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			if (prepare.Data.Length == 0 || prepare.Flags.HasNoneOf(PrepareFlags.IsJson))
 				return StreamMetadata.Empty;
 
-			var metadata = StreamMetadata.TryFromJsonBytes(prepare);
+			var metadata = StreamMetadata.TryFromJsonBytes(prepare.Version, prepare.Data);
 			return metadata;
 		}
 	}

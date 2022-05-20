@@ -51,40 +51,32 @@ namespace EventStore.Core.Data {
 				MaxCount, MaxAge, TruncateBefore, TempStream, CacheControl, Acl);
 		}
 
-		//qq consider name
-		//qq get other places call this when applicable instead of FromJsonBytes.
-		public static StreamMetadata TryFromJsonBytes(PrepareLogRecord prepare) {
+		public static StreamMetadata TryFromJsonBytes(byte prepareVersion, byte[] json) {
 			try {
-				var metadata = FromJsonBytes(prepare.Data);
-				// upgrade the metadata from v0 if necessary
-				if (prepare.Version == LogRecordVersion.LogRecordV0 && metadata.TruncateBefore == int.MaxValue) {
-					metadata = new StreamMetadata(
-						maxCount: metadata.MaxCount,
-						maxAge: metadata.MaxAge,
-						truncateBefore: EventNumber.DeletedStream,
-						tempStream: metadata.TempStream,
-						cacheControl: metadata.CacheControl,
-						acl: metadata.Acl);
-				}
-
+				var metadata = FromJsonBytes(json);
+				metadata = UpgradeMetadata(prepareVersion, metadata);
 				return metadata;
-			} catch (Exception) {
-				// this can happen if the json is malformed, or if any of the things that we expect to be longs are better than longs
-				// which can happen if you try to set something to long.maxvalue in the webui because javascript translates
-				// it into a number that is bigger than long.max
-				//qq better log something
+			} catch {
+				// this can happen if the json is malformed, or if any of the things that we expect to be
+				// longs are bigger than longs which can happen if you try to set something to
+				// long.maxvalue in the webui because javascript translates it into a number that is
+				// bigger than long.max
 				return Empty;
 			}
 		}
 
-		public static StreamMetadata TryFromJsonBytes(byte[] json) {
-			try {
-				using (var reader = new JsonTextReader(new StreamReader(new MemoryStream(json)))) {
-					return FromJsonReader(reader);
-				}
-			} catch {
-				return Empty;
+		public static StreamMetadata UpgradeMetadata(byte prepareVersion, StreamMetadata metadata) {
+			if (prepareVersion == LogRecordVersion.LogRecordV0 && metadata.TruncateBefore == int.MaxValue) {
+				metadata = new StreamMetadata(
+					maxCount: metadata.MaxCount,
+					maxAge: metadata.MaxAge,
+					truncateBefore: EventNumber.DeletedStream,
+					tempStream: metadata.TempStream,
+					cacheControl: metadata.CacheControl,
+					acl: metadata.Acl);
 			}
+
+			return metadata;
 		}
 
 		public static StreamMetadata FromJsonBytes(byte[] json) {
