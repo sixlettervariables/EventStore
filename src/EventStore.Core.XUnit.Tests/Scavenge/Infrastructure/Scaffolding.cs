@@ -127,26 +127,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}
 
 			var streamIdConverter = new LogV2StreamIdConverter();
-			var reusableRecordBuffer = new ReusableBuffer(1024);
-			var reusableBasicPrepare = ReusableObject.Create(new BasicPrepareLogRecord());
-
-			void OnRecordDispose() {
-				reusableBasicPrepare.Release();
-				reusableRecordBuffer.Release();
-			}
-
-			var readSpecs = new ReadSpecsBuilder()
-				.SkipCommitRecords()
-				.SkipSystemRecords()
-				.ReadBasicPrepareRecords(
-					includeData: (streamId, _) => _metastreamLookup.IsMetaStream(streamIdConverter.ToStreamId(streamId)),
-					includeMetadata: delegate { return false; },
-					basicPrepareRecordFactory: size => {
-						var buffer = reusableRecordBuffer.AcquireAsByteArray(size);
-						var basicPrepare = reusableBasicPrepare.Acquire(new BasicPrepareInitParams(buffer, OnRecordDispose));
-						return basicPrepare;
-					})
-				.Build();
+			var reusableRecordBuffer = new ReusableBuffer(8192);
+			Func<int, byte[]> getBuffer = size => reusableRecordBuffer.AcquireAsByteArray(size);
+			Action releaseBuffer = () => reusableRecordBuffer.Release();
+			var reusablePrepareView = ReusableObject.Create(new PrepareLogRecordView());
 
 			var chunkBytes = new byte[1024];
 
@@ -158,32 +142,36 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
 
-					// write and then read to end up with a BasicPrepareLogRecord
+					// write and then create a view over what was written
 					chunkBuffer.Position = 0;
 					record.WriteTo(chunkWriter);
+					var length = (int)chunkBuffer.Position;
+
 					chunkBuffer.Position = 0;
-					var recordType = (LogRecordType)chunkReader.ReadByte();
-					var version = chunkReader.ReadByte();
-					var logPosition = chunkReader.ReadInt64();
 
-					// expects the reader to have already read the type, version and position
-					var basicPrepare = BasicPrepareLogRecordReader.ReadFrom(
-						chunkReader,
-						version: version,
-						logPosition: logPosition,
-						readSpecs: readSpecs);
+					var rawRecord = getBuffer(length);
+					chunkReader.Read(rawRecord, 0, length);
 
+					var prepareViewInitParams = new PrepareLogRecordViewInitParams(
+						record: rawRecord,
+						length: length,
+						onDispose: reusablePrepareView.Release);
+					var prepareView = reusablePrepareView.Acquire(prepareViewInitParams);
 
-					var streamId = streamIdConverter.ToStreamId(basicPrepare.EventStreamId);
-					var initParams = new RecordForAccumulatorInitParams<string>(basicPrepare, streamId);
+					var streamId = streamIdConverter.ToStreamId(prepareView.EventStreamId);
+					var recordInitParams = new RecordForAccumulatorInitParams<string>(
+						prepareView,
+						streamId);
 
 					if (prepare.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
-						yield return tombStoneRecord.Acquire(initParams);
+						yield return tombStoneRecord.Acquire(recordInitParams);
 					} else if (_metastreamLookup.IsMetaStream(prepare.EventStreamId)) {
-						yield return metadataStreamRecord.Acquire(initParams);
+						yield return metadataStreamRecord.Acquire(recordInitParams);
 					} else {
-						yield return originalStreamRecord.Acquire(initParams);
+						yield return originalStreamRecord.Acquire(recordInitParams);
 					}
+
+					releaseBuffer();
 				}
 			}
 		}
