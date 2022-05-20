@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using EventStore.Core.Index.Hashes;
 
@@ -14,10 +13,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// store the values. could possibly store just the hashes instead but that would
 		// lose us information and it should be so rare that there are any collisions at all.
-		//qq for the real implementation make sure adding is idempotent
-		// consider whether this should be reponsible for its own storage, or maybe since
-		// there will be hardly any collisions we can just read the data out to store it separately
 		private readonly IScavengeMap<T, Unit> _collisions;
+
+		// the entire set of collisions, or null if invalidated
+		private Dictionary<T, Unit> _collisionsCache;
 		
 		public CollisionDetector(
 			IScavengeMap<ulong, T> hashes,
@@ -29,14 +28,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_hasher = hasher;
 		}
 
-		public bool IsCollision(T item) => _collisions.TryGetValue(item, out _);
-		//qq is this used in a path where allocations are ok.. albeit a pretty small one.
-		//would IEnumerable better, consider threading
-		public T[] GetAllCollisions() => _collisions
+		public bool IsCollision(T item) {
+			if (_collisionsCache == null)
+				_collisionsCache = _collisions.AllRecords().ToDictionary(x => x.Key, x => x.Value);
+			return _collisionsCache.TryGetValue(item, out _);
+		}
+
+		public IEnumerable<T> AllCollisions() => _collisions
 			.AllRecords()
 			.Select(x => x.Key)
-			.OrderBy(x => x)
-			.ToArray();
+			.OrderBy(x => x);
 
 		// Proof by induction that DetectCollisions works
 		// either:
@@ -105,6 +106,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// hash in use by a different item! found new collision. 2a
 			_collisions[item] = Unit.Instance;
 			_collisions[collision] = Unit.Instance;
+			_collisionsCache = null;
+
 			return CollisionResult.NewCollision;
 		}
 	}

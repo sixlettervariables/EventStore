@@ -547,7 +547,7 @@ namespace EventStore.Core.TransactionLog.Chunks {
 			CommitInfo commitInfo;
 			if (!commits.TryGetValue(commit.TransactionPosition, out commitInfo)) {
 				// This should never happen given that we populate `commits` from the commit records.
-				//qq ^ not true, the `commits` are only commit records for transactions that opened in this chunk.
+				// (not sure about this. the `commits` are only commit records for transactions that opened in this chunk)
 				return true;
 			}
 

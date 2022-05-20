@@ -162,5 +162,23 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			Assert.Equal("Found metadata in transaction in stream $$ab-1", e.Message);
 		}
+
+		[Fact(Skip = "should pass when we no longer have the scaffolding")]
+		public async Task transactions_not_scavenged() {
+			await new Scenario()
+				.WithDb(x => x
+					.Chunk(
+						Rec.Prepare(0, "ab-1"),
+						Rec.TransSt(1, "ab-1"),
+						Rec.Prepare(1, "ab-1"),
+						Rec.TransEnd(1, "ab-1"),
+						Rec.Prepare(2, "ab-1"),
+						Rec.Prepare(3, "$$ab-1", "$metadata", metadata: MaxCount1))
+					.Chunk(ScavengePointRec(4)))
+				.RunAsync(x => new[] {
+						x.Recs[0].KeepIndexes(1, 2, 3, 4, 5),
+						x.Recs[1],
+					});
+		}
 	}
 }

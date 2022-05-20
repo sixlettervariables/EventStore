@@ -85,9 +85,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint) =>
 			_checkpointStorage.TryGetValue(Unit.Instance, out checkpoint);
 
-		//qq method? property? enumerable? array? clunky allocations at the moment.
-		public IEnumerable<TStreamId> Collisions() {
-			return _collisionDetector.GetAllCollisions();
+		public IEnumerable<TStreamId> AllCollisions() {
+			return _collisionDetector.AllCollisions();
 		}
 
 		public bool TryGetOriginalStreamData(
@@ -242,7 +241,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			//qq track these as we go rather than calculating each time on demand.
 			var collidingHashes = new HashSet<ulong>();
 			
-			foreach (var collidingKey in _collisionDetector.GetAllCollisions()) {
+			foreach (var collidingKey in _collisionDetector.AllCollisions()) {
 				collidingHashes.Add(_hasher.Hash(collidingKey));
 			}
 

@@ -107,7 +107,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				sut.DetectCollisions(data[i].StreamName, out _);
 				Assert.Equal(
 					expectedCollisions.OrderBy(x => x),
-					sut.GetAllCollisions());
+					sut.AllCollisions());
 			}
 		}
 	}

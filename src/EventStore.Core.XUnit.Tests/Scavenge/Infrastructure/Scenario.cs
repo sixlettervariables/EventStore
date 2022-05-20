@@ -338,7 +338,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}
 
 			// 1b. assert list of collisions.
-			Assert.Equal(collidingStreams.OrderBy(x => x), scavengeState.Collisions().OrderBy(x => x));
+			Assert.Equal(collidingStreams.OrderBy(x => x), scavengeState.AllCollisions().OrderBy(x => x));
 
 			//qq some other checks that look inside the scavenge state here because
 			// - they are just being troublesome to maintain rather than helping to find problems
