@@ -716,10 +716,6 @@ namespace EventStore.Core.TransactionLog.Chunks.TFChunk {
 			return _readSide.TryReadClosestForwardRaw(logicalPosition, getBuffer);
 		}
 
-		public RecordReadResult TryReadClosestForward(long logicalPosition, ReadSpecs readSpecs) {
-			return _readSide.TryReadClosestForward(logicalPosition, readSpecs);
-		}
-
 		public RecordReadResult TryReadLast() {
 			return _readSide.TryReadLast();
 		}
