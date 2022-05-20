@@ -1,7 +1,7 @@
 ﻿namespace EventStore.Core.TransactionLog.Scavenging {
 	// Refers to a stream by name or by hash
 	// This struct is json serialized, don't change the names naively
-	//qq: consider making this not stream specific
+	// todo: consider making this not stream specific
 	public struct StreamHandle {
 		public enum Kind : byte {
 			None,

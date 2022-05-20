@@ -8,7 +8,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private static EqualityComparer<T> TComparer { get; } = EqualityComparer<T>.Default;
 
 		// maps from hash to (any) user of that hash
-		private readonly IScavengeMap<ulong, T> _hashes;
+		private readonly IScavengeMap<ulong, T> _hashUsers;
 		private readonly ILongHasher<T> _hasher;
 
 		// store the values. could possibly store just the hashes instead but that would
@@ -17,21 +17,34 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		// the entire set of collisions, or null if invalidated
 		private Dictionary<T, Unit> _collisionsCache;
-		
+		private Dictionary<ulong, Unit> _collisionsHashCache;
+
 		public CollisionDetector(
-			IScavengeMap<ulong, T> hashes,
+			IScavengeMap<ulong, T> hashUsers,
 			IScavengeMap<T, Unit> collisionStorage,
 			ILongHasher<T> hasher) {
 
-			_hashes = hashes;
+			_hashUsers = hashUsers;
 			_collisions = collisionStorage;
 			_hasher = hasher;
 		}
 
 		public bool IsCollision(T item) {
 			if (_collisionsCache == null)
-				_collisionsCache = _collisions.AllRecords().ToDictionary(x => x.Key, x => x.Value);
+				_collisionsCache = _collisions.AllRecords().ToDictionary(
+					x => x.Key,
+					x => x.Value);
 			return _collisionsCache.TryGetValue(item, out _);
+		}
+
+		public bool IsCollisionHash(ulong hash) {
+			if (_collisionsHashCache == null) {
+				_collisionsHashCache = new Dictionary<ulong, Unit>();
+				foreach (var kvp in _collisions.AllRecords()) {
+					_collisionsHashCache[_hasher.Hash(kvp.Key)] = kvp.Value;
+				}
+			}
+			return _collisionsHashCache.TryGetValue(hash, out _);
 		}
 
 		public IEnumerable<T> AllCollisions() => _collisions
@@ -92,9 +105,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			// collision not previously known, but might be a new one now.
 			var itemHash = _hasher.Hash(item);
-			if (!_hashes.TryGetValue(itemHash, out collision)) {
+			if (!_hashUsers.TryGetValue(itemHash, out collision)) {
 				// hash wasn't even in use. it is now.
-				_hashes[itemHash] = item;
+				_hashUsers[itemHash] = item;
 				return CollisionResult.NoCollision; // hash not in use, can be no collision. 2b
 			}
 
@@ -107,6 +120,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_collisions[item] = Unit.Instance;
 			_collisions[collision] = Unit.Instance;
 			_collisionsCache = null;
+			_collisionsHashCache = null;
 
 			return CollisionResult.NewCollision;
 		}

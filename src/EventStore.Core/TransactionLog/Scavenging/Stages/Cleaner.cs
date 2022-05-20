@@ -57,11 +57,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// one or more chunks was not executed, due to error or not meeting the threshold
 				// either way, we cannot remove records 
 				if (_unsafeIgnoreHardDeletes) {
-					//qq this is a pretty serious condition, we should probably make it impossible.
-					// we could have removed the tombstone without removing all the other records.
+					// the chunk executor should have stopped the scavenge if it couldn't execute any
+					// chunk when this flag is set.
+					//qqqq log: a serious error, we could have removed the tombstone without removing all the other records.
 
 				} else {
-					//qq this is fine just log something about not cleaning the state because there are
+					//qq log: this is fine just log something about not cleaning the state because there are
 					// chunks pending execution.
 				}
 			}

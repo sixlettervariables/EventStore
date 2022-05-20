@@ -44,13 +44,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IChunkWeightScavengeMap chunkWeights,
 			ITransactionManager transactionManager) {
 
-			//qq inject this so that in log v3 we can have a trivial implementation
-			//qq to save us having to look up the stream names repeatedly
+			// todo: in log v3 inject an implementation that doesn't store hash users
+			// since there are no collisions.
 			_collisionDetector = new CollisionDetector<TStreamId>(
-				//qq configurable cacheMaxCount
-				new LruCachingScavengeMap<ulong, TStreamId>(hashes, cacheMaxCount: 10_000),
-				collisionStorage,
-				hasher);
+				// todo: configurable cacheMaxCount
+				hashUsers: new LruCachingScavengeMap<ulong, TStreamId>(hashes, cacheMaxCount: 100_000),
+				collisionStorage: collisionStorage,
+				hasher: hasher);
 
 			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
@@ -134,8 +134,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// FOR CALCULATOR
 		//
 
-		//qq name.. something to do with active?
-		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge(
+		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToCalculate(
 			StreamHandle<TStreamId> checkpoint) {
 
 			return _originalStreamDatas.Enumerate(checkpoint);
@@ -238,14 +237,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public bool IsCollision(ulong streamHash) {
-			//qq track these as we go rather than calculating each time on demand.
-			var collidingHashes = new HashSet<ulong>();
-			
-			foreach (var collidingKey in _collisionDetector.AllCollisions()) {
-				collidingHashes.Add(_hasher.Hash(collidingKey));
-			}
-
-			return collidingHashes.Contains(streamHash);
+			return _collisionDetector.IsCollisionHash(streamHash);
 		}
 
 		//

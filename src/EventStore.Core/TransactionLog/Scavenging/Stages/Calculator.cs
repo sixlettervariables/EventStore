@@ -53,14 +53,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// there are limited scenarios when we do want to do this, (metadata streams when the main
 			// stream is tombstoned, and when UnsafeIgnoreHardDeletes is true) and they are governed by
 			// the IsTombstoned flags.
-			var originalStreamsToScavenge = state.OriginalStreamsToScavenge(
+			var originalStreamsToCalculate = state.OriginalStreamsToCalculate(
 				checkpoint: checkpoint?.DoneStreamHandle ?? default);
 
 			// for determinism it is important that IncreaseChunkWeight is called in a transaction with
 			// its calculation and checkpoint, otherwise the weight could be increased again on recovery
 			var transaction = state.BeginTransaction();
 			try {
-				foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToScavenge) {
+				foreach (var (originalStreamHandle, originalStreamData) in originalStreamsToCalculate) {
 					if (originalStreamData.Status != CalculationStatus.Active)
 						throw new InvalidOperationException(
 							$"Attempted to calculate a {originalStreamData.Status} record: {originalStreamData}");

@@ -12,7 +12,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		// Populated by Accumulator. Read by Calculator.
 		// (MaxAge also read by ChunkExecutor)
 		public long? MaxCount { get; set; }
-		public TimeSpan? MaxAge { get; set; } //qq can have limited precision?
+		public TimeSpan? MaxAge { get; set; }
 		public long? TruncateBefore { get; set; }
 		public bool IsTombstoned { get; set; }
 

@@ -2,8 +2,7 @@
 using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	//qq name
-	// but the idea of this is we load some context into this class for the given stream
+	// the idea of this is we load some context into this class for the given stream
 	// and then it helps us calculate and make decisions about what to keep.
 	// and the calculations can be done on demand.
 	// and can be unit tested separately if necessary

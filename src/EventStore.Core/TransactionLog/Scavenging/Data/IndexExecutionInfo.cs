@@ -1,5 +1,4 @@
-﻿//qq own files for some stuff in here
-namespace EventStore.Core.TransactionLog.Scavenging {
+﻿namespace EventStore.Core.TransactionLog.Scavenging {
 	public struct IndexExecutionInfo {
 		public IndexExecutionInfo(
 			bool isMetastream,

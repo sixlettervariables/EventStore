@@ -167,9 +167,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						chunkMaxTimeStamp = record.TimeStamp;
 
 					switch (record) {
-						//qq there may be other cases... the 'empty write', the system record (epoch)
-						// which we might still want to get the timestamp of.
-						// oh and commit records which we probably want to handle the same as prepares
 						case RecordForAccumulator<TStreamId>.OriginalStreamRecord x:
 							ProcessOriginalStreamRecord(x, state);
 							originalStreamRecord.Release();
@@ -183,7 +180,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							tombStoneRecord.Release();
 							break;
 						default:
-							throw new NotImplementedException(); //qq
+							throw new InvalidOperationException($"Unexpected record: {record}");
 					}
 				}
 

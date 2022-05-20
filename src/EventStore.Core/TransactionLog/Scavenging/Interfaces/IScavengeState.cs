@@ -38,28 +38,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		void Commit(TTransaction transaction);
 	}
 
-	//qq this summary comment will explain the general shape of the scavenge state - what it needs to be
-	// able to store and retrieve and why.
-	//
-	// There are two kinds of streams that we might want to remove events from
-	//    - original streams
-	//        - according to tombstone
-	//        - according to metadata (maxage, maxcount, tb)
-	//    - metadata streams
-	//        - according to tombstone
-	//        - maxcount 1
-	//
-	// Together these are the scavengable streams. We store a DiscardPoint for each so that we can
-	// 
-	// We only need to store metadata for the user streams with metadata since the metadata for
-	// metadatastreams is implicit.
-	// 
-	// however, we need to know about _all_ the stream collisions in the database not just the ones
-	// that we might remove events from, so that later we can scavenge the index without looking anything
-	// up in the log.
-
-	// accumulator iterates through the log, spotting metadata records
-	// put in the data that the chunk and ptable scavenging require
 	public interface IScavengeStateForAccumulator<TStreamId> :
 		IScavengeStateCommon,
 		IIncreaseChunkWeights {
@@ -85,8 +63,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IScavengeStateForCalculatorReadOnly<TStreamId> : IScavengeStateCommon {
 		// Calculator iterates through the scavengable original streams and their metadata
 		// it doesn't need to do anything with the metadata streams, accumulator has done those.
-		//qq name
-		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToScavenge(
+		IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToCalculate(
 			StreamHandle<TStreamId> checkpoint);
 
 		bool TryGetChunkTimeStampRange(int logicaChunkNumber, out ChunkTimeStampRange range);
@@ -119,7 +96,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	public interface IScavengeStateForIndexExecutor<TStreamId> : IScavengeStateCommon {
 		bool IsCollision(ulong streamHash);
-		//qq precondition: the streamhandle must be of the correct kind.
 		bool TryGetIndexExecutionInfo(
 			StreamHandle<TStreamId> streamHandle,
 			out IndexExecutionInfo info);
