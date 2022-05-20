@@ -82,7 +82,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					_sqliteBackend.CheckpointStorage,
 					_sqliteBackend.ChunkTimeStampRanges,
 					_sqliteBackend.ChunkWeights,
-					new TransactionManager<SqliteTransaction>(_sqliteBackend, _sqliteBackend.CheckpointStorage));
+					new SqliteTransactionManager(_sqliteBackend, _sqliteBackend.CheckpointStorage));
 			}
 			
 			
