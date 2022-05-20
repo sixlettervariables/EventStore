@@ -20,9 +20,22 @@ namespace EventStore.Core.Helpers {
 		}
 
 		public ReusableBuffer(int defaultSize) {
-			_buffer = new byte[defaultSize];
+			_buffer = new byte[ClosestPowerOf2(defaultSize)];
 			_state = (int) State.Free;
 			_lastSize = 0;
+		}
+
+		private static int ClosestPowerOf2(int x) {
+			int y = 0;
+			while (x > 0) {
+				x >>= 1;
+				y++;
+			}
+
+			if (y >= 31)
+				throw new ArgumentOutOfRangeException();
+
+			return 1 << y;
 		}
 
 		// Note: The acquired buffer size can be larger than the requested size
@@ -31,7 +44,7 @@ namespace EventStore.Core.Helpers {
 			TrySwitchState(State.Free, State.LockedToAcquire);
 
 			if (_buffer.Length < size)
-				_buffer = new byte[size];
+				_buffer = new byte[ClosestPowerOf2(size)];
 
 			_lastSize = size;
 
