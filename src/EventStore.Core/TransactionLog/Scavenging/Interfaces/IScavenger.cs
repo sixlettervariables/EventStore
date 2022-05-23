@@ -1,6 +1,5 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// There are two kinds of streams that we might want to remove events from
@@ -22,6 +21,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// - Cleaner removes parts of the scavenge state that are no longer needed
 	//   (as determined by the calculator)
 	public interface IScavenger {
-		Task RunAsync(ITFChunkScavengerLog scavengerLogger, CancellationToken cancellationToken);
+		string ScavengeId { get; }
+		Task ScavengeAsync(CancellationToken cancellationToken);
 	}
 }

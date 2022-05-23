@@ -255,12 +255,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				chunkMerger,
 				indexExecutor,
 				cleaner,
-				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow));
+				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow),
+				new FakeTFScavengerLog());
 
 			Tracer.Reset();
-			await sut.RunAsync(
-				new FakeTFScavengerLog(),
-				cancellationTokenSource.Token);
+			await sut.ScavengeAsync(cancellationTokenSource.Token);
 
 			// check the trace
 			if (_expectedTrace != null) {

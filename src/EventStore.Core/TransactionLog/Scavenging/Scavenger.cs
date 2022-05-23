@@ -20,6 +20,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IIndexExecutor<TStreamId> _indexExecutor;
 		private readonly ICleaner _cleaner;
 		private readonly IScavengePointSource _scavengePointSource;
+		private readonly ITFChunkScavengerLog _scavengerLogger;
 
 		public Scavenger(
 			IScavengeState<TStreamId> state,
@@ -29,7 +30,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IChunkMerger chunkMerger,
 			IIndexExecutor<TStreamId> indexExecutor,
 			ICleaner cleaner,
-			IScavengePointSource scavengePointSource) {
+			IScavengePointSource scavengePointSource,
+			ITFChunkScavengerLog scavengerLogger) {
 
 			_state = state;
 			_accumulator = accumulator;
@@ -39,11 +41,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_indexExecutor = indexExecutor;
 			_cleaner = cleaner;
 			_scavengePointSource = scavengePointSource;
+			_scavengerLogger = scavengerLogger;
 		}
 
-		public async Task RunAsync(
-			ITFChunkScavengerLog scavengerLogger,
-			CancellationToken cancellationToken) {
+		public string ScavengeId => _scavengerLogger.ScavengeId;
+
+		public async Task ScavengeAsync(CancellationToken cancellationToken) {
 
 			Log.Trace("SCAVENGING: started scavenging DB.");
 			var sw = Stopwatch.StartNew();
@@ -51,13 +54,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var result = ScavengeResult.Success;
 			string error = null;
 			try {
-				scavengerLogger.ScavengeStarted();
+				_scavengerLogger.ScavengeStarted();
 
-				await StartInternal(scavengerLogger, cancellationToken);
+				await StartInternal(_scavengerLogger, cancellationToken);
 
 				Log.Trace(
 					"SCAVENGING: total time taken: {elapsed}, total space saved: {spaceSaved}.",
-					sw.Elapsed, scavengerLogger.SpaceSaved);
+					sw.Elapsed, _scavengerLogger.SpaceSaved);
 
 			} catch (OperationCanceledException) {
 				Log.Info("SCAVENGING: Scavenge cancelled.");
@@ -69,7 +72,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				throw; //qqq probably dont want this line, just here for tests i dont want to touch atm
 			} finally {
 				try {
-					scavengerLogger.ScavengeCompleted(result, error, sw.Elapsed);
+					_scavengerLogger.ScavengeCompleted(result, error, sw.Elapsed);
 				} catch (Exception ex) {
 					Log.ErrorException(
 						ex,

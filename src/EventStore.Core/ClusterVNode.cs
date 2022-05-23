@@ -553,8 +553,6 @@ namespace EventStore.Core {
 			perSubscrBus.Subscribe<SubscriptionMessage.PersistentSubscriptionTimerTick>(persistentSubscription);
 
 			// STORAGE SCAVENGER
-			//qq tbc how relevant this is to new scavenge. will largely depend on how relevant the log
-			// records are that it produces
 			var scavengerLogManager = new TFChunkScavengerLogManager(
 				nodeEndpoint: _nodeInfo.ExternalHttp.ToString(),
 				scavengeHistoryMaxAge: TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge),
@@ -605,6 +603,8 @@ namespace EventStore.Core {
 				var cleaner = new Cleaner(
 					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
 
+				var scavengePointSource = new ScavengePointSource(ioDispatcher);
+
 				ScavengeState<string> scavengeState;
 				var sqlite = true;
 				if (sqlite) {
@@ -647,31 +647,32 @@ namespace EventStore.Core {
 							checkpointStorage));
 				}
 				
-				var scavenger = new Scavenger<string>(
-					scavengeState,
-					accumulator,
-					calculator,
-					chunkExecutor,
-					chunkMerger,
-					indexExecutor,
-					cleaner,
-					new ScavengePointSource(ioDispatcher));
+				var storageScavenger = new StorageScavenger(
+					logManager: scavengerLogManager,
+					scavengerFactory: new NewScavengerFactory(
+						state: scavengeState,
+						accumulator: accumulator,
+						calculator: calculator,
+						chunkExecutor: chunkExecutor,
+						chunkMerger: chunkMerger,
+						indexExecutor: indexExecutor,
+						cleaner: cleaner,
+						scavengePointSource: scavengePointSource));
 
-				var storageScavenger = new NewStorageScavenger<string>(
-					scavengerLogManager,
-					scavenger);
-
+				//qqq refactor these subscriptions now that it all uses the same StorageScavenger.
 				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
 				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
 				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
 			} else {
-				var storageScavenger = new StorageScavenger(db,
-					tableIndex,
-					readIndex,
+				var storageScavenger = new StorageScavenger(
 					scavengerLogManager,
-					vNodeSettings.AlwaysKeepScavenged,
-					!vNodeSettings.DisableScavengeMerging,
-					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+					new OldScavengerFactory(
+						db: db,
+						tableIndex: tableIndex,
+						readIndex: readIndex,
+						alwaysKeepScavenged: vNodeSettings.AlwaysKeepScavenged,
+						mergeChunks: !vNodeSettings.DisableScavengeMerging,
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes));
 
 				// ReSharper disable RedundantTypeArgumentsOfMethod
 				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
