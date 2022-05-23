@@ -35,7 +35,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
-					//qqqqqqq the Id case deduplicates, we probably want this case to as well, according to skipindexscanonread
 					// uses the index only
 					return _readIndex.ReadEventInfoForward(handle.StreamHash, fromEventNumber, maxCount,
 						scavengePoint.Position).EventInfos;

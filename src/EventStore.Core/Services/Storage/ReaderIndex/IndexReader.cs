@@ -205,7 +205,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 						lastEventNumber);
 
 				long startEventNumber = fromEventNumber;
-				long endEventNumber = Math.Min(long.MaxValue, fromEventNumber + maxCount - 1);
+				long endEventNumber = Math.Min(long.MaxValue, fromEventNumber + maxCount - 1); //qq this overflows
 
 				long minEventNumber = 0;
 				if (metadata.MaxCount.HasValue)
@@ -241,18 +241,47 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
-		//qq skipindexscanonread.
-		//qq possibly/probably needs reversing
 		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
-			var entries = _tableIndex.GetRange(stream, fromEventNumber, fromEventNumber + maxCount - 1);
+			Ensure.Nonnegative(fromEventNumber, nameof(fromEventNumber));
+			Ensure.Positive(maxCount, nameof(maxCount));
+
+			var startEventNumber = fromEventNumber;
+			var endEventNumber = fromEventNumber > long.MaxValue - maxCount + 1 ?
+				long.MaxValue : fromEventNumber + maxCount - 1;
+			var entries = _tableIndex.GetRange(stream, startEventNumber,  endEventNumber);
+
 			var eventInfos = new List<EventInfo>();
+
+			var prevEntry = new IndexEntry(long.MaxValue, long.MaxValue, long.MaxValue);
+			var mayHaveDuplicates = false;
 			foreach (var entry in entries) {
-				if (entry.Position < beforePosition) {
-					eventInfos.Add(new EventInfo(entry.Position, entry.Version));
-				}
+				if (entry.Position >= beforePosition) continue;
+
+				if (prevEntry.CompareTo(entry) <= 0)
+					mayHaveDuplicates = true;
+
+				if (prevEntry.Stream == entry.Stream &&
+				    prevEntry.Version == entry.Version)
+					mayHaveDuplicates = true;
+
+				eventInfos.Add(new EventInfo(entry.Position, entry.Version));
+				prevEntry = entry;
 			}
 
-			return new IndexReadEventInfoResult(eventInfos.ToArray());
+			EventInfo[] result;
+			if (mayHaveDuplicates) {
+				// note that even if _skipIndexScanOnReads = True, we're still reordering and filtering out duplicates here.
+				result = eventInfos
+					.OrderByDescending(x => x.EventNumber)
+					.GroupBy(x => x.EventNumber)
+					.Select(x => x.Last())
+					.ToArray();
+			} else {
+				result = eventInfos.ToArray();
+			}
+
+			Array.Reverse(result);
+			return new IndexReadEventInfoResult(result);
 		}
 
 		IndexReadStreamResult IIndexReader.
