@@ -43,26 +43,31 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Delete(t++, "ab-1"))
-					.Chunk(ScavengePointRec(t++)))
+					.Chunk(ScavengePointRec(t++)) // SP-0
+					.Chunk(ScavengePointRec(t++))) // SP-1
+				.MutateState(x => {
+					// make it scavenge SP-0
+					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
+						ScavengePoint(
+							chunk: 1,
+							eventNumber: 0),
+						doneLogicalChunkNumber: null));
+				})
 				.RunAsync(x => new[] {
-					// only the tombstone is kept
-					x.Recs[0].KeepIndexes(3),
+					x.Recs[0].KeepIndexes(3), // only the tombstone is kept
 					x.Recs[1],
+					x.Recs[2],
 				});
 
-			// the second scavenge with unsafeharddeletes
+			// the second scavenge with unsafeharddeletes should remove the tombstone
 			(state, db) = await new Scenario()
 				.WithDb(db)
 				.WithState(x => x.ExistingState(state))
 				.WithUnsafeIgnoreHardDeletes()
-				.RunAsync(
-					x => new[] {
-						x.Recs[0].KeepIndexes(), // tombstone has gone from the chunk
-						new LogRecord[] { null, null }, // two scavenge points
-					},
-					x => new[] {
-						x.Recs[0].KeepIndexes(), // tombstone has gone from the index
-						new LogRecord[] { null }, // (didn't index second scavengepoint)
+				.RunAsync(x => new[] {
+						x.Recs[0].KeepIndexes(), // tombstone has gone
+						x.Recs[1],
+						x.Recs[2],
 					});
 
 			Assert.False(state.TryGetOriginalStreamData("ab-1", out _));
@@ -88,7 +93,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Delete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++))) // SP-1
 				.MutateState(x => {
-					// make it start with SP-0
+					// make it scavenge SP-0
 					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
 						ScavengePoint(
 							chunk: 1,

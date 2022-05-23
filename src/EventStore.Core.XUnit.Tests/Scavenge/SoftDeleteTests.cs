@@ -102,7 +102,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: TruncateBefore3))
 					.Chunk(ScavengePointRec(t++))) // SP-1
 				.MutateState(x => {
-					// make it start with SP-0
+					// make it scavenge SP-0
 					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
 						ScavengePoint(
 							chunk: 1,
