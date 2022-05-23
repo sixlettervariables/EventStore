@@ -112,7 +112,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				AfterCalculation(calculating.ScavengePoint, scavengerLogger, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
-				_chunkExecutor.Execute(executingChunks, _state, cancellationToken);
+				_chunkExecutor.Execute(executingChunks, _state, scavengerLogger, cancellationToken);
 				AfterChunkExecution(executingChunks.ScavengePoint, scavengerLogger, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.MergingChunks mergingChunks) {
@@ -184,7 +184,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			_chunkExecutor.Execute(scavengePoint, _state, cancellationToken);
+			_chunkExecutor.Execute(scavengePoint, _state, scavengerLogger, cancellationToken);
 			AfterChunkExecution(scavengePoint, scavengerLogger, cancellationToken);
 		}
 

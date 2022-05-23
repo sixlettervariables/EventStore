@@ -15,13 +15,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_tracer = tracer;
 		}
 
-		public void SwitchIn(out string newFileName) {
-			_wrapped.SwitchIn(out newFileName);
-			_tracer.Trace($"Switched in chunk {newFileName}");
-		}
+		public string FileName => _wrapped.FileName;
 
 		public void WriteRecord(RecordForExecutor<TStreamId, TRecord> record) {
 			_wrapped.WriteRecord(record);
+		}
+
+		public void Complete(out string newFileName, out long newFileSize) {
+			_wrapped.Complete(out newFileName, out newFileSize);
+			_tracer.Trace($"Switched in chunk {newFileName}");
+		}
+
+		public void Abort(bool deleteImmediately) {
+			_wrapped.Abort(deleteImmediately);
 		}
 	}
 }

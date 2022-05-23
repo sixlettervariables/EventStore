@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
@@ -14,11 +15,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void Execute(
 			ScavengePoint scavengePoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
+			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
 			_tracer.TraceIn($"Executing chunks for {scavengePoint.GetName()}");
 			try {
-				_wrapped.Execute(scavengePoint, state, cancellationToken);
+				_wrapped.Execute(scavengePoint, state, scavengerLogger, cancellationToken);
 				_tracer.TraceOut("Done");
 			} catch {
 				_tracer.TraceOut("Exception executing chunks");
@@ -29,11 +31,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public void Execute(
 			ScavengeCheckpoint.ExecutingChunks checkpoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
+			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
 			_tracer.TraceIn($"Executing chunks from checkpoint: {checkpoint}");
 			try {
-				_wrapped.Execute(checkpoint, state, cancellationToken);
+				_wrapped.Execute(checkpoint, state, scavengerLogger, cancellationToken);
 				_tracer.TraceOut("Done");
 			} catch {
 				_tracer.TraceOut("Exception executing chunks");

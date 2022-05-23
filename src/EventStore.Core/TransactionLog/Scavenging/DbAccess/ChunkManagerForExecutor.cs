@@ -34,7 +34,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				removeChunksWithGreaterNumbers: false);
 
 			if (tfChunk == null) {
-				throw new Exception("Unexpected error: chunk is null");
+				throw new Exception("Unexpected error: new chunk is null after switch");
 			}
 
 			newFileName = tfChunk.FileName;

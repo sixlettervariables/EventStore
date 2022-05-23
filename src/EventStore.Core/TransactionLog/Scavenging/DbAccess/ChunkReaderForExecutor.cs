@@ -10,11 +10,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunk = chunk;
 		}
 
+		public string Name => _chunk.ToString();
+
+		public int FileSize => _chunk.FileSize;
+
 		public int ChunkStartNumber => _chunk.ChunkHeader.ChunkStartNumber;
 
 		public int ChunkEndNumber => _chunk.ChunkHeader.ChunkEndNumber;
 
 		public bool IsReadOnly => _chunk.IsReadOnly;
+
+		public long ChunkStartPosition => _chunk.ChunkHeader.ChunkStartPosition;
 
 		public long ChunkEndPosition => _chunk.ChunkHeader.ChunkEndPosition;
 
@@ -27,7 +33,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			while (result.Success) {
 				var record = result.LogRecord;
 				if (record.RecordType != LogRecordType.Prepare) {
-					nonPrepare.SetRecord(record);
+					nonPrepare.SetRecord(result.RecordLength, record);
 					yield return false;
 				} else {
 					var sourcePrepare = record as PrepareLogRecord;

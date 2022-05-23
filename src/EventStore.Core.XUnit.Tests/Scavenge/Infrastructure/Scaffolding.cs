@@ -346,11 +346,16 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_chunk = chunk;
 		}
 
+		public string Name => $"Chunk {_logicalChunkNumber}";
+
+		public int FileSize => 12345;
+
 		public int ChunkStartNumber => _logicalChunkNumber;
 
 		public int ChunkEndNumber => _logicalChunkNumber;
 
 		public bool IsReadOnly => true;
+		public long ChunkStartPosition => _logicalChunkNumber * (long)_chunkSize;
 
 		public long ChunkEndPosition => (_logicalChunkNumber + 1) * (long)_chunkSize;
 
@@ -378,7 +383,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						yield return true;
 
 					} else {
-						nonPrepare.SetRecord(record);
+						nonPrepare.SetRecord((int)memStream.Length, record);
 						yield return false;
 					}
 				}
@@ -396,17 +401,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_log = log;
 		}
 
+		public string FileName => $"{_logicalChunkNumber}.scavenge.tmp";
+
 		public void WriteRecord(RecordForExecutor<string, LogRecord> record) {
 			_writtenChunk.Add(record.Record);
 		}
 
-		public void SwitchIn(out string newFileName) {
+		public void Complete(out string newFileName, out long newFileSize) {
 			var chunk = new ScaffoldChunk(
 				logicalChunkNumber: _logicalChunkNumber,
 				records: _writtenChunk.ToArray());
 
 			_log[chunk.LogicalChunkNumber] = chunk.Records;
 			newFileName = $"chunk{chunk.LogicalChunkNumber}";
+			newFileSize = 1234;
+		}
+
+		public void Abort(bool deleteImmediately) {
+			// noop
 		}
 	}
 

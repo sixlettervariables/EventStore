@@ -1,10 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
+using EventStore.Common.Log;
+using EventStore.Core.Exceptions;
 using EventStore.Core.LogAbstraction;
+using EventStore.Core.TransactionLog.Chunks;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class ChunkExecutor<TStreamId, TRecord> : IChunkExecutor<TStreamId> {
+	public class ChunkExecutor {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<ChunkExecutor>();
+	}
+
+	public class ChunkExecutor<TStreamId, TRecord> : ChunkExecutor, IChunkExecutor<TStreamId> {
 
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkManagerForChunkExecutor<TStreamId, TRecord> _chunkManager;
@@ -29,22 +38,25 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public void Execute(
 			ScavengePoint scavengePoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
+			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
 			var checkpoint = new ScavengeCheckpoint.ExecutingChunks(
 				scavengePoint: scavengePoint,
 				doneLogicalChunkNumber: default);
 			state.SetCheckpoint(checkpoint);
-			Execute(checkpoint, state, cancellationToken);
+			Execute(checkpoint, state, scavengerLogger, cancellationToken);
 		}
 
 		public void Execute(
 			ScavengeCheckpoint.ExecutingChunks checkpoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
+			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
+			var sw = new Stopwatch();
 
 			foreach (var physicalChunk in GetAllPhysicalChunks(startFromChunk, scavengePoint)) {
 				var transaction = state.BeginTransaction();
@@ -54,7 +66,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						physicalChunk.ChunkEndNumber);
 
 					if (physicalWeight > scavengePoint.Threshold || _unsafeIgnoreHardDeletes) {
-						ExecutePhysicalChunk(scavengePoint, state, physicalChunk, cancellationToken);
+						ExecutePhysicalChunk(
+							scavengePoint,
+							state,
+							scavengerLogger,
+							physicalChunk,
+							sw,
+							cancellationToken);
 
 						state.ResetChunkWeights(
 							physicalChunk.ChunkStartNumber,
@@ -68,12 +86,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							scavengePoint,
 							physicalChunk.ChunkEndNumber));
 				} catch {
-					//qq here might be sensible place, the old scavenge handles various exceptions
-					// FileBeingDeletedException, OperationCanceledException, Exception
-					// with logging and without stopping the scavenge i think. consider what we want to do
-					// but be careful that if we allow the scavenge to continue without having executed
-					// this chunk, we can't assume later that the scavenge was really completed, which
-					// has implications for the cleaning phase, especially with _unsafeIgnoreHardDeletes
 					transaction.Rollback();
 					throw;
 				}
@@ -102,42 +114,115 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private void ExecutePhysicalChunk(
 			ScavengePoint scavengePoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
+			ITFChunkScavengerLog scavengerLogger,
 			IChunkReaderForExecutor<TStreamId, TRecord> sourceChunk,
+			Stopwatch sw,
 			CancellationToken cancellationToken) {
 
-			var outputChunk = _chunkManager.CreateChunkWriter(sourceChunk);
+			sw.Restart();
 
-			var cancellationCheckCounter = 0;
-			var discardedCount = 0;
-			var keptCount = 0;
+			int chunkStartNumber = sourceChunk.ChunkStartNumber;
+			long chunkStartPos = sourceChunk.ChunkStartPosition;
+			int chunkEndNumber = sourceChunk.ChunkEndNumber;
+			long chunkEndPos = sourceChunk.ChunkEndPosition;
+			var oldChunkName = sourceChunk.Name;
 
-			// nonPrepareRecord and prepareRecord ae reused through the iteration
-			var nonPrepareRecord = new RecordForExecutor<TStreamId, TRecord>.NonPrepare();
-			var prepareRecord = new RecordForExecutor<TStreamId, TRecord>.Prepare();
+			Log.Trace(
+				"SCAVENGING: started to scavenge chunks: {oldChunkName} " + 
+				"{chunkStartNumber} => {chunkEndNumber} ({chunkStartPosition} => {chunkEndPosition})",
+				oldChunkName,
+				chunkStartNumber, chunkEndNumber, chunkStartPos, chunkEndPos);
 
-			foreach (var isPrepare in sourceChunk.ReadInto(nonPrepareRecord, prepareRecord)) {
-				if (isPrepare) {
-					if (ShouldDiscard(state, scavengePoint, prepareRecord)) {
-						discardedCount++;
-					} else {
-						keptCount++;
-						outputChunk.WriteRecord(prepareRecord);
-					}
-				} else {
-					keptCount++;
-					outputChunk.WriteRecord(nonPrepareRecord);
-				}
+			IChunkWriterForExecutor<TStreamId, TRecord> outputChunk;
+			try {
+				outputChunk = _chunkManager.CreateChunkWriter(sourceChunk);
+				Log.Trace(
+					"Resulting temp chunk file: {tmpChunkPath}.", 
+					Path.GetFileName(outputChunk.FileName));
 
-				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
-					cancellationCheckCounter = 0;
-					cancellationToken.ThrowIfCancellationRequested();
-				}
+			} catch (IOException ex) {
+				Log.ErrorException(ex,
+					"IOException during creating new chunk for scavenging purposes. " +
+					"Stopping scavenging process...");
+				throw;
 			}
 
-			outputChunk.SwitchIn(out var newFileName);
+			try {
+				var cancellationCheckCounter = 0;
+				var discardedCount = 0;
+				var keptCount = 0;
 
-			//qq what is the new file name of an inmemory chunk :/
-			//qq log
+				// nonPrepareRecord and prepareRecord ae reused through the iteration
+				var nonPrepareRecord = new RecordForExecutor<TStreamId, TRecord>.NonPrepare();
+				var prepareRecord = new RecordForExecutor<TStreamId, TRecord>.Prepare();
+
+				foreach (var isPrepare in sourceChunk.ReadInto(nonPrepareRecord, prepareRecord)) {
+					if (isPrepare) {
+						if (ShouldDiscard(state, scavengePoint, prepareRecord)) {
+							discardedCount++;
+						} else {
+							keptCount++;
+							outputChunk.WriteRecord(prepareRecord);
+						}
+					} else {
+						keptCount++;
+						outputChunk.WriteRecord(nonPrepareRecord);
+					}
+
+					if (++cancellationCheckCounter == _cancellationCheckPeriod) {
+						cancellationCheckCounter = 0;
+						cancellationToken.ThrowIfCancellationRequested();
+					}
+				}
+
+				Log.Trace(
+					"Scavenging {oldChunkName} traversed {recordsCount} including {filteredCount}.",
+					oldChunkName, discardedCount + keptCount, keptCount);
+
+
+				outputChunk.Complete(out var newFileName, out var newFileSize);
+
+				var elapsed = sw.Elapsed;
+				Log.Trace(
+					"Scavenging of chunks:"
+					+ "\n{oldChunkName}"
+					+ "\ncompleted in {elapsed}."
+					+ "\nNew chunk: {tmpChunkPath} --> #{chunkStartNumber}-{chunkEndNumber} ({newChunk})."
+					+ "\nOld chunk total size: {oldSize}, scavenged chunk size: {newSize}.",
+					oldChunkName,
+					elapsed,
+					Path.GetFileName(outputChunk.FileName), chunkStartNumber, chunkEndNumber,
+					Path.GetFileName(newFileName),
+					sourceChunk.FileSize, newFileSize);
+
+				var spaceSaved = sourceChunk.FileSize - newFileSize;
+				scavengerLogger.ChunksScavenged(chunkStartNumber, chunkEndNumber, elapsed, spaceSaved);
+
+			} catch (FileBeingDeletedException exc) {
+				Log.Info(
+					"Got FileBeingDeletedException exception during scavenging, that probably means some chunks were re-replicated."
+					+ "\nStopping scavenging and removing temp chunk '{tmpChunkPath}'..."
+					+ "\nException message: {e}.",
+					outputChunk.FileName,
+					exc.Message);
+
+				outputChunk.Abort(deleteImmediately: true);
+				throw;
+
+			} catch (OperationCanceledException) {
+				Log.Info("Scavenging cancelled at: {oldChunkName}", oldChunkName);
+				outputChunk.Abort(deleteImmediately: false);
+				throw;
+
+			} catch (Exception ex) {
+				Log.InfoException(
+					ex,
+					"Got exception while scavenging chunk: #{chunkStartNumber}-{chunkEndNumber}.",
+					chunkStartNumber, chunkEndNumber);
+
+				outputChunk.Abort(deleteImmediately: true);
+				throw;
+			}
 		}
 
 		private bool ShouldDiscard(

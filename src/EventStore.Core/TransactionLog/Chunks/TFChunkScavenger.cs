@@ -27,7 +27,7 @@ namespace EventStore.Core.TransactionLog.Chunks {
 		private readonly long _maxChunkDataSize;
 		private readonly bool _unsafeIgnoreHardDeletes;
 		private readonly int _threads;
-		private const int MaxRetryCount = 5;
+		public const int MaxRetryCount = 5;
 		internal const int MaxThreadCount = 4;
 		public const int FlushPageInterval = 32; // max 65536 pages to write resulting in 2048 flushes per chunk
 
@@ -503,7 +503,7 @@ namespace EventStore.Core.TransactionLog.Chunks {
 			}
 		}
 
-		private static void DeleteTempChunk(string tmpChunkPath, int retries) {
+		public static void DeleteTempChunk(string tmpChunkPath, int retries) {
 			try {
 				File.SetAttributes(tmpChunkPath, FileAttributes.Normal);
 				File.Delete(tmpChunkPath);
