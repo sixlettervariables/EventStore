@@ -142,7 +142,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 					db: _db,
 					maxChunkDataSize: _maxChunkDataSize,
 					scavengerLog: _scavengerLog,
-					unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
 					ct: ct);
 			}
 
@@ -319,7 +318,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 			TFChunkDb db,
 			long maxChunkDataSize,
 			ITFChunkScavengerLog scavengerLog,
-			bool unsafeIgnoreHardDeletes,
 			CancellationToken ct) {
 
 			bool mergedSomething;
@@ -343,7 +341,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 							MergeChunks(
 								db: db,
 								scavengerLog: scavengerLog,
-								unsafeIgnoreHardDeletes: unsafeIgnoreHardDeletes,
 								oldChunks: chunksToMerge,
 								ct: ct)) {
 
@@ -362,7 +359,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 					if (MergeChunks(
 						db: db,
 						scavengerLog: scavengerLog,
-						unsafeIgnoreHardDeletes: unsafeIgnoreHardDeletes,
 						oldChunks: chunksToMerge,
 						ct: ct)) {
 
@@ -378,7 +374,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 		private static bool MergeChunks(
 			TFChunkDb db,
 			ITFChunkScavengerLog scavengerLog,
-			bool unsafeIgnoreHardDeletes,
 			IList<TFChunk.TFChunk> oldChunks,
 			CancellationToken ct) {
 
@@ -439,10 +434,6 @@ namespace EventStore.Core.TransactionLog.Chunks {
 				}
 
 				newChunk.CompleteScavenge(positionMapping);
-
-				if (unsafeIgnoreHardDeletes) {
-					Log.Trace("Forcing merged chunk to be kept even if bigger.");
-				}
 
 				if (oldVersion) {
 					Log.Trace("Forcing merged chunk to be kept as old chunk is a previous version.");

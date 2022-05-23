@@ -179,7 +179,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					"Scavenging {oldChunkName} traversed {recordsCount} including {filteredCount}.",
 					oldChunkName, discardedCount + keptCount, keptCount);
 
-
 				outputChunk.Complete(out var newFileName, out var newFileSize);
 
 				var elapsed = sw.Elapsed;
