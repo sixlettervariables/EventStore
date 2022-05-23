@@ -332,7 +332,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 	}
 
-	public class ScaffoldChunkReaderForExecutor : IChunkReaderForExecutor<string> {
+	public class ScaffoldChunkReaderForExecutor : IChunkReaderForExecutor<string, LogRecord> {
 		private readonly int _chunkSize;
 		private readonly int _logicalChunkNumber;
 		private readonly LogRecord[] _chunk;
@@ -354,52 +354,63 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public long ChunkEndPosition => (_logicalChunkNumber + 1) * (long)_chunkSize;
 
-		public IEnumerable<RecordForScavenge<string>> ReadRecords() {
+		public IEnumerable<bool> ReadInto(
+			RecordForExecutor<string, LogRecord>.NonPrepare nonPrepare,
+			RecordForExecutor<string, LogRecord>.Prepare prepare) {
+
 			foreach (var record in _chunk) {
 				//qq hopefully getting rid of this scaffolding before long, but
 				// if not, consider efficiency of this, maybe reuse array, writer, etc.
 				var bytes = new byte[1024];
-				using (var stream = new MemoryStream(bytes))
-				using (var binaryWriter = new BinaryWriter(stream)) {
+				using (var memStream = new MemoryStream(bytes))
+				using (var binaryWriter = new BinaryWriter(memStream)) {
 					record.WriteTo(binaryWriter);
 
-					if (record is PrepareLogRecord prepare) {
-						//qq at a test to make sure we keep the system records
-						yield return RecordForScavenge.CreateScavengeable(
-							streamId: prepare.EventStreamId,
-							timeStamp: prepare.TimeStamp,
-							eventNumber: prepare.ExpectedVersion + 1,
-							bytes: bytes);
+					if (record is PrepareLogRecord x) {
+						//qq add a test to make sure we keep the system records
+						prepare.SetRecord(
+							length: (int)memStream.Length,
+							logPosition: record.LogPosition,
+							record: record,
+							timeStamp: x.TimeStamp,
+							streamId: x.EventStreamId,
+							eventNumber: x.ExpectedVersion + 1);
+						yield return true;
+
 					} else {
-						yield return RecordForScavenge.CreateNonScavengeable<string>(bytes);
+						nonPrepare.SetRecord(record);
+						yield return false;
 					}
 				}
 			}
 		}
 	}
 
-	public class ScaffoldChunkWriterForExecutor : IChunkWriterForExecutor<string, ScaffoldChunk> {
+	public class ScaffoldChunkWriterForExecutor : IChunkWriterForExecutor<string, LogRecord> {
 		private readonly List<LogRecord> _writtenChunk = new List<LogRecord>();
 		private readonly int _logicalChunkNumber;
+		private readonly LogRecord[][] _log;
 
-		public ScaffoldChunkWriterForExecutor(int logicalChunkNumber) {
+		public ScaffoldChunkWriterForExecutor(int logicalChunkNumber, LogRecord[][] log) {
 			_logicalChunkNumber = logicalChunkNumber;
+			_log = log;
 		}
 
-		public ScaffoldChunk WrittenChunk => new ScaffoldChunk(
-			logicalChunkNumber: _logicalChunkNumber,
-			records: _writtenChunk.ToArray());
+		public void WriteRecord(RecordForExecutor<string, LogRecord> record) {
+			_writtenChunk.Add(record.Record);
+		}
 
-		public void WriteRecord(RecordForScavenge<string> record) {
-			using (var stream = new MemoryStream(record.RecordBytes))
-			using (var binaryReader = new BinaryReader(stream)) {
-				var logRecord = LogRecord.ReadFrom(binaryReader);
-				_writtenChunk.Add(logRecord);
-			}
+		public void SwitchIn(out string newFileName) {
+			var chunk = new ScaffoldChunk(
+				logicalChunkNumber: _logicalChunkNumber,
+				records: _writtenChunk.ToArray());
+
+			_log[chunk.LogicalChunkNumber] = chunk.Records;
+			newFileName = $"chunk{chunk.LogicalChunkNumber}";
 		}
 	}
 
-	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, ScaffoldChunk> {
+	public class ScaffoldChunkManagerForScavenge : IChunkManagerForChunkExecutor<string, LogRecord> {
 		private readonly int _chunkSize;
 		private readonly LogRecord[][] _log;
 
@@ -408,31 +419,20 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_log = log;
 		}
 
-		public IChunkWriterForExecutor<string, ScaffoldChunk> CreateChunkWriter(
-			int chunkStartNumber,
-			int chunkEndNumber) {
+		public IChunkWriterForExecutor<string, LogRecord> CreateChunkWriter(
+			IChunkReaderForExecutor<string, LogRecord> sourceChunk) {
 
-			if (chunkStartNumber != chunkEndNumber) {
+			if (sourceChunk.ChunkStartNumber != sourceChunk.ChunkEndNumber) {
 				throw new NotSupportedException(
 					"non-singular range of chunk numbers not supported by this implementation");
 			}
 
-			return new ScaffoldChunkWriterForExecutor(chunkStartNumber);
+			return new ScaffoldChunkWriterForExecutor(sourceChunk.ChunkStartNumber, _log);
 		}
 
-		public IChunkReaderForExecutor<string> GetChunkReaderFor(long position) {
+		public IChunkReaderForExecutor<string, LogRecord> GetChunkReaderFor(long position) {
 			var chunkNum = (int)(position / _chunkSize);
 			return new ScaffoldChunkReaderForExecutor(_chunkSize, chunkNum, _log[chunkNum]);
-		}
-
-		public void SwitchChunk(
-			ScaffoldChunk chunk,
-			bool verifyHash,
-			bool removeChunksWithGreaterNumbers,
-			out string newFileName) {
-
-			_log[chunk.LogicalChunkNumber] = chunk.Records;
-			newFileName = $"chunk{chunk.LogicalChunkNumber}";
 		}
 	}
 

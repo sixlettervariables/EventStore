@@ -212,9 +212,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				cancellationCheckPeriod: cancellationCheckPeriod,
 				checkpointPeriod: checkpointPeriod);
 
-			IChunkExecutor<string> chunkExecutor = new ChunkExecutor<string, ScaffoldChunk>(
+			IChunkExecutor<string> chunkExecutor = new ChunkExecutor<string, LogRecord>(
 				metastreamLookup: chunkExecutorMetastreamLookup,
-				chunkManager: new TracingChunkManagerForChunkExecutor<string, ScaffoldChunk>(
+				chunkManager: new TracingChunkManagerForChunkExecutor<string, LogRecord>(
 					new ScaffoldChunkManagerForScavenge(
 						chunkSize: dbConfig.ChunkSize,
 						log: log),

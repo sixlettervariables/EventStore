@@ -4,17 +4,17 @@ using System.Threading;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class ChunkExecutor<TStreamId, TChunk> : IChunkExecutor<TStreamId> {
+	public class ChunkExecutor<TStreamId, TRecord> : IChunkExecutor<TStreamId> {
 
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
-		private readonly IChunkManagerForChunkExecutor<TStreamId, TChunk> _chunkManager;
+		private readonly IChunkManagerForChunkExecutor<TStreamId, TRecord> _chunkManager;
 		private readonly long _chunkSize;
 		private readonly bool _unsafeIgnoreHardDeletes;
 		private readonly int _cancellationCheckPeriod;
 
 		public ChunkExecutor(
 			IMetastreamLookup<TStreamId> metastreamLookup,
-			IChunkManagerForChunkExecutor<TStreamId, TChunk> chunkManager,
+			IChunkManagerForChunkExecutor<TStreamId, TRecord> chunkManager,
 			long chunkSize,
 			bool unsafeIgnoreHardDeletes,
 			int cancellationCheckPeriod) {
@@ -80,7 +80,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		private IEnumerable<IChunkReaderForExecutor<TStreamId>> GetAllPhysicalChunks(
+		private IEnumerable<IChunkReaderForExecutor<TStreamId, TRecord>> GetAllPhysicalChunks(
 			int startFromChunk,
 			ScavengePoint scavengePoint) {
 
@@ -102,32 +102,30 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private void ExecutePhysicalChunk(
 			ScavengePoint scavengePoint,
 			IScavengeStateForChunkExecutor<TStreamId> state,
-			IChunkReaderForExecutor<TStreamId> chunk,
+			IChunkReaderForExecutor<TStreamId, TRecord> sourceChunk,
 			CancellationToken cancellationToken) {
 
-			// 1. open the chunk, probably with the bulk reader
-			var newChunk = _chunkManager.CreateChunkWriter(
-				chunk.ChunkStartNumber,
-				chunk.ChunkEndNumber);
+			var outputChunk = _chunkManager.CreateChunkWriter(sourceChunk);
 
 			var cancellationCheckCounter = 0;
-			foreach (var record in chunk.ReadRecords()) {
-				var discard = ShouldDiscard(
-					state,
-					scavengePoint,
-					record);
+			var discardedCount = 0;
+			var keptCount = 0;
 
-				if (discard) {
-					//qq discard record
+			// nonPrepareRecord and prepareRecord ae reused through the iteration
+			var nonPrepareRecord = new RecordForExecutor<TStreamId, TRecord>.NonPrepare();
+			var prepareRecord = new RecordForExecutor<TStreamId, TRecord>.Prepare();
+
+			foreach (var isPrepare in sourceChunk.ReadInto(nonPrepareRecord, prepareRecord)) {
+				if (isPrepare) {
+					if (ShouldDiscard(state, scavengePoint, prepareRecord)) {
+						discardedCount++;
+					} else {
+						keptCount++;
+						outputChunk.WriteRecord(prepareRecord);
+					}
 				} else {
-					//qq keep record
-					newChunk.WriteRecord(record); //qq or similar
-					//qq do we need to upgrade it?
-					//qq will using the bulk reader be awkward considering the record format
-					// size changes that have occurred over the years
-					// if so consider using the regular reader.
-					// what does the old scavenge use
-					// consider transactions
+					keptCount++;
+					outputChunk.WriteRecord(nonPrepareRecord);
 				}
 
 				if (++cancellationCheckCounter == _cancellationCheckPeriod) {
@@ -136,16 +134,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				}
 			}
 
-			// 2. read through it, keeping and discarding as necessary. probably no additional lookups at
-			// this point
-			// 3. write the posmap
-			// 4. finalise the chunk
-			// 5. swap it in to the chunkmanager
-			_chunkManager.SwitchChunk(
-				newChunk.WrittenChunk,
-				verifyHash: default, //qq
-				removeChunksWithGreaterNumbers: default, //qq
-				out var newFileName);
+			outputChunk.SwitchIn(out var newFileName);
+
 			//qq what is the new file name of an inmemory chunk :/
 			//qq log
 		}
@@ -153,14 +143,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private bool ShouldDiscard(
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			ScavengePoint scavengePoint,
-			RecordForScavenge<TStreamId> record) {
+			RecordForExecutor<TStreamId, TRecord>.Prepare record) {
 
-			if (!record.IsScavengable)
+			// the discard points ought to be sufficient, but sometimes this will be quicker
+			// and it is a nice safty net
+			if (record.LogPosition >= scavengePoint.Position)
 				return false;
-
-			//qq shortcut for efficiency
-			//if (record.LogPosition >= scavengePoint.Position)
-			//	return false;
 
 			if (record.EventNumber < 0) {
 				// we could discard from transactions sometimes, either by accumulating a state for them

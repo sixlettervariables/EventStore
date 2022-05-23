@@ -1,43 +1,31 @@
 ﻿using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class TracingChunkManagerForChunkExecutor<TStreamId, TChunk> :
-		IChunkManagerForChunkExecutor<TStreamId, TChunk> {
+	public class TracingChunkManagerForChunkExecutor<TStreamId, TRecord> :
+		IChunkManagerForChunkExecutor<TStreamId, TRecord> {
 
-		private readonly IChunkManagerForChunkExecutor<TStreamId, TChunk> _wrapped;
+		private readonly IChunkManagerForChunkExecutor<TStreamId, TRecord> _wrapped;
 		private readonly Tracer _tracer;
 
-		public TracingChunkManagerForChunkExecutor(IChunkManagerForChunkExecutor<TStreamId, TChunk> wrapped, Tracer tracer) {
+		public TracingChunkManagerForChunkExecutor(
+			IChunkManagerForChunkExecutor<TStreamId, TRecord> wrapped, Tracer tracer) {
+
 			_wrapped = wrapped;
 			_tracer = tracer;
 		}
 
-		public IChunkWriterForExecutor<TStreamId, TChunk> CreateChunkWriter(
-			int chunkStartNumber,
-			int chunkEndNumber) {
+		public IChunkWriterForExecutor<TStreamId, TRecord> CreateChunkWriter(
+			IChunkReaderForExecutor<TStreamId, TRecord> sourceChunk) {
 
-			return _wrapped.CreateChunkWriter(chunkStartNumber, chunkEndNumber);
+			return new TracingChunkWriterForExecutor<TStreamId, TRecord>(
+				_wrapped.CreateChunkWriter(sourceChunk),
+				_tracer);
 		}
 
-		public IChunkReaderForExecutor<TStreamId> GetChunkReaderFor(long position) {
+		public IChunkReaderForExecutor<TStreamId, TRecord> GetChunkReaderFor(long position) {
 			var ret = _wrapped.GetChunkReaderFor(position);
 			_tracer.Trace($"Opening Chunk {ret.ChunkStartNumber}-{ret.ChunkEndNumber}");
 			return ret;
-		}
-
-		public void SwitchChunk(
-			TChunk chunk,
-			bool verifyHash,
-			bool removeChunksWithGreaterNumbers,
-			out string newFileName) {
-
-			_wrapped.SwitchChunk(
-				chunk,
-				verifyHash,
-				removeChunksWithGreaterNumbers,
-				out newFileName);
-
-			_tracer.Trace($"Switched in chunk {newFileName}");
 		}
 	}
 }

@@ -40,6 +40,7 @@ using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.LogV2;
 using EventStore.Core.TransactionLog.Chunks.TFChunk;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using EventStore.Core.TransactionLog.LogRecords;
 
 namespace EventStore.Core {
 	public class ClusterVNode :
@@ -584,9 +585,9 @@ namespace EventStore.Core {
 					cancellationCheckPeriod: cancellationCheckPeriod,
 					checkpointPeriod: 32_768); //qq sensible?
 
-				var chunkExecutor = new ChunkExecutor<string, TFChunk>(
+				var chunkExecutor = new ChunkExecutor<string, LogRecord>(
 					metastreamLookup,
-					new ChunkManagerForScavenge(db.Manager, db.Config),
+					new ChunkManagerForExecutor(db.Manager, db.Config),
 					chunkSize: db.Config.ChunkSize,
 					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
 					cancellationCheckPeriod: cancellationCheckPeriod);
