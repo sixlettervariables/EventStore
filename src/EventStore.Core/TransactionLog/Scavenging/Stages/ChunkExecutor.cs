@@ -251,6 +251,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (details.IsTombstoned) {
 				if (_unsafeIgnoreHardDeletes) {
 					// remove _everything_ for metadata and original streams
+					Log.Info(
+						"Removing hard deleted stream tombstone for stream {stream} at position {transactionPosition}",
+						record.StreamId, record.LogPosition);
 					return true;
 				}
 

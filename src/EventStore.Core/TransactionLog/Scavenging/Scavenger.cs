@@ -45,15 +45,19 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			//qq similar to TFChunkScavenger.Scavenge. consider what we want to log exactly
+			Log.Trace("SCAVENGING: started scavenging DB.");
 			var sw = Stopwatch.StartNew();
 
-			ScavengeResult result = ScavengeResult.Success;
+			var result = ScavengeResult.Success;
 			string error = null;
 			try {
 				scavengerLogger.ScavengeStarted();
 
 				await StartInternal(scavengerLogger, cancellationToken);
+
+				Log.Trace(
+					"SCAVENGING: total time taken: {elapsed}, total space saved: {spaceSaved}.",
+					sw.Elapsed, scavengerLogger.SpaceSaved);
 
 			} catch (OperationCanceledException) {
 				Log.Info("SCAVENGING: Scavenge cancelled.");
@@ -81,7 +85,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			CancellationToken cancellationToken) {
 
 			//qq consider exceptions (cancelled, and others)
-			//qq probably want tests for skipping over scavenge points.
 
 			// each component can be started with either
 			//  (i) a checkpoint that it wrote previously (it will continue from there)
@@ -148,6 +151,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengePoint nextScavengePoint;
 			var latestScavengePoint = await _scavengePointSource.GetLatestScavengePointOrDefaultAsync();
 			if (latestScavengePoint == null) {
+				Log.Trace("SCAVENGING: creating the first scavenge point.");
 				// no latest scavenge point, create the first one
 				nextScavengePoint = await _scavengePointSource
 					.AddScavengePointAsync(ExpectedVersion.NoStream, threshold: threshold);
@@ -156,12 +160,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				if (prevScavengePoint == null ||
 					prevScavengePoint.EventNumber < latestScavengePoint.EventNumber) {
 					// the latest scavengepoint is suitable
+					Log.Trace(
+						"SCAVENGING: using existing scavenge point {scavengePointNumber}",
+						latestScavengePoint.EventNumber);
 					nextScavengePoint = latestScavengePoint;
 				} else {
 					// the latest scavengepoint is the prev scavenge point, so create a new one
+					var expectedVersion = prevScavengePoint.EventNumber;
 					//qq test that if this fails the scavenge terminates with an error
+					Log.Trace(
+						"SCAVENGING: creating the next scavenge point: {scavengePointNumber}",
+						expectedVersion + 1);
+
 					nextScavengePoint = await _scavengePointSource
-						.AddScavengePointAsync(prevScavengePoint.EventNumber, threshold: threshold);
+						.AddScavengePointAsync(expectedVersion, threshold: threshold);
 				}
 			}
 
@@ -215,7 +227,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		private void AfterCleaning(ScavengePoint scavengePoint) {
-			//qq check this is the right scavengepoint
 			_state.SetCheckpoint(new ScavengeCheckpoint.Done(scavengePoint));
 		}
 	}
