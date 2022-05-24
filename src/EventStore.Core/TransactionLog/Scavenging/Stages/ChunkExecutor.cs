@@ -157,6 +157,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				var prepareRecord = new RecordForExecutor<TStreamId, TRecord>.Prepare();
 
 				foreach (var isPrepare in sourceChunk.ReadInto(nonPrepareRecord, prepareRecord)) {
+					//qq add a test to make sure we keep the system records
 					if (isPrepare) {
 						if (ShouldDiscard(state, scavengePoint, prepareRecord)) {
 							discardedCount++;

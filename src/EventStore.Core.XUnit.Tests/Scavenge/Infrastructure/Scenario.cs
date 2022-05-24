@@ -1,15 +1,23 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EventStore.Core.Data;
+using EventStore.Core.DataStructures;
+using EventStore.Core.Index;
+using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogV2;
+using EventStore.Core.Services.Storage.ReaderIndex;
+using EventStore.Core.Settings;
+using EventStore.Core.Tests.Fakes;
 using EventStore.Core.Tests.TransactionLog;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.TransactionLog;
 using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.Util;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
@@ -20,6 +28,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private List<ScavengePoint> _newScavengePoint;
 
 		private bool _mergeChunks;
+		private string _dbPath;
 		private string _accumulatingCancellationTrigger;
 		private string _calculatingCancellationTrigger;
 		private string _executingChunkCancellationTrigger;
@@ -43,6 +52,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public Scenario WithUnsafeIgnoreHardDeletes(bool unsafeIgnoreHardDeletes = true) {
 			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
+			return this;
+		}
+
+		public Scenario WithDbPath(string path) {
+			_dbPath = path;
 			return this;
 		}
 
@@ -127,13 +141,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				getExpectedKeptIndexEntries);
 		}
 
+		//qqq make sure the directory gets cleaned up
+		// simialarities with ScavengeTestScenario
 		private async Task<(ScavengeState<string>, DbResult)> RunInternalAsync(
 			Func<DbResult, LogRecord[][]> getExpectedKeptRecords,
 			Func<DbResult, LogRecord[][]> getExpectedKeptIndexEntries) {
 
 			//qq use directory fixture, or memdb. pattern in ScavengeTestScenario.cs
-			var pathName = @"unused currently";
-			var dbConfig = TFChunkHelper.CreateDbConfig(pathName, 0, chunkSize: 1024 * 1024, memDb: true);
+			if (string.IsNullOrEmpty(_dbPath))
+				throw new Exception("call WithDbPath");
+
+			var dbConfig = TFChunkHelper.CreateDbConfig(_dbPath, 0, chunkSize: 1024 * 1024, memDb: true);
 			var dbResult = _getDb(dbConfig);
 			var keptRecords = getExpectedKeptRecords != null
 				? getExpectedKeptRecords(dbResult)
@@ -143,21 +161,78 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				? getExpectedKeptIndexEntries(dbResult)
 				: keptRecords;
 
-			// the log. will mutate as we scavenge.
-			var log = dbResult.Recs;
+			dbResult.Db.Config.WriterCheckpoint.Flush();
+			dbResult.Db.Config.ChaserCheckpoint.Write(dbResult.Db.Config.WriterCheckpoint.Read());
+			dbResult.Db.Config.ChaserCheckpoint.Flush();
 
-			// original log. will not mutate, for calculating expected results.
-			var originalLog = log.ToArray();
+			var indexPath = Path.Combine(_dbPath, "index");
+			var readerPool = new ObjectPool<ITransactionFileReader>(
+				objectPoolName: "ReadIndex readers pool",
+				initialCount: ESConsts.PTableInitialReaderCount,
+				maxCount: ESConsts.PTableMaxReaderCount,
+				factory: () => new TFChunkReader(dbResult.Db, dbResult.Db.Config.WriterCheckpoint));
+
+			IHasher lowHasher = new XXHashUnsafe();
+			IHasher highHasher = new Murmur3AUnsafe();
+			ILongHasher<string> hasher = new CompositeHasher<string>(
+				new XXHashUnsafe(),
+				new Murmur3AUnsafe());
+
+			//qqq configurable?
+			var humanHashers = true;
+			if (humanHashers) {
+				lowHasher = new ConstantHasher(0);
+				highHasher = new HumanReadableHasher32();
+				hasher = new CompositeHasher<string>(new ConstantHasher(0), new HumanReadableHasher32());
+			}
+
+			var tableIndex = new TableIndex(
+				directory: indexPath,
+				lowHasher: lowHasher,
+				highHasher: highHasher,
+				memTableFactory: () => new HashListMemTable(PTableVersions.IndexV3, maxSize: 200),
+				tfReaderFactory: () => new TFReaderLease(readerPool),
+				ptableVersion: PTableVersions.IndexV3,
+				maxAutoMergeIndexLevel: 5,
+				maxSizeForMemory: 100,
+				maxTablesPerLevel: 2);
+
+			IReadIndex readIndex = new ReadIndex(
+				bus: new NoopPublisher(),
+				readerPool: readerPool,
+				tableIndex: tableIndex,
+				streamInfoCacheCapacity: 100,
+				additionalCommitChecks: true,
+				metastreamMaxCount: 1,
+				hashCollisionReadLimit: Opts.HashCollisionReadLimitDefault,
+				skipIndexScanOnReads: Opts.SkipIndexScanOnReadsDefault,
+				replicationCheckpoint: dbResult.Db.Config.ReplicationCheckpoint);
+
+			readIndex.Init(dbResult.Db.Config.WriterCheckpoint.Read());
+
+
+
+			//qqqqqqqqqqqqqq we should call these before tearing down?
+			//readIndex.Close();
+			//dbResult.Db.Close();
+
+			//qqqqqqqqqqqqq
+			//// the log. will mutate as we scavenge.
+			//var log = dbResult.Recs;
+
+			//// original log. will not mutate, for calculating expected results.
+			//var originalLog = log.ToArray();
 
 			var cancellationTokenSource = new CancellationTokenSource();
-			var hasher = new HumanReadableHasher();
 			var metastreamLookup = new LogV2SystemStreams();
 
-			IChunkReaderForAccumulator<string> chunkReader = new ScaffoldChunkReaderForAccumulator(
-				log,
-				metastreamLookup);
+			IChunkReaderForAccumulator<string> chunkReader = new ChunkReaderForAccumulator<string>(
+				dbResult.Db.Manager,
+				metastreamLookup,
+				new LogV2StreamIdConverter(),
+				dbResult.Db.Config.ReplicationCheckpoint);
 
-			var indexReader = new ScaffoldIndexReaderForAccumulator(log);
+			var indexReader = new ScaffoldCheatingIndexReaderForAccumulator();
 
 			var accumulatorMetastreamLookup = new AdHocMetastreamLookupInterceptor<string>(
 				metastreamLookup,
@@ -168,7 +243,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 
 			var calculatorIndexReader = new AdHocIndexReaderInterceptor<string>(
-				new ScaffoldIndexForScavenge(log, hasher),
+				new IndexReaderForCalculator(readIndex),
 				(f, handle, x) => {
 					if (_calculatingCancellationTrigger != null &&
 						handle.Kind == StreamHandle.Kind.Hash &&
@@ -187,7 +262,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					return continuation(streamId);
 				});
 
-			var indexScavenger = new ScaffoldStuffForIndexExecutor(originalLog, hasher);
+			var indexScavenger = new IndexScavenger(tableIndex);
 			var cancellationWrappedIndexScavenger = new AdHocIndexScavengerInterceptor(
 				indexScavenger,
 				f => entry => {
@@ -221,9 +296,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			IChunkExecutor<string> chunkExecutor = new ChunkExecutor<string, LogRecord>(
 				metastreamLookup: chunkExecutorMetastreamLookup,
 				chunkManager: new TracingChunkManagerForChunkExecutor<string, LogRecord>(
-					new ScaffoldChunkManagerForScavenge(
-						chunkSize: dbConfig.ChunkSize,
-						log: log),
+					new ChunkManagerForExecutor(
+						dbResult.Db.Manager,
+						dbConfig),
 					Tracer),
 				chunkSize: dbConfig.ChunkSize,
 				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
@@ -231,11 +306,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			IChunkMerger chunkMerger = new ChunkMerger(
 				mergeChunks: _mergeChunks,
-				new ScaffoldChunkMergerBackend(log: log));
+				new OldScavengeChunkMergerBackend(dbResult.Db));
 
 			IIndexExecutor<string> indexExecutor = new IndexExecutor<string>(
 				indexScavenger: cancellationWrappedIndexScavenger,
-				streamLookup: new ScaffoldChunkReaderForIndexExecutor(log),
+				streamLookup: new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
 				unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
 			ICleaner cleaner = new Cleaner(unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
@@ -261,9 +336,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				chunkMerger,
 				indexExecutor,
 				cleaner,
-				new ScaffoldScavengePointSource(
-					dbConfig.ChunkSize,
-					log,
+				new ScaffoldScavengePointSource2(
+					dbResult,
 					EffectiveNow,
 					_newScavengePoint ?? new List<ScavengePoint>()),
 				new FakeTFScavengerLog());
@@ -333,7 +407,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				}
 			}
 
-			foreach (var chunk in originalLog) {
+			foreach (var chunk in dbResult.Recs) {
 				foreach (var record in chunk) {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
@@ -357,8 +431,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// 4. The records we expected to keep are kept
 			// 5. The index entries we expected to be kept are kept
 			if (keptRecords != null) {
-				CheckRecordsScaffolding(keptRecords, dbResult);
-				CheckIndex(keptIndexEntries, indexScavenger.Scavenged);
+				CheckRecords(keptRecords, dbResult);
+//qqqqqqqqqqqqqqqqqqqqqqqq				CheckIndex(keptIndexEntries, indexScavenger.Scavenged);
 			}
 
 			return (scavengeState, dbResult);
@@ -393,49 +467,51 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
 
 				for (int j = 0; j < expected[i].Length; ++j) {
+					//qqqqqqq
 					// for now null indicates there should be a record there but not what it should be
 					// using to indicate the place of a scavengepoint
-					if (expected[i][j] == null)
-						continue;
+					//if (expected[i][j] == null)
+					//	continue;
 
 					Assert.True(
 						expected[i][j] == chunkRecords[j],
 						$"Wrong log record #{j} read from chunk #{i}. " +
-						$"Expected {expected[i][j]}. Actual {chunkRecords[j]}");
+						$"Expected {expected[i][j]}.\r\n" +
+						$"Actual   {chunkRecords[j]}");
 				}
 			}
 		}
 
 		//qq this one reads the records out of actual.Recs, for use with the scaffolding implementations
 		// until we transition.
-		protected static void CheckRecordsScaffolding(LogRecord[][] expected, DbResult actual) {
-			Assert.True(
-				expected.Length == actual.Db.Manager.ChunksCount,
-				"Wrong number of chunks. " +
-				$"Expected {expected.Length}. Actual {actual.Db.Manager.ChunksCount}");
+		//protected static void CheckRecordsScaffolding(LogRecord[][] expected, DbResult actual) {
+		//	Assert.True(
+		//		expected.Length == actual.Db.Manager.ChunksCount,
+		//		"Wrong number of chunks. " +
+		//		$"Expected {expected.Length}. Actual {actual.Db.Manager.ChunksCount}");
 
-			for (int i = 0; i < expected.Length; ++i) {
-				var chunkRecords = actual.Recs[i].ToList();
+		//	for (int i = 0; i < expected.Length; ++i) {
+		//		var chunkRecords = actual.Recs[i].ToList();
 
-				Assert.True(
-					expected[i].Length == chunkRecords.Count,
-					$"Wrong number of records in chunk #{i}. " +
-					$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
+		//		Assert.True(
+		//			expected[i].Length == chunkRecords.Count,
+		//			$"Wrong number of records in chunk #{i}. " +
+		//			$"Expected {expected[i].Length}. Actual {chunkRecords.Count}");
 
-				for (int j = 0; j < expected[i].Length; ++j) {
-					// for now null indicates there should be a record there but not what it should be
-					// using to indicate the place of a scavengepoint
-					if (expected[i][j] == null)
-						continue;
+		//		for (int j = 0; j < expected[i].Length; ++j) {
+		//			// for now null indicates there should be a record there but not what it should be
+		//			// using to indicate the place of a scavengepoint
+		//			if (expected[i][j] == null)
+		//				continue;
 
-					Assert.True(
-						expected[i][j].Equals(chunkRecords[j]),
-						$"Wrong log record #{j} read from chunk #{i}.\r\n" +
-						$"Expected {expected[i][j]}\r\n" +
-						$"Actual   {chunkRecords[j]}");
-				}
-			}
-		}
+		//			Assert.True(
+		//				expected[i][j].Equals(chunkRecords[j]),
+		//				$"Wrong log record #{j} read from chunk #{i}.\r\n" +
+		//				$"Expected {expected[i][j]}\r\n" +
+		//				$"Actual   {chunkRecords[j]}");
+		//		}
+		//	}
+		//}
 
 		private static void CheckIndex(LogRecord[][] expected, LogRecord[][] actual) {
 			if (expected == null) {

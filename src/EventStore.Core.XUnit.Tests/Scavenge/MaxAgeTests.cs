@@ -6,12 +6,13 @@ using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// for testing the maxage functionality specifically
-	public class MaxAgeTests {
+	public class MaxAgeTests : DirectoryPerTest<MaxAgeTests> {
 		[Fact]
 		public async Task simple_maxage() {
 			// records kept in the index because they are 'maybe' expired
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
 						Rec.Prepare(t++, "ab-1", timestamp: Expired),
