@@ -293,9 +293,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// (because the index will still bless it with a max event number in the indexentry)
 			// so we don't need to check for order, but just need to get the last metadata record
 			// if any, and add weight for it.
+			// note that the metadata record is in a different stream to the tombstone
+			// note that since it is tombstoned, there wont be more metadata records coming so
+			// the last one really is the one we want.
 			var eventInfos = _index.ReadEventInfoBackward(
 				streamId: metastreamId,
-				fromEventNumber: record.EventNumber,
+				fromEventNumber: -1, // last
 				maxCount: 1,
 				scavengePoint: scavengePoint);
 

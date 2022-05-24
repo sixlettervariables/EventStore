@@ -191,6 +191,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			int maxCount,
 			ScavengePoint scavengePoint) {
 
+			// read backwards from end of stream if fromEventNumber is negative
+			// (IndexReader.ReadStreamEventsBackwardInternal)
+			var endEventNumber = fromEventNumber < 0 ? long.MaxValue : fromEventNumber;
 			var result = new List<EventInfo>();
 
 			foreach (var chunk in _log.Reverse()) {
@@ -201,7 +204,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					if (!(record is PrepareLogRecord prepare))
 						continue;
 
-					if (prepare.ExpectedVersion + 1 < fromEventNumber)
+
+					if (prepare.ExpectedVersion + 1 > endEventNumber)
 						continue;
 
 					if (prepare.EventStreamId != streamId)
