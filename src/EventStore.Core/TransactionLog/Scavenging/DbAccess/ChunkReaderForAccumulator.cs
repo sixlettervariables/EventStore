@@ -43,8 +43,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			long localPos = 0L;
 
 			var replicationChk = _replicationChk.ReadNonFlushed();
-			while (replicationChk == -1 ||
-			       globalStartPos + localPos <= replicationChk) {
+
+			while (true) {
+				if (globalStartPos + localPos > replicationChk)
+					throw new InvalidOperationException(
+						$"Attempt to read at position: {globalStartPos + localPos} which is after the " +
+						$"replication checkpoint: {replicationChk}.");
+
 				var result = chunk.TryReadClosestForwardRaw(localPos, _getBuffer);
 
 				if (!result.Success)
