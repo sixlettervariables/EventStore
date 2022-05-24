@@ -233,7 +233,8 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 					if (rec.Version == LogRecordVersion.LogRecordV0) {
 						return CreateLogRecordV0(rec, transInfo, transOffset, logPos, expectedVersion,
 							LogRecord.NoData,
-							PrepareFlags.StreamDelete
+							rec.PrepareFlags
+							| PrepareFlags.StreamDelete
 							| (transInfo.FirstPrepareId == rec.Id ? PrepareFlags.TransactionBegin : PrepareFlags.None)
 							| (transInfo.LastPrepareId == rec.Id ? PrepareFlags.TransactionEnd : PrepareFlags.None));
 					}
@@ -245,7 +246,8 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 						transOffset,
 						rec.StreamId,
 						expectedVersion,
-						PrepareFlags.StreamDelete
+						rec.PrepareFlags
+						| PrepareFlags.StreamDelete
 						| (transInfo.FirstPrepareId == rec.Id ? PrepareFlags.TransactionBegin : PrepareFlags.None)
 						| (transInfo.LastPrepareId == rec.Id ? PrepareFlags.TransactionEnd : PrepareFlags.None),
 						rec.EventType,
@@ -400,6 +402,12 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 			return new Rec(RecType.Delete, transaction, stream, SystemEventTypes.StreamDeleted, timestamp, version);
 		}
 
+		public static Rec CommittedDelete(int transaction, string stream, DateTime? timestamp = null,
+			byte version = PrepareLogRecord.PrepareRecordVersion) {
+			return new Rec(RecType.Delete, transaction, stream, SystemEventTypes.StreamDeleted, timestamp, version,
+				prepareFlags: PrepareFlags.IsCommitted);
+		}
+
 		public static Rec TransSt(int transaction, string stream, DateTime? timestamp = null,
 			byte version = PrepareLogRecord.PrepareRecordVersion) {
 			return new Rec(RecType.TransStart, transaction, stream, null, timestamp, version);
@@ -409,6 +417,14 @@ namespace EventStore.Core.Tests.TransactionLog.Scavenging.Helpers {
 			long? eventNumber = null,
 			byte[] data = null,
 			StreamMetadata metadata = null, PrepareFlags prepareFlags = PrepareFlags.Data,
+			byte version = PrepareLogRecord.PrepareRecordVersion) {
+			return new Rec(RecType.Prepare, transaction, stream, eventType, timestamp, version, eventNumber, data, metadata, prepareFlags);
+		}
+
+		public static Rec Write(int transaction, string stream, string eventType = null, DateTime? timestamp = null,
+			long? eventNumber = null,
+			byte[] data = null,
+			StreamMetadata metadata = null, PrepareFlags prepareFlags = PrepareFlags.Data | PrepareFlags.IsCommitted,
 			byte version = PrepareLogRecord.PrepareRecordVersion) {
 			return new Rec(RecType.Prepare, transaction, stream, eventType, timestamp, version, eventNumber, data, metadata, prepareFlags);
 		}

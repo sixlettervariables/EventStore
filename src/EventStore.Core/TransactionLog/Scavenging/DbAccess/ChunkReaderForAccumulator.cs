@@ -63,7 +63,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						var streamId = _streamIdConverter.ToStreamId(prepareView.EventStreamId);
 						var recordInitParams = new RecordForAccumulatorInitParams<TStreamId>(prepareView, streamId);
 
-						if (prepareView.Flags.HasFlag(PrepareFlags.DeleteTombstone)) {
+						if (prepareView.Flags.HasAnyOf(PrepareFlags.StreamDelete)) {
 							yield return tombStoneRecord.Acquire(recordInitParams);
 						} else if (_metaStreamLookup.IsMetaStream(streamId)) {
 							yield return metadataStreamRecord.Acquire(recordInitParams);

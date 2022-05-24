@@ -15,11 +15,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Active),
-						Rec.Prepare(t++, "ab-1", timestamp: Active),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Active),
+						Rec.Write(t++, "ab-1", timestamp: Active),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new[] {
@@ -37,12 +37,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// records kept in the index because they are 'maybe' expired
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new[] {
@@ -60,14 +61,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// the records can be removed from the chunks and the index
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired))
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired))
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Active),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
+						Rec.Write(t++, "ab-1", timestamp: Active),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new[] {
@@ -82,13 +84,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// the records can be removed from the chunks and the index
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired),
-						Rec.Prepare(t++, "ab-1", timestamp: Expired))
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired),
+						Rec.Write(t++, "ab-1", timestamp: Expired))
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new[] {
@@ -102,13 +105,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task whole_chunk_active() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1", timestamp: Active),
-						Rec.Prepare(t++, "ab-1", timestamp: Active),
-						Rec.Prepare(t++, "ab-1", timestamp: Active))
+						Rec.Write(t++, "ab-1", timestamp: Active),
+						Rec.Write(t++, "ab-1", timestamp: Active),
+						Rec.Write(t++, "ab-1", timestamp: Active))
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new[] {

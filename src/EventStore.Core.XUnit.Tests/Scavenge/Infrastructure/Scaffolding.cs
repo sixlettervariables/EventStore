@@ -76,7 +76,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				: -1;
 
 			if (actualVersion != expectedVersion) {
-				//qq this probably isn't the right exception
 				throw new InvalidOperationException(
 					$"wrong version number {expectedVersion} vs {actualVersion}");
 			}

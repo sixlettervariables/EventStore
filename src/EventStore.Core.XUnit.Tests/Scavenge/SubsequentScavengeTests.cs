@@ -10,7 +10,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// these tests test that the right steps happen and the right results are obtained when scavenge is
 	// run on a database that already has already been scavenged.
 	// a new scavenge point may need to be created, but not necessarily.
-	public class SubsequentScavengeTests {
+	public class SubsequentScavengeTests : DirectoryPerTest<SubsequentScavengeTests> {
 		[Fact]
 		public async Task can_create_first_scavenge_point() {
 			// first scavenge creates the first scavenge point SP-1
@@ -18,11 +18,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk())
 				.CancelOnNewScavengePoint(newScavengePoint)
 				.RunAsync();
@@ -45,16 +46,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						// events 0-4 removed in a previous scavenge
-						Rec.Prepare(t++, "ab-1", eventNumber: 5))
+						Rec.Write(t++, "ab-1", eventNumber: 5))
 					.Chunk(
 						ScavengePointRec(t++),
 						// two new records written since the previous scavenge
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk())
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
@@ -87,22 +89,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						// events 0-4 removed in a previous scavenge
-						Rec.Prepare(t++, "ab-1", eventNumber: 5))
+						Rec.Write(t++, "ab-1", eventNumber: 5))
 					.Chunk(
 						ScavengePointRec(t++), // <-- SP-0
 						// five new records written since the previous scavenge
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
 						ScavengePointRec(t++), // <-- SP-1 added by another node
-						Rec.Prepare(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
 						ScavengePointRec(t++), // <-- SP-2 added by another node
-						Rec.Prepare(t++, "ab-1")))
+						Rec.Write(t++, "ab-1"))
+					.CompleteLastChunk())
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
@@ -145,21 +149,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
+					Tracer.Line("        Switched in chunk-000000.000001"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-2 done Chunk 0"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"),
+					Tracer.Line("        Switched in chunk-000001.000001"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-2 done Chunk 1"),
 					Tracer.Line("    Commit"),
-
-					//qq the scaffold is reporting chunk 1-1 as complete when it shouldn't really. when
-					// we move to proper it should no longer open chunk 1-1 for execution since it is
-					// still incomplete.
 					Tracer.Line("    Opening Chunk 2-2"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk2"),
+					Tracer.Line("        Switched in chunk-000002.000001"),
 					Tracer.Line("        Checkpoint: Executing chunks for SP-2 done Chunk 2"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -202,22 +202,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						// events 0-4 removed in a previous scavenge
-						Rec.Prepare(t++, "ab-1", eventNumber: 5))
+						Rec.Write(t++, "ab-1", eventNumber: 5))
 					.Chunk(
 						ScavengePointRec(t++),
 						// five new records written since the previous scavenge
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
 						ScavengePointRec(t++), // <-- SP-1 added by another node
-						Rec.Prepare(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
 						ScavengePointRec(t++), // <-- SP-2 added by another node
-						Rec.Prepare(t++, "ab-1")))
+						Rec.Write(t++, "ab-1"))
+					.CompleteLastChunk())
 				.MutateState(x => {
 				})
 				.RunAsync(x => new[] {
@@ -233,6 +235,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(ScavengePointRec(t++, threshold: 1))) // SP-1
@@ -312,6 +315,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(ScavengePointRec(t++)) // SP-1
@@ -403,17 +407,18 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"), // 0
-						Rec.Prepare(t++, "ab-1"), // 1
-						Rec.Prepare(t++, "ab-1")) // 2
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"), // 0
+						Rec.Write(t++, "ab-1"), // 1
+						Rec.Write(t++, "ab-1")) // 2
 					.Chunk(
 						ScavengePointRec(t++), // <-- SP-0
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount4),
-						Rec.Prepare(t++, "ab-1"), // 3
-						Rec.Prepare(t++, "ab-1")) // 4
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount4),
+						Rec.Write(t++, "ab-1"), // 3
+						Rec.Write(t++, "ab-1")) // 4
 					.Chunk(
 						ScavengePointRec(t++))) // <-- SP-1
 				.MutateState(x => {

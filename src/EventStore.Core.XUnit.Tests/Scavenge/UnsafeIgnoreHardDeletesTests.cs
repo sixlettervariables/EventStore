@@ -6,18 +6,19 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class UnsafeIgnoreHardDeletesTests {
+	public class UnsafeIgnoreHardDeletesTests : DirectoryPerTest<UnsafeIgnoreHardDeletesTests> {
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
 			var (state, db) = await new Scenario()
 				.WithUnsafeIgnoreHardDeletes()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Delete(t++, "ab-1"))
+						Rec.Write(t++, "$$ab-1", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(),
@@ -37,12 +38,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Delete(t++, "ab-1"))
+						Rec.Write(t++, "$$ab-1", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(ScavengePointRec(t++))) // SP-1
 				.MutateState(x => {
@@ -61,6 +63,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			// the second scavenge with unsafeharddeletes should remove the tombstone
 			(state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
 				.WithState(x => x.ExistingState(state))
 				.WithUnsafeIgnoreHardDeletes()
@@ -84,13 +87,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "$$ab-1", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)) // SP-0
-					.Chunk(Rec.Delete(t++, "ab-1"))
+					.Chunk(Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++))) // SP-1
 				.MutateState(x => {
 					// make it scavenge SP-0
@@ -114,6 +118,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// the second scavenge with unsafeharddeletes
 			(state, db) = await new Scenario()
 				.WithTracerFrom(scenario)
+				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
 				.WithState(x => x.ExistingState(state))
 				.WithUnsafeIgnoreHardDeletes()

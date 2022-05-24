@@ -8,8 +8,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// e.g.
 	//   "$$ma-1 -> 'm'
 	//   "ma-1" -> 'a' (97)
-	class HumanReadableHasher : ILongHasher<string> { //qqq still need?
+	class HumanReadableHasher : ILongHasher<string> {
 		private readonly HumanReadableHasher32 _hash32;
+
+		public HumanReadableHasher() {
+			_hash32 = new HumanReadableHasher32();
+		}
 
 		public ulong Hash(string x) => _hash32.Hash(x);
 	}

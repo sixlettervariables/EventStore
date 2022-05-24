@@ -6,33 +6,38 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ChunkMergingTests {
+	public class ChunkMergingTests : DirectoryPerTest<ChunkMergingTests> {
 		[Fact]
 		public async Task can_merge() {
 			var t = 0;
 			await new Scenario()
 				.WithMergeChunks(true)
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "cd-2")) // keep
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "cd-2")) // keep
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"), // keep
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1)) // keep
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"), // keep
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1)) // keep
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(
 					x => new LogRecord[][] {
+						// chunk 0 and chunk 1 are the same chunk now
 						new[] {
 							x.Recs[0][1],
 							x.Recs[1][1],
 							x.Recs[1][2],
-							//qq this will change when we switch away from scaffold, the scavengepoint
-							// wont be part of the merged chunk
-							x.Recs[2][0],
 						},
-						Array.Empty<LogRecord>(),
-						Array.Empty<LogRecord>(),
+						new[] {
+							x.Recs[0][1],
+							x.Recs[1][1],
+							x.Recs[1][2],
+						},
+						new[] {
+							x.Recs[2][0], // scavenge point still in its own chunk because not complete
+						}
 					},
 					x => null);
 		}
@@ -41,14 +46,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task can_not_merge() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "cd-2"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "cd-2"))
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					// chunks not merged

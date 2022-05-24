@@ -81,6 +81,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_manager.SwitchChunk(chunk: _outputChunk, out newFileName);
 
 			_fileSize += posMapCount * PosMap.FullSize + ChunkHeader.Size + ChunkFooter.Size;
+			if (_outputChunk.ChunkHeader.Version >= (byte)TFChunk.ChunkVersions.Aligned)
+				_fileSize = TFChunk.GetAlignedSize((int)_fileSize);
 			newFileSize = _fileSize;
 		}
 

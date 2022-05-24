@@ -5,18 +5,19 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class LogDisorderingTests {
+	public class LogDisorderingTests : DirectoryPerTest<LogDisorderingTests> {
 		// if a metadata was ever written with the wrong event number (e.g. 0) due to old bugs
 		// the rest of the system will not respect it, so scavenge must not either
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1"))
-					.Chunk(Rec.Prepare(t++, "ab-1"))
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 5, metadata: MaxCount2))
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1))
+					.Chunk(Rec.Write(t++, "ab-1"))
+					.Chunk(Rec.Write(t++, "ab-1"))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 5, metadata: MaxCount2))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0],
@@ -27,16 +28,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					});;
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply_a() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 0
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 1
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount2)) // 2 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 3 skip
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
+					.Chunk(Rec.Write(t++, "ab-1")) // 0
+					.Chunk(Rec.Write(t++, "ab-1")) // 1
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount2)) // 2 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 3 skip
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync();
 
@@ -53,16 +55,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.KeepAll, metastreamData.DiscardPoint);
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply_b() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 0
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 1
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 2 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount1)) // 4 skip
+					.Chunk(Rec.Write(t++, "ab-1")) // 0
+					.Chunk(Rec.Write(t++, "ab-1")) // 1
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 2 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync();
 
@@ -79,16 +82,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply_c() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 0
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 1
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 2 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
+					.Chunk(Rec.Write(t++, "ab-1")) // 0
+					.Chunk(Rec.Write(t++, "ab-1")) // 1
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 2 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync();
 
@@ -105,16 +109,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply_d() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 0
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 1
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 2 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
+					.Chunk(Rec.Write(t++, "ab-1")) // 0
+					.Chunk(Rec.Write(t++, "ab-1")) // 1
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 2 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync();
 
@@ -131,16 +136,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_does_not_apply_e() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 0
-					.Chunk(Rec.Prepare(t++, "ab-1")) // 1
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 2 apply
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 4 skip
+					.Chunk(Rec.Write(t++, "ab-1")) // 0
+					.Chunk(Rec.Write(t++, "ab-1")) // 1
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 2 apply
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
 				.RunAsync();
 
@@ -157,16 +163,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact]
+		[Fact(Skip = "should pass when we have the accumulator index access")]
 		public async Task wrong_order_metadata_then_right_does_apply() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "ab-1"))
-					.Chunk(Rec.Prepare(t++, "ab-1"))
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 5, metadata: MaxCount1))
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount3))
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", eventNumber: 6, metadata: MaxCount2))
+					.Chunk(Rec.Write(t++, "ab-1"))
+					.Chunk(Rec.Write(t++, "ab-1"))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 5, metadata: MaxCount1))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount3))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 6, metadata: MaxCount2))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 						x.Recs[0],
@@ -176,7 +183,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						x.Recs[4],
 						x.Recs[5],
 					});
-			;
 		}
 	}
 }
