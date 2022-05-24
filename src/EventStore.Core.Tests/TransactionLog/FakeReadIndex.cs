@@ -56,7 +56,12 @@ namespace EventStore.Core.Tests.TransactionLog {
 			throw new NotImplementedException();
 		}
 
-		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
+		public IndexReadEventInfoResult ReadEventInfoForward_KnownCollisions(string streamId, long fromEventNumber, int maxCount,
+			long beforePosition) {
+			throw new NotImplementedException();
+		}
+
+		public IndexReadEventInfoResult ReadEventInfoForward_NoCollisions(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
 			throw new NotImplementedException();
 		}
 

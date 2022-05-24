@@ -35,11 +35,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
 					// uses the index only
-					return _readIndex.ReadEventInfoForward(handle.StreamHash, fromEventNumber, maxCount,
+					return _readIndex.ReadEventInfoForward_NoCollisions(handle.StreamHash, fromEventNumber, maxCount,
 						scavengePoint.Position).EventInfos;
 				case StreamHandle.Kind.Id:
 					// uses log to check for hash collisions
-					return _readIndex.ReadEventInfoForward(handle.StreamId, fromEventNumber, maxCount,
+					return _readIndex.ReadEventInfoForward_KnownCollisions(handle.StreamId, fromEventNumber, maxCount,
 						scavengePoint.Position).EventInfos;
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);

@@ -19,8 +19,8 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 		IndexReadEventResult ReadEvent(string streamId, long eventNumber);
 		IndexReadStreamResult ReadStreamEventsForward(string streamId, long fromEventNumber, int maxCount);
 		IndexReadStreamResult ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount);
-		IndexReadEventInfoResult ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, long beforePosition);
-		IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition);
+		IndexReadEventInfoResult ReadEventInfoForward_KnownCollisions(string streamId, long fromEventNumber, int maxCount, long beforePosition);
+		IndexReadEventInfoResult ReadEventInfoForward_NoCollisions(ulong stream, long fromEventNumber, int maxCount, long beforePosition);
 
 		/// <summary>
 		/// Doesn't filter $maxAge, $maxCount, $tb(truncate before), doesn't check stream deletion, etc.
@@ -242,7 +242,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
-		public IndexReadEventInfoResult ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, long beforePosition) {
+		public IndexReadEventInfoResult ReadEventInfoForward_KnownCollisions(string streamId, long fromEventNumber, int maxCount, long beforePosition) {
 			using (var reader = _backend.BorrowReader()) {
 				return ReadEventInfoForwardInternal((startEventNumber, endEventNumber) => {
 					return _tableIndex.GetRange(streamId, startEventNumber, endEventNumber)
@@ -253,7 +253,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
-		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
+		public IndexReadEventInfoResult ReadEventInfoForward_NoCollisions(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
 			return ReadEventInfoForwardInternal((startEventNumber, endEventNumber) =>
 				_tableIndex.GetRange(stream, startEventNumber,  endEventNumber), fromEventNumber, maxCount, beforePosition);
 		}
