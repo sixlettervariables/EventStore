@@ -19,6 +19,7 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 		IndexReadEventResult ReadEvent(string streamId, long eventNumber);
 		IndexReadStreamResult ReadStreamEventsForward(string streamId, long fromEventNumber, int maxCount);
 		IndexReadStreamResult ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount);
+		IndexReadEventInfoResult ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, long beforePosition);
 		IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition);
 
 		/// <summary>
@@ -241,15 +242,35 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			}
 		}
 
+		public IndexReadEventInfoResult ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, long beforePosition) {
+			using (var reader = _backend.BorrowReader()) {
+				return ReadEventInfoForwardInternal((startEventNumber, endEventNumber) => {
+					return _tableIndex.GetRange(streamId, startEventNumber, endEventNumber)
+						.Select(x => new { IndexEntry = x, Prepare = ReadPrepareInternal(reader, x.Position) })
+						.Where(x => x.Prepare != null && x.Prepare.EventStreamId == streamId)
+						.Select(x => x.IndexEntry);
+				}, fromEventNumber, maxCount, beforePosition);
+			}
+		}
+
 		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
+			return ReadEventInfoForwardInternal((startEventNumber, endEventNumber) =>
+				_tableIndex.GetRange(stream, startEventNumber,  endEventNumber), fromEventNumber, maxCount, beforePosition);
+		}
+
+		private static IndexReadEventInfoResult ReadEventInfoForwardInternal(
+			Func<long, long, IEnumerable<IndexEntry>> readIndexEntries,
+			long fromEventNumber,
+			int maxCount,
+			long beforePosition) {
 			Ensure.Nonnegative(fromEventNumber, nameof(fromEventNumber));
 			Ensure.Positive(maxCount, nameof(maxCount));
 
 			var startEventNumber = fromEventNumber;
 			var endEventNumber = fromEventNumber > long.MaxValue - maxCount + 1 ?
 				long.MaxValue : fromEventNumber + maxCount - 1;
-			var entries = _tableIndex.GetRange(stream, startEventNumber,  endEventNumber);
 
+			var entries = readIndexEntries(startEventNumber, endEventNumber);
 			var eventInfos = new List<EventInfo>();
 
 			var prevEntry = new IndexEntry(long.MaxValue, long.MaxValue, long.MaxValue);

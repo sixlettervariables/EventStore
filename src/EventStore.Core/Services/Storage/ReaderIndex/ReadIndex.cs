@@ -74,6 +74,10 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			return _indexReader.ReadStreamEventsForward(streamId, fromEventNumber, maxCount);
 		}
 
+		public IndexReadEventInfoResult ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, long beforePosition) {
+			return _indexReader.ReadEventInfoForward(streamId, fromEventNumber, maxCount, beforePosition);
+		}
+
 		public IndexReadEventInfoResult ReadEventInfoForward(ulong stream, long fromEventNumber, int maxCount, long beforePosition) {
 			return _indexReader.ReadEventInfoForward(stream, fromEventNumber, maxCount, beforePosition);
 		}
