@@ -8,7 +8,7 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class CalculationStatusTests {
+	public class CalculationStatusTests : DirectoryPerTest <CalculationStatusTests> {
 		async Task RunAsync(
 			CalculationStatus expected,
 			StreamMetadata metadata,
@@ -17,15 +17,16 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
-					.Chunk(Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: metadata))
+					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", metadata: metadata))
 					.Chunk(Enumerable
 						.Range(0, numEvents)
-						.Select(_ => Rec.Prepare(t++, "ab-1"))
+						.Select(_ => Rec.Write(t++, "ab-1"))
 						.ToArray())
 					.Chunk(isTombstoned
-						? Rec.Delete(t++, "ab-1")
-						: Rec.Prepare(t++, "cd-2"))
+						? Rec.CommittedDelete(t++, "ab-1")
+						: Rec.Write(t++, "cd-2"))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync();
 

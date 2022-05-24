@@ -26,7 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public static DateTime Expired { get; } = EffectiveNow - TimeSpan.FromDays(3);
 		public static DateTime Active { get; } = EffectiveNow - TimeSpan.FromDays(1);
 
-		public static Rec ScavengePointRec(int transaction, int threshold = 0) => Rec.Prepare(
+		public static Rec ScavengePointRec(int transaction, int threshold = 0) => Rec.Write(
 			transaction: transaction,
 			stream: SystemStreams.ScavengePointsStream,
 			eventType: SystemEventTypes.ScavengePoint,

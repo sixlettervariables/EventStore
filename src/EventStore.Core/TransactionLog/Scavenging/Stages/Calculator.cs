@@ -215,6 +215,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				// we haven't found an event to definitely keep
 				//qq would it be better to have IsEndOfStream returned from the index?
+				//qq we might have received fewer events than maxcount if some of the events have been
+				// scavenged? and others may still be further up the range
 				if (slice.Length < maxCount) {
 					// we have finished reading the stream from the index,
 					// but not found any events to keep.

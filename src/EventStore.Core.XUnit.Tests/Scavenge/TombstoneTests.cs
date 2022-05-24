@@ -5,15 +5,16 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class TombstoneTests {
+	public class TombstoneTests : DirectoryPerTest<TombstoneTests> {
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Delete(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(1),
@@ -25,9 +26,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task single_tombstone() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Delete(t++, "ab-1"))
+						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(0),
@@ -39,12 +41,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task tombstone_with_metadata() {
 			var t = 0;
 			var (state, db) = await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "$$ab-1", metadata: MaxCount1),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Delete(t++, "ab-1"))
+						Rec.Write(t++, "$$ab-1", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					// when the stream is hard deleted we can get rid of _all_ the metadata too
@@ -64,9 +67,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
 				var t = 0;
 				await new Scenario()
+					.WithDbPath(Fixture.Directory)
 					.WithDb(x => x
 						.Chunk(
-							Rec.Delete(t++, "$$ab-1"))
+							Rec.CommittedDelete(t++, "$$ab-1"))
 						.Chunk(ScavengePointRec(t++)))
 					.RunAsync();
 			});
@@ -82,6 +86,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// in that case
 			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
 				await new Scenario()
+					.WithDbPath(Fixture.Directory)
 					.WithDb(x => x
 						.Chunk(
 							Rec.TransSt(0, "ab-1"),

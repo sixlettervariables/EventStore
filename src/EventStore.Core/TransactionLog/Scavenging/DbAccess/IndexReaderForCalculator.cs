@@ -31,31 +31,16 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			StreamHandle<string> handle,
 			long fromEventNumber,
 			int maxCount,
-			ScavengePoint scavengePoint) { //qq account for scavengepoint
-
+			ScavengePoint scavengePoint) {
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
-					//qqqqqqq the Id case deduplicates, we probably want this case to as well, according to skipindexscanonread
 					// uses the index only
-					return _readIndex.ReadEventInfoForward(handle.StreamHash, fromEventNumber, maxCount,
+					return _readIndex.ReadEventInfoForward_NoCollisions(handle.StreamHash, fromEventNumber, maxCount,
 						scavengePoint.Position).EventInfos;
 				case StreamHandle.Kind.Id:
 					// uses log to check for hash collisions
-					//qqqq if the stream is deleted i expect this wont let us read it at all but we do
-					//need to
-					var result = _readIndex.ReadStreamEventsForward(
-						handle.StreamId,
-						fromEventNumber,
-						maxCount);
-
-					//qq do we need to look at the other things like .Result, .IsEndOfStream etc
-					var eventInfos = new List<EventInfo>();
-					foreach (var record in result.Records) {
-						if (record.LogPosition < scavengePoint.Position) {
-							eventInfos.Add(new EventInfo(record.LogPosition, record.EventNumber));
-						}
-					}
-					return eventInfos.ToArray();
+					return _readIndex.ReadEventInfoForward_KnownCollisions(handle.StreamId, fromEventNumber, maxCount,
+						scavengePoint.Position).EventInfos;
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}

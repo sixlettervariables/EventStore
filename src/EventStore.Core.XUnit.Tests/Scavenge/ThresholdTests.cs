@@ -4,24 +4,25 @@ using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ThresholdTests {
+	public class ThresholdTests : DirectoryPerTest<ThresholdTests> {
 		[Fact]
 		public async Task negative_threshold_executes_all_chunks() {
 			var threshold = -1;
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					// chunk 0: weight 2
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"))
 					// chunk 1: weight 4
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					// chunk 2: weight 0
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
 				.AssertTrace(
@@ -59,19 +60,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"), // executed
+					Tracer.Line("        Switched in chunk-000000.000001"), // executed
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
 					Tracer.Line("    Commit"),
 
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"), // executed
+					Tracer.Line("        Switched in chunk-000001.000001"), // executed
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
 					Tracer.Line("    Commit"),
 
 					Tracer.Line("    Opening Chunk 2-2"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk2"), // executed
+					Tracer.Line("        Switched in chunk-000002.000001"), // executed
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 2"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("Done"),
@@ -95,18 +96,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var threshold = 0;
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					// chunk 0: weight 2
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"))
 					// chunk 1: weight 4
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					// chunk 2: weight 0
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
 				.AssertTrace(
@@ -144,13 +146,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Opening Chunk 0-0"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"), // executed
+					Tracer.Line("        Switched in chunk-000000.000001"), // executed
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
 					Tracer.Line("    Commit"),
 
 					Tracer.Line("    Opening Chunk 1-1"),
 					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"), // executed
+					Tracer.Line("        Switched in chunk-000001.000001"), // executed
 					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
 					Tracer.Line("    Commit"),
 
@@ -180,18 +182,19 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var threshold = 2;
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					// chunk 0: weight 2
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"))
 					// chunk 1: weight 4
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					// chunk 2: weight 0
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
 				.RunAsync(

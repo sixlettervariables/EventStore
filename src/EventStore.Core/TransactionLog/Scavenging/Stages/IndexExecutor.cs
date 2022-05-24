@@ -131,7 +131,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// otherwise obey the discard points below.
 				}
 
-				return !currentDiscardPoint.ShouldDiscard(indexEntry.Version);
+				var shouldDiscard = currentDiscardPoint.ShouldDiscard(indexEntry.Version);
+				return !shouldDiscard;
 			}
 
 			return ShouldKeep;

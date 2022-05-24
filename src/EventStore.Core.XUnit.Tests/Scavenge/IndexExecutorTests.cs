@@ -7,16 +7,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// these systemtically exercise the cases in the IndexExecutor
 	// we still do so by testing high level scavenge cases because we are well geared up
 	// for that and testing the IndexExeecutor directly would involve more mocks than it is worth.
-	public class IndexExecutorTests {
+	public class IndexExecutorTests : DirectoryPerTest<IndexExecutorTests> {
 		[Fact]
 		public async Task nothing_to_scavenge() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(0, 1, 2),
@@ -28,12 +29,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task simple_scavenge() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(1, 2, 3),
@@ -45,13 +47,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task with_collision() {
 			var t = 0;
 			await new Scenario()
+				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "cb-2"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "ab-1"),
-						Rec.Prepare(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "cb-2"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "ab-1"),
+						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount2))
 					.Chunk(ScavengePointRec(t++)))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(1, 2, 3, 4),

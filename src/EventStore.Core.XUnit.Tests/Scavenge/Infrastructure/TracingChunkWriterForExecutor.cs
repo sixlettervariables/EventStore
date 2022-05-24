@@ -1,4 +1,5 @@
-﻿using EventStore.Core.TransactionLog.Scavenging;
+﻿using System.Linq;
+using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TracingChunkWriterForExecutor<TStreamId, TRecord> :
@@ -23,7 +24,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public void Complete(out string newFileName, out long newFileSize) {
 			_wrapped.Complete(out newFileName, out newFileSize);
-			_tracer.Trace($"Switched in chunk {newFileName}");
+			_tracer.Trace($"Switched in {newFileName.Split('\\').Last()}");
 		}
 
 		public void Abort(bool deleteImmediately) {

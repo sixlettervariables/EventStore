@@ -9,10 +9,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	//   "$$ma-1 -> 'm'
 	//   "ma-1" -> 'a' (97)
 	class HumanReadableHasher : ILongHasher<string> {
+		private readonly HumanReadableHasher32 _hash32;
+
 		public HumanReadableHasher() {
+			_hash32 = new HumanReadableHasher32();
 		}
 
-		public ulong Hash(string x) {
+		public ulong Hash(string x) => _hash32.Hash(x);
+	}
+
+	class HumanReadableHasher32 : IHasher, IHasher<string> {
+		public uint Hash(string x) {
 			if (x == "")
 				return 0;
 
@@ -21,6 +28,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				: x[1];
 
 			return c;
+		}
+
+		public uint Hash(byte[] data) {
+			throw new System.NotImplementedException();
+		}
+
+		public uint Hash(byte[] data, int offset, uint len, uint seed) {
+			throw new System.NotImplementedException();
 		}
 	}
 }
