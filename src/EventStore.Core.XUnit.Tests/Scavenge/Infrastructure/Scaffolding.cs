@@ -20,23 +20,39 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// written, but will be removed once we can drop in the real implementations (which can run against
 	// memdb for rapid testing)
 
+	// The real ScavengePointSource is a bit awkward to use in the tests because it uses the IODispatcher
+	// Also even if we plumbed in the necessary components to the test to get that to work, it would
+	// still have to write the scavengepoint to the chunks and also to the index in order to behave in
+	// reasonable way.
+	//
+	// for now we settle instead for a mock implementation that reads from the database/index correctly
+	// but cancels the scavenge when a new scavenge point is added. this at least allows us to check
+	// that a scavenge point is created when we expect and that it contains the right data.
+	//qq maybe we can do better though
 	public class ScaffoldScavengePointSource : IScavengePointSource {
 		private readonly int _chunkSize;
 		private readonly LogRecord[][] _log;
 		private readonly DateTime _effectiveNow;
+		private readonly List<ScavengePoint> _added;
 
 		public ScaffoldScavengePointSource(
 			int chunkSize,
 			LogRecord[][] log,
-			DateTime effectiveNow) {
+			DateTime effectiveNow,
+			List<ScavengePoint> added) {
 
 			_chunkSize = chunkSize;
 			_log = log;
 			_effectiveNow = effectiveNow;
+			_added = added;
 		}
 
 		public Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
 			ScavengePoint scavengePoint = default;
+
+			if (scavengePoint != null)
+				return Task.FromResult(scavengePoint);
+
 			foreach (var record in AllRecords()) {
 				if (record is PrepareLogRecord prepare &&
 					prepare.EventType == SystemEventTypes.ScavengePoint) {
@@ -55,7 +71,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		}
 
 
-		//qq maybe actually add it to the log, or not if we get rid of this soon enough
 		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
 			var latestScavengePoint = await GetLatestScavengePointOrDefaultAsync();
 			var actualVersion = latestScavengePoint != null
@@ -68,27 +83,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					$"wrong version number {expectedVersion} vs {actualVersion}");
 			}
 
-			var payload = new ScavengePointPayload {
-				Threshold = threshold,
-			};
+			var scavengePoint = new ScavengePoint(
+				position: 121212,
+				eventNumber: expectedVersion + 1,
+				effectiveNow: _effectiveNow,
+				threshold: threshold);
 
-			var lastChunk = _log.Length - 1;
-			var newChunk = _log[lastChunk].ToList();
-			newChunk.Add(LogRecord.SingleWrite(
-				logPosition: lastChunk * _chunkSize + 20,
-				correlationId: Guid.NewGuid(),
-				eventId: Guid.NewGuid(),
-				eventStreamId: SystemStreams.ScavengesStream,
-				expectedVersion: expectedVersion, // no optimistic concurrency
-				eventType: SystemEventTypes.ScavengePoint,
-				data: payload.ToJsonBytes(),
-				metadata: null,
-				timestamp: _effectiveNow));
-
-			_log[_log.Length - 1] = newChunk.ToArray();
-
-			var scavengePoint = await GetLatestScavengePointOrDefaultAsync();
-			return scavengePoint;
+			_added.Add(scavengePoint);
+			throw new OperationCanceledException();
 		}
 
 		private IEnumerable<LogRecord> AllRecords() {

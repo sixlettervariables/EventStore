@@ -17,6 +17,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class Scenario {
 		private Func<TFChunkDbConfig, DbResult> _getDb;
 		private Func<ScavengeStateBuilder, ScavengeStateBuilder> _stateTransform;
+		private List<ScavengePoint> _newScavengePoint;
 
 		private bool _mergeChunks;
 		private string _accumulatingCancellationTrigger;
@@ -73,6 +74,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public Scenario WithMergeChunks(bool mergeChunks = true) {
 			_mergeChunks = mergeChunks;
+			return this;
+		}
+
+		public Scenario CancelOnNewScavengePoint(List<ScavengePoint> newScavengePoint) {
+			_newScavengePoint = newScavengePoint;
 			return this;
 		}
 
@@ -255,7 +261,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				chunkMerger,
 				indexExecutor,
 				cleaner,
-				new ScaffoldScavengePointSource(dbConfig.ChunkSize, log, EffectiveNow),
+				new ScaffoldScavengePointSource(
+					dbConfig.ChunkSize,
+					log,
+					EffectiveNow,
+					_newScavengePoint ?? new List<ScavengePoint>()),
 				new FakeTFScavengerLog());
 
 			Tracer.Reset();

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
@@ -13,6 +14,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		[Fact]
 		public async Task can_create_first_scavenge_point() {
 			// first scavenge creates the first scavenge point SP-1
+			var newScavengePoint = new List<ScavengePoint>();
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
@@ -22,173 +24,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Prepare(t++, "ab-1"),
 						Rec.Prepare(t++, "ab-1"))
 					.Chunk())
-				.AssertTrace(
-					Tracer.Line("Accumulating from start to SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Accumulating SP-0 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Reading Chunk 0"),
-					Tracer.Line("        Checkpoint: Accumulating SP-0 done Chunk 0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Reading Chunk 1"),
-					Tracer.Line("        Checkpoint: Accumulating SP-0 done Chunk 1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
+				.CancelOnNewScavengePoint(newScavengePoint)
+				.RunAsync();
 
-					Tracer.Line("Calculating SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Calculating SP-0 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 1, Discard before 1)"),
-					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 98"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing chunks for SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Opening Chunk 0-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 0"),
-					Tracer.Line("    Commit"),
-
-					//qq the scaffold is reporting chunk 1-1 as complete when it shouldn't really. when
-					// we move to proper it should no longer open chunk 1-1 for execution since it is
-					// still incomplete.
-					Tracer.Line("    Opening Chunk 1-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-0 done Chunk 1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Merging chunks for SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Merging chunks for SP-0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing index for SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing index for SP-0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Cleaning for SP-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Done SP-0"),
-					Tracer.Line("Commit"))
-				.RunAsync(
-					x => new[] {
-						x.Recs[0].KeepIndexes(0, 2),
-						new LogRecord[] { null },
-					},
-					x => new[] {
-						x.Recs[0].KeepIndexes(0, 2),
-						// not expecting the new scavengepoint to be indexed because we didn't index it.
-						new LogRecord[] { },
-					});
-
-			Assert.True(state.TryGetCheckpoint(out var checkpoint));
-			Assert.IsType<ScavengeCheckpoint.Done>(checkpoint);
-
-			// subsequent scavenge creates another scavenge point SP-2
-			(state, _) = await new Scenario()
-				.WithTracerFrom(scenario)
-				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
-				.AssertTrace(
-					Tracer.Line("Accumulating from SP-0 to SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Accumulating SP-1 done Chunk 0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Reading Chunk 1"),
-					Tracer.Line("        Checkpoint: Accumulating SP-1 done Chunk 1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Calculating SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Calculating SP-1 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Calculating SP-1 done Hash: 98"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing chunks for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Opening Chunk 0-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 0"),
-					Tracer.Line("    Commit"),
-
-					//qq the scaffold is reporting chunk 1-1 as complete when it shouldn't really. when
-					// we move to proper it should no longer open chunk 1-1 for execution since it is
-					// still incomplete.
-					Tracer.Line("    Opening Chunk 1-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Merging chunks for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Merging chunks for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing index for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing index for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Cleaning for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Done SP-1"),
-					Tracer.Line("Commit"))
-				.RunAsync(
-					x => new[] {
-						x.Recs[0],
-						new LogRecord[] { null, null },
-					},
-					x => new[] {
-						x.Recs[0],
-						// not expecting the new scavengepoint to be indexed because we didn't index it.
-						new LogRecord[] { null },
-					});
+			Assert.Collection(
+				newScavengePoint,
+				sp => {
+					Assert.Equal(EffectiveNow, sp.EffectiveNow);
+					Assert.Equal(0, sp.EventNumber);
+					Assert.Equal(0, sp.Threshold);
+				});
 		}
 
 
 		[Fact]
 		public async Task can_create_subsequent_scavenge_point() {
 			// set up some state and some chunks simulating a scavenge that has been completed
-			// and then some new records added. it should create a new SP and perform an an incremental
-			// scavenge
+			// and then some new records added. it should create a new SP
+			var newScavengePoint = new List<ScavengePoint>();
 			var t = 0;
 			var scenario = new Scenario();
 			var (state, db) = await scenario
@@ -214,91 +67,16 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						chunk: 1,
 						eventNumber: 0)));
 				})
-				.AssertTrace(
-					Tracer.Line("Accumulating from SP-0 to SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Accumulating SP-1 done Chunk 0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Reading Chunk 1"),
-					Tracer.Line("        Checkpoint: Accumulating SP-1 done Chunk 1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Reading Chunk 2"),
-					Tracer.Line("        Checkpoint: Accumulating SP-1 done Chunk 2"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
+				.CancelOnNewScavengePoint(newScavengePoint)
+				.RunAsync();
 
-					Tracer.Line("Calculating SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Calculating SP-1 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 7, Discard before 7)"),
-					Tracer.Line("        Checkpoint: Calculating SP-1 done Hash: 98"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing chunks for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done None"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Opening Chunk 0-0"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk0"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 0"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Opening Chunk 1-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Switched in chunk chunk1"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 1"),
-					Tracer.Line("    Commit"),
-
-					//qq the scaffold is reporting chunk 1-1 as complete when it shouldn't really. when
-					// we move to proper it should no longer open chunk 1-1 for execution since it is
-					// still incomplete.
-					Tracer.Line("    Opening Chunk 2-2"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing chunks for SP-1 done Chunk 2"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Merging chunks for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Merging chunks for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Executing index for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Executing index for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Cleaning for SP-1"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("    Begin"),
-					Tracer.Line("        Checkpoint: Cleaning for SP-1"),
-					Tracer.Line("    Commit"),
-					Tracer.Line("Done"),
-
-					Tracer.Line("Begin"),
-					Tracer.Line("    Checkpoint: Done SP-1"),
-					Tracer.Line("Commit"))
-				.RunAsync(
-					x => new[] {
-						x.Recs[0].KeepIndexes(0),
-						x.Recs[1].KeepIndexes(0, 2),
-						new LogRecord[] { null },
-					},
-					x => new[] {
-						x.Recs[0].KeepIndexes(0),
-						x.Recs[1].KeepIndexes(0, 2),
-						// not expecting the new scavengepoint to be indexed because we didn't index it.
-						new LogRecord[] { },
-					});
+			Assert.Collection(
+				newScavengePoint,
+				sp => {
+					Assert.Equal(EffectiveNow, sp.EffectiveNow);
+					Assert.Equal(1, sp.EventNumber);
+					Assert.Equal(0, sp.Threshold);
+				});
 		}
 
 		[Fact]
