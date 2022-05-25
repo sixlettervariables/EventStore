@@ -24,6 +24,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public bool ExecuteReadAndDelete<TValue>(SqliteCommand selectCmd, SqliteCommand deleteCmd,
 			Func<SqliteDataReader, TValue> getValue, out TValue value) {
 			
+			//qq want some kind of transaction test to show that these are important
+			// and a test to show that a rolledback transaction undoes what was previously done in it
 			selectCmd.Transaction = _transaction;
 			deleteCmd.Transaction = _transaction;
 			

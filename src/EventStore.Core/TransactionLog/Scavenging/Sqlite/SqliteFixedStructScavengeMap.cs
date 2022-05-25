@@ -71,6 +71,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		private void AddValue(TKey key, TValue value) {
+			//qq if this is endianness specific (it is i think) lets add a startup check along the lines of
+			//if (!BitConverter.IsLittleEndian) {
+			//	throw new NotSupportedException();
+			//}
 			MemoryMarshal.Write(_buffer, ref value);
 			_add.Execute(key, _buffer);
 		}
@@ -141,6 +145,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public bool TryExecute(TKey key, out TValue value) {
 				_keyParam.Value = key;
+				//qq closure allocation (other places too)
 				return _sqlite.ExecuteSingleRead(_cmd, reader => GetValueField(0, reader), out value);
 			}
 		}

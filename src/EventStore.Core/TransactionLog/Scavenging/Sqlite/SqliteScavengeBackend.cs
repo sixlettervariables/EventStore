@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
+	//qq i suspect this needn't be the transactionfactory any more
 	public class SqliteScavengeBackend<TStreamId> : ITransactionFactory<SqliteTransaction>, IDisposable {
 		private const string DbFileName = "scavenging.db";
 		private const string ExpectedJournalMode = "wal";
@@ -55,6 +56,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			AllMaps = new ISqliteScavengeBackend[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
 				originalStorage, originalCollisionStorage, checkpointStorage, chunkTimeStampRanges, chunkWeights };
 
+			//qq maybe want try/finally rollback, if these need to be in an explicit transaction at all
 			var transaction = Begin();
 			
 			foreach (var map in AllMaps) {

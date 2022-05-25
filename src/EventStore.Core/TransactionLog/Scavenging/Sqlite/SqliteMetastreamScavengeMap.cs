@@ -184,6 +184,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public bool TryExecute(TKey key, out MetastreamData value) {
 				_keyParam.Value = key;
+				//qq i think the converting of ReadMetastreamData to a func is an allocation each call
+				// can be done once in the constructor
 				return _sqlite.ExecuteSingleRead(_cmd, ReadMetastreamData, out value);
 			}
 		}
