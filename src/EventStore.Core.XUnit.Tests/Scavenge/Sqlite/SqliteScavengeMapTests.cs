@@ -3,38 +3,39 @@ using System.Collections.Generic;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
-{
+namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteScavengeMapTests : SqliteDbPerTest<SqliteScavengeMapTests> {
-
-		public SqliteScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
+		public SqliteScavengeMapTests() : base(deleteDir:false) {
+			//qq Db is locked for some reason and is blocking the deletion.
 		}
 		
 		[Fact]
 		public void throws_on_unsupported_type() {
 			Assert.Throws<ArgumentException>(
-				() => new SqliteScavengeMap<byte, int>("UnsupportedKeyTypeMap", Fixture.DbConnection));
+				() => new SqliteScavengeMap<byte, int>("UnsupportedKeyTypeMap"));
 			
 			Assert.Throws<ArgumentException>(
-				() => new SqliteScavengeMap<int, byte>("UnsupportedValueTypeMap", Fixture.DbConnection));
+				() => new SqliteScavengeMap<int, byte>("UnsupportedValueTypeMap"));
 		}
 		
 		[Fact]
 		public void initializes_table_only_once() {
-			var sut = new SqliteScavengeMap<int, int>("SomeMap", Fixture.DbConnection);
-
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<int, int>("SomeMap");
+			var sqliteBackend = new SqliteBackend(Fixture.DbConnection);
+			
+			sut.Initialize(sqliteBackend);
+			
 			sut[33] = 1;
 			
-			Assert.Null(Record.Exception(sut.Initialize));
+			Assert.Null(Record.Exception(() => sut.Initialize(sqliteBackend)));
 			Assert.True(sut.TryGetValue(33, out var value));
 			Assert.Equal(1, value);
 		}
 		
 		[Fact]
 		public void can_use_int_float_map() {
-			var sut = new SqliteScavengeMap<int, float>("IntFloatMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<int, float>("IntFloatMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[33] = 1;
 			sut[1] = 33;
@@ -48,8 +49,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 
 		[Fact]
 		public void can_use_string_map() {
-			var sut = new SqliteScavengeMap<string, string>("StringMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<string, string>("StringMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut["string"] = "string";
 			
@@ -59,8 +60,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_overwrite_value() {
-			var sut = new SqliteScavengeMap<string, string>("OverwriteStringMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<string, string>("OverwriteStringMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut["string"] = "string-one";
 			sut["string"] = "string-two";
@@ -71,8 +72,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 
 		[Fact]
 		public void can_store_max_unsigned_long() {
-			var sut = new SqliteScavengeMap<ulong, ulong>("UnsignedLongMaxValueMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<ulong, ulong>("UnsignedLongMaxValueMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[ulong.MaxValue] = ulong.MaxValue;
 			
@@ -82,8 +83,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_remove_value_from_map() {
-			var sut = new SqliteScavengeMap<int, int>("RemoveValueMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<int, int>("RemoveValueMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[33] = 1;
 			sut[1] = 33;
@@ -99,16 +100,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		
 		[Fact]
 		public void can_try_remove_value_from_map() {
-			var sut = new SqliteScavengeMap<int, int>("TryRemoveValueMap", Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeMap<int, int>("TryRemoveValueMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
 
 			Assert.False(sut.TryRemove(33, out _));
 		}
 		
 		[Fact]
-		public void can_enumerate_map() {
-			var sut = new SqliteScavengeMap<int, int>("EnumerateMap", Fixture.DbConnection);
-			sut.Initialize();
+		public void can_get_all_records() {
+			var sut = new SqliteScavengeMap<int, int>("EnumerateMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[0] = 4;
 			sut[1] = 3;
@@ -125,9 +127,28 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_enumerate_map_from_checkpoint() {
-			var sut = new SqliteScavengeMap<int, int>("EnumerateFromCheckpointMap", Fixture.DbConnection);
-			sut.Initialize();
+		public void can_get_active_records() {
+			var sut = new SqliteScavengeMap<int, int>("EnumerateMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			sut[0] = 4;
+			sut[1] = 3;
+			sut[2] = 2;
+			sut[3] = 1;
+			sut[4] = 0;
+			
+			Assert.Collection(sut.ActiveRecords(),
+				item => Assert.Equal(new KeyValuePair<int,int>(0,4), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(1,3), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(2,2), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
+		}
+		
+		[Fact]
+		public void can_get_active_records_from_checkpoint() {
+			var sut = new SqliteScavengeMap<int, int>("EnumerateFromCheckpointMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[0] = 4;
 			sut[1] = 3;

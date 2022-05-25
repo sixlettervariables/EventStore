@@ -612,22 +612,22 @@ namespace EventStore.Core {
 					//qq store in index dir?
 					_sqliteScavengeBackend.Initialize(Path.Combine(indexPath, "scavenging"));
 
-					scavengeState = null; //qq
-					//scavengeState = new ScavengeState<string>(
-					//	longHasher,
-					//	metastreamLookup,
-					//	_sqliteScavengeBackend.CollisionStorage,
-					//	_sqliteScavengeBackend.Hashes,
-					//	_sqliteScavengeBackend.MetaStorage,
-					//	_sqliteScavengeBackend.MetaCollisionStorage,
-					//	_sqliteScavengeBackend.OriginalStorage,
-					//	_sqliteScavengeBackend.OriginalCollisionStorage,
-					//	_sqliteScavengeBackend.CheckpointStorage,
-					//	_sqliteScavengeBackend.ChunkTimeStampRanges,
-					//	_sqliteScavengeBackend.ChunkWeights,
-					//	new TransactionManager(
-					//		_sqliteScavengeBackend,
-					//		_sqliteScavengeBackend.CheckpointStorage));
+					scavengeState = new ScavengeState<string>(
+						longHasher,
+						metastreamLookup,
+						_sqliteScavengeBackend.CollisionStorage,
+						_sqliteScavengeBackend.Hashes,
+						_sqliteScavengeBackend.MetaStorage,
+						_sqliteScavengeBackend.MetaCollisionStorage,
+						_sqliteScavengeBackend.OriginalStorage,
+						_sqliteScavengeBackend.OriginalCollisionStorage,
+						_sqliteScavengeBackend.CheckpointStorage,
+						_sqliteScavengeBackend.ChunkTimeStampRanges,
+						_sqliteScavengeBackend.ChunkWeights,
+						new SqliteTransactionManager(
+							_sqliteScavengeBackend,
+							_sqliteScavengeBackend.CheckpointStorage));
+
 				} else {
 					var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
 					scavengeState = new ScavengeState<string>(

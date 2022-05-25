@@ -1,8 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Xunit;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
-{
+namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteDbPerTest<T> : IAsyncLifetime {
 		protected SqliteDbFixture<T> Fixture { get; }
 		private DirectoryFixture<T> DirFixture { get; }

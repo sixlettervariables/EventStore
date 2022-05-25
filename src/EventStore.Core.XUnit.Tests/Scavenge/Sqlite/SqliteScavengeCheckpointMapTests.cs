@@ -11,8 +11,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_store_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeCheckpointMap<int>();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var scavengePoint = new ScavengePoint(
 				position: 303,
@@ -33,8 +33,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_overwrite_current_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeCheckpointMap<int>();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			sut[Unit.Instance] = new ScavengeCheckpoint.Accumulating(
 				new ScavengePoint(
@@ -64,8 +64,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_remove_current_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeCheckpointMap<int>();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var scavengePoint = new ScavengePoint(
 				position: 303,
@@ -85,8 +85,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 		[Fact]
 		public void can_try_remove_checkpoint() {
-			var sut = new SqliteScavengeCheckpointMap<int>(Fixture.DbConnection);
-			sut.Initialize();
+			var sut = new SqliteScavengeCheckpointMap<int>();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			Assert.False(sut.TryRemove(Unit.Instance, out _));
 		}

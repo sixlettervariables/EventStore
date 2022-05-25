@@ -1,11 +1,14 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ScavengeStateBuilder {
+	public class ScavengeStateBuilder : IDisposable {
 		private readonly ILongHasher<string> _hasher;
 		private readonly IMetastreamLookup<string> _metastreamLookup;
 
@@ -14,6 +17,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private Type _cancelWhenCheckpointingType;
 		private CancellationTokenSource _cancellationTokenSource;
 		private Action<ScavengeState<string>> _mutateState;
+		private SqliteScavengeBackend<string> _sqliteBackend;
 
 		public ScavengeStateBuilder(
 			ILongHasher<string> hasher,
@@ -58,10 +62,30 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return state;
 		}
 
-		private ScavengeState<string> BuildInternal() {
+		private ScavengeState<string> BuildInternal(bool inMemory=true) {
 			if (_preexisting != null)
 				return _preexisting;
 
+			if (!inMemory) {
+				_sqliteBackend = new SqliteScavengeBackend<string>();
+				_sqliteBackend.Initialize(Path.Combine("scavenge-state",Guid.NewGuid().ToString()));
+				
+				return new ScavengeState<string>(
+					_hasher,
+					_metastreamLookup,
+					_sqliteBackend.CollisionStorage,
+					_sqliteBackend.Hashes,
+					_sqliteBackend.MetaStorage,
+					_sqliteBackend.MetaCollisionStorage,
+					_sqliteBackend.OriginalStorage,
+					_sqliteBackend.OriginalCollisionStorage,
+					_sqliteBackend.CheckpointStorage,
+					_sqliteBackend.ChunkTimeStampRanges,
+					_sqliteBackend.ChunkWeights,
+					new SqliteTransactionManager(_sqliteBackend, _sqliteBackend.CheckpointStorage));
+			}
+			
+			
 			var collisionStorage = new InMemoryScavengeMap<string, Unit>();
 			var hashesStorage = new InMemoryScavengeMap<ulong, string>();
 			var metaStorage = new InMemoryMetastreamScavengeMap<ulong>();
@@ -113,6 +137,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				transactionManager);
 
 			return scavengeState;
+		}
+
+		//qq properly dispose in tests
+		public void Dispose() {
+			_sqliteBackend?.Dispose();
 		}
 	}
 }
