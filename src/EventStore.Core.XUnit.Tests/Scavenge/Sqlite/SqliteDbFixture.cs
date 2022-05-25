@@ -12,6 +12,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		public SqliteDbFixture(string dir) {
 			var fileName = typeof(T).Name + ".db";
 			var connectionStringBuilder = new SqliteConnectionStringBuilder();
+			connectionStringBuilder.Pooling = false; // prevents the db files from being locked
 			connectionStringBuilder.DataSource = Path.Combine(dir, fileName);
 			_connectionString = connectionStringBuilder.ConnectionString;
 		}

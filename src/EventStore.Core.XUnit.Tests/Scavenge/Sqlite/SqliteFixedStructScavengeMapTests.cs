@@ -5,10 +5,7 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteFixedStructScavengeMapTests : SqliteDbPerTest<SqliteFixedStructScavengeMapTests> {
-
-		public SqliteFixedStructScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
-		}
-
+		
 		[Fact]
 		public void can_use_fixed_struct_value_type_map() {
 			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("FixedStructMap");

@@ -7,8 +7,6 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteOriginalStreamScavengeMapTests : SqliteDbPerTest<SqliteOriginalStreamScavengeMapTests> {
-		public SqliteOriginalStreamScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
-		}
 
 		[Fact]
 		public void can_set_original_stream_data() {

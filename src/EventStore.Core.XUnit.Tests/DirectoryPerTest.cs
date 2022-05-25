@@ -5,8 +5,8 @@ namespace EventStore.Core.XUnit.Tests {
 	public class DirectoryPerTest<T> : IAsyncLifetime {
 		protected DirectoryFixture<T> Fixture { get; }
 
-		public DirectoryPerTest(bool deleteDir=true) {
-			Fixture = new DirectoryFixture<T>(deleteDir);			
+		public DirectoryPerTest() {
+			Fixture = new DirectoryFixture<T>();			
 		}
 		
 		public async Task InitializeAsync() {

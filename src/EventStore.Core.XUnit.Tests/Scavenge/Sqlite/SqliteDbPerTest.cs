@@ -6,8 +6,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		protected SqliteDbFixture<T> Fixture { get; }
 		private DirectoryFixture<T> DirFixture { get; }
 
-		public SqliteDbPerTest(bool deleteDir=true) {
-			DirFixture = new DirectoryFixture<T>(deleteDir);
+		public SqliteDbPerTest() {
+			DirFixture = new DirectoryFixture<T>();
 			Fixture = new SqliteDbFixture<T>(DirFixture.Directory);
 		}
 		

@@ -4,8 +4,6 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteMetastreamScavengeMapTests : SqliteDbPerTest<SqliteMetastreamScavengeMapTests> {
-		public SqliteMetastreamScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
-		}
 		
 		[Fact]
 		public void can_set_metastream_data() {
