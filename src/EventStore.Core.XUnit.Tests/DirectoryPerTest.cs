@@ -6,9 +6,9 @@ namespace EventStore.Core.XUnit.Tests {
 		protected DirectoryFixture<T> Fixture { get; }
 
 		public DirectoryPerTest() {
-			Fixture = new DirectoryFixture<T>();			
+			Fixture = new DirectoryFixture<T>();
 		}
-		
+
 		public async Task InitializeAsync() {
 			await Fixture.InitializeAsync();
 		}

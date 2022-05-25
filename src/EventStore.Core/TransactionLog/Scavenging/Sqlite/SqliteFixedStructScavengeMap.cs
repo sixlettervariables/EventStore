@@ -4,14 +4,15 @@ using System.Runtime.InteropServices;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteFixedStructScavengeMap<TKey, TValue> : ISqliteScavengeBackend,
+	public class SqliteFixedStructScavengeMap<TKey, TValue> :
+		ISqliteScavengeBackend,
 		IScavengeMap<TKey, TValue> where TValue : struct {
 		
 		private AddCommand _add;
-        private GetCommand _get;
-        private RemoveCommand _delete;
-        private FromCheckpointCommand _fromCheckpoint;
-        private AllRecordsCommand _all;
+		private GetCommand _get;
+		private RemoveCommand _delete;
+		private FromCheckpointCommand _fromCheckpoint;
+		private AllRecordsCommand _all;
 		private readonly byte[] _buffer;
 
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
@@ -122,6 +123,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
+
 		private class GetCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
@@ -142,6 +144,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				return _sqlite.ExecuteSingleRead(_cmd, reader => GetValueField(0, reader), out value);
 			}
 		}
+
 		private class RemoveCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _selectCmd;
@@ -172,6 +175,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					reader => GetValueField(0, reader), out value);
 			}
 		}
+
 		private class FromCheckpointCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
@@ -193,6 +197,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
 			}
 		}
+
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;

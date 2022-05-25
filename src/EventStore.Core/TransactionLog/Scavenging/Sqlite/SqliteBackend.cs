@@ -65,9 +65,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			return false;
 		}
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> ExecuteReader<TKey,TValue>(SqliteCommand cmd,
-			Func<SqliteDataReader,KeyValuePair<TKey, TValue>> toValue) {
-			
+		public IEnumerable<KeyValuePair<TKey, TValue>> ExecuteReader<TKey, TValue>(SqliteCommand cmd,
+			Func<SqliteDataReader, KeyValuePair<TKey, TValue>> toValue) {
+
 			cmd.Transaction = _transaction;
 			using (var reader = cmd.ExecuteReader()) {
 				while (reader.Read()) {
@@ -78,7 +78,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public static T GetNullableFieldValue<T>(int ordinal, SqliteDataReader reader) {
 			if (!reader.IsDBNull(ordinal)) {
-				return reader.GetFieldValue<T>(ordinal);				
+				return reader.GetFieldValue<T>(ordinal);
 			}
 
 			return default;

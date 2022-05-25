@@ -24,16 +24,18 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public void Initialize(SqliteBackend sqlite) {
-			var sql = 
-				$"CREATE TABLE IF NOT EXISTS {TableName} (" +
-				$"key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY, " +
-				"isTombstoned      INTEGER DEFAULT 0, " +
-				"maxAge            TEXT NULL, " +
-				"maxCount          INTEGER NULL, " +
-				"truncateBefore    INTEGER NULL, " +
-				"discardPoint      INTEGER NULL, " +
-				"maybeDiscardPoint INTEGER NULL, " +
-				"status            INTEGER DEFAULT 0)";
+			//qq suspect maxAge will be much smaller if we store it as a number. same for the chunk timestamp ranges
+			//qq might be sensible to give the discard points defaults of 0
+			var sql = $@"
+				CREATE TABLE IF NOT EXISTS {TableName} (
+					key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY,
+					isTombstoned      INTEGER DEFAULT 0,
+					maxAge            TEXT NULL,
+					maxCount          INTEGER NULL,
+					truncateBefore    INTEGER NULL,
+					discardPoint      INTEGER NULL,
+					maybeDiscardPoint INTEGER NULL,
+					status            INTEGER DEFAULT 0)";
 		
 			sqlite.InitializeDb(sql);
 

@@ -79,7 +79,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			var discardPoint = DiscardPoint.KeepAll;
 			var discardPointField = SqliteBackend.GetNullableFieldValue<long?>(1, reader);
 			if (discardPointField.HasValue) {
-				discardPoint = DiscardPoint.DiscardBefore(discardPointField.Value);					
+				discardPoint = DiscardPoint.DiscardBefore(discardPointField.Value);
 			}
 			
 			return new MetastreamData(isTombstoned, discardPoint);
@@ -146,9 +146,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _discardPointParam;
 
 			public SetDiscardPointCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} (key, discardPoint) VALUES($key, $discardPoint) " + 
-					"ON CONFLICT(key) DO UPDATE SET discardPoint=$discardPoint";
+				var sql = $@"
+					INSERT INTO {tableName} (key, discardPoint)
+					VALUES ($key, $discardPoint)
+					ON CONFLICT(key) DO UPDATE SET discardPoint = $discardPoint";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;

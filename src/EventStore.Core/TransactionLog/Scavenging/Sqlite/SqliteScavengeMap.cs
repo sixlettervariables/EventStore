@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteScavengeMap<TKey, TValue> : ISqliteScavengeBackend, IScavengeMap<TKey, TValue> {
+	public class SqliteScavengeMap<TKey, TValue> :
+		ISqliteScavengeBackend,
+		IScavengeMap<TKey, TValue> {
+
 		private AddCommand _add;
 		private GetCommand _get;
 		private RemoveCommand _delete;
