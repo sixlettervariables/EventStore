@@ -1,8 +1,14 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
+using EventStore.Common.Log;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class Calculator<TStreamId> : ICalculator<TStreamId> {
+	public class Calculator {
+		protected static ILogger Log { get; } = LogManager.GetLoggerFor<Accumulator>();
+	}
+
+	public class Calculator<TStreamId> : Calculator, ICalculator<TStreamId> {
 		private readonly IIndexReaderForCalculator<TStreamId> _index;
 		private readonly int _chunkSize;
 		private readonly int _cancellationCheckPeriod;
@@ -25,6 +31,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCalculator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Starting new scavenge calculation phase for {scavengePoint}",
+				scavengePoint.GetName());
+
 			var checkpoint = new ScavengeCheckpoint.Calculating<TStreamId>(
 				scavengePoint: scavengePoint,
 				doneStreamHandle: default);
@@ -37,6 +46,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCalculator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Calculating from checkpoint: {checkpoint}", checkpoint);
+			var stopwatch = Stopwatch.StartNew();
+
 			var weights = new WeightAccumulator(state);
 			var scavengePoint = checkpoint.ScavengePoint;
 			var streamCalc = new StreamCalculator<TStreamId>(_index, scavengePoint);
@@ -44,6 +56,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var checkpointCounter = 0;
 			var cancellationCheckCounter = 0;
+			var periodStart = stopwatch.Elapsed;
+			var totalCounter = 0;
 
 			// iterate through the original (i.e. non-meta) streams that need scavenging (i.e.
 			// those that have metadata or tombstones)
@@ -89,7 +103,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						newMaybeDiscardPoint = originalStreamData.MaybeDiscardPoint;
 					}
 
-
 					if (newStatus == originalStreamData.Status &&
 						newDiscardPoint == originalStreamData.DiscardPoint &&
 						newMaybeDiscardPoint == originalStreamData.MaybeDiscardPoint) {
@@ -102,6 +115,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							discardPoint: newDiscardPoint,
 							maybeDiscardPoint: newMaybeDiscardPoint);
 					}
+
+					totalCounter++;
 
 					// Check cancellation occasionally
 					if (++cancellationCheckCounter == _cancellationCheckPeriod) {
@@ -117,6 +132,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 							scavengePoint,
 							originalStreamHandle));
 						transaction = state.BeginTransaction();
+
+						var elapsed = stopwatch.Elapsed;
+						LogRate("period", _checkpointPeriod, elapsed - periodStart);
+						LogRate("total", totalCounter, elapsed);
+						periodStart = elapsed;
 					}
 				}
 
@@ -127,10 +147,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
 					scavengePoint,
 					streamCalc.OriginalStreamHandle));
+				LogRate("grand total", totalCounter, stopwatch.Elapsed);
 			} catch {
 				transaction.Rollback();
 				throw;
 			}
+		}
+
+		private void LogRate(string name, int count, TimeSpan elapsed) {
+			var rate = count / elapsed.TotalSeconds;
+			Log.Trace("Calculated in {name}: {count:N0} streams in {elapsed}. {rate:N2} streams per second",
+				name, count, elapsed, rate);
 		}
 
 		// This does two things.

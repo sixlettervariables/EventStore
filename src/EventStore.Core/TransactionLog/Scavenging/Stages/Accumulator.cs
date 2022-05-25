@@ -1,10 +1,17 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
+using EventStore.Common.Log;
 using EventStore.Core.Helpers;
 using EventStore.Core.LogAbstraction;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class Accumulator<TStreamId> : IAccumulator<TStreamId> {
+	public class Accumulator {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<Accumulator>();
+	}
+
+	public class Accumulator<TStreamId> : Accumulator, IAccumulator<TStreamId> {
+
 		private readonly int _chunkSize;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
@@ -32,6 +39,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Starting new scavenge accumulation phase: {prevScavengePoint} to {scavengePoint}",
+				prevScavengePoint?.GetName() ?? "beginning of log",
+				scavengePoint.GetName());
+
 			var doneLogicalChunkNumber = default(int?);
 
 			// accumulate the chunk that the previous scavenge point was in because we last time we
@@ -58,6 +69,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Accumulating from checkpoint: {checkpoint}", checkpoint);
+			var stopwatch = new Stopwatch();
+
 			// bounds are ok because we wont try to read past the scavenge point
 			var logicalChunkNumber = checkpoint.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;
@@ -79,6 +93,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					originalStreamRecord,
 					metadataStreamRecord,
 					tombstoneRecord,
+					stopwatch,
 					cancellationToken)) {
 				logicalChunkNumber++;
 			}
@@ -92,7 +107,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ReusableObject<RecordForAccumulator<TStreamId>.OriginalStreamRecord> originalStreamRecord,
 			ReusableObject<RecordForAccumulator<TStreamId>.MetadataStreamRecord> metadataStreamRecord,
 			ReusableObject<RecordForAccumulator<TStreamId>.TombStoneRecord> tombStoneRecord,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
+
+			stopwatch.Restart();
+
 			// for correctness it is important that any particular DetectCollisions call is contained
 			// within a transaction.
 			var transaction = state.BeginTransaction();
@@ -119,10 +138,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					// empty range, no need to store it.
 				}
 
+				var accumulationElapsed = stopwatch.Elapsed;
+
 				weights.Flush();
 				transaction.Commit(new ScavengeCheckpoint.Accumulating(
 					scavengePoint,
 					doneLogicalChunkNumber: logicalChunkNumber));
+
+				Log.Trace("Accumulated chunk {chunk} in {elapsed}. Chunk total: {chunkTotalElapsed}",
+					logicalChunkNumber, accumulationElapsed, stopwatch.Elapsed);
 
 				return ret;
 			} catch {
@@ -239,7 +263,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			if (!isInOrder) {
-				//qq definitely log a warning, perhaps to the scavenge log, this should be rare.
+				Log.Warn("Accumulator found out of order metadata: {stream}:{eventNumber}",
+					record.StreamId,
+					record.EventNumber);
 				return;
 			}
 

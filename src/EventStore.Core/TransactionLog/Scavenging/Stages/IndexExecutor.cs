@@ -1,9 +1,14 @@
 ﻿using System;
 using System.Threading;
+using EventStore.Common.Log;
 using EventStore.Core.Index;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
-	public class IndexExecutor<TStreamId> : IIndexExecutor<TStreamId> {
+	public class IndexExecutor {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<IndexExecutor>();
+	}
+
+	public class IndexExecutor<TStreamId> : IndexExecutor, IIndexExecutor<TStreamId> {
 		private readonly IIndexScavenger _indexScavenger;
 		private readonly IChunkReaderForIndexExecutor<TStreamId> _streamLookup;
 		private readonly bool _unsafeIgnoreHardDeletes;
@@ -24,6 +29,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Starting new scavenge index execution phase for {scavengePoint}",
+				scavengePoint.GetName());
+
 			var checkpoint = new ScavengeCheckpoint.ExecutingIndex(scavengePoint);
 			state.SetCheckpoint(checkpoint);
 			Execute(checkpoint, state, scavengerLogger, cancellationToken);
@@ -34,6 +42,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForIndexExecutor<TStreamId> state,
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
+
+			Log.Trace("Executing indexes from checkpoint: {checkpoint}", checkpoint);
 
 			_indexScavenger.ScavengeIndex(
 				scavengePoint: checkpoint.ScavengePoint.Position,

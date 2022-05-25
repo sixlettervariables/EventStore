@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using EventStore.Common.Log;
 using EventStore.Core.Data;
 using EventStore.Core.Helpers;
 using EventStore.Core.Messages;
@@ -8,6 +9,8 @@ using EventStore.Core.Services.UserManagement;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class ScavengePointSource : IScavengePointSource {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<ScavengePointSource>();
+
 		private readonly IODispatcher _ioDispatcher;
 
 		public ScavengePointSource(IODispatcher ioDispatcher) {
@@ -16,6 +19,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		//qq wip
 		public async Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
+			Log.Info("Getting latest scavenge point...");
+
 			var readTcs = new TaskCompletionSource<ResolvedEvent[]>();
 			var endStreamPosition = -1;
 
@@ -30,8 +35,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						readTcs.TrySetResult(m.Events);
 					else {
 						readTcs.TrySetException(new Exception(
-							//qq detail
-							$"Could not read newly created scavenge point: {m.Result}. {m.Error}"));
+							$"Failed to get latest scavenge point: {m.Result}. {m.Error}"));
 					}
 				});
 
@@ -50,11 +54,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				effectiveNow: scavengePointEvent.TimeStamp,
 				threshold: scavengePointPayload.Threshold);
 
+			Log.Info("Got latest scavenge point {scavengePoint}", scavengePoint);
 			return scavengePoint;
 		}
 
 		//qqq check this and test it, especially on a cluster
 		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
+			Log.Info("Adding new scavenge point #{eventNumber} with threshold {threshold}...",
+				expectedVersion + 1, threshold);
+
 			var payload = new ScavengePointPayload {
 				Threshold = threshold,
 			};
@@ -77,20 +85,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						writeTcs.TrySetResult(true);
 					} else {
 						writeTcs.TrySetException(new Exception(
-							//qq detail
-							$"Couldn't create a scavenge point: {m.Result}"));
-						//qq retry?
-						//qq log an error. in fact, lots of logging everywhere.
+							$"Failed to add new scavenge point: {m.Result}"));
 					}
 				}
 			);
 
 			await writeTcs.Task;
 
+			Log.Info("Added new scavenge point");
+
 			var scavengePoint = await GetLatestScavengePointOrDefaultAsync();
 
 			if (scavengePoint.EventNumber != expectedVersion + 1)
-				throw new Exception("dfglskjas"); //qq detail
+				throw new Exception(
+					$"Unexpected error: new scavenge point is number {scavengePoint.EventNumber} " +
+					$"instead of {expectedVersion + 1}");
 
 			return scavengePoint;
 		}

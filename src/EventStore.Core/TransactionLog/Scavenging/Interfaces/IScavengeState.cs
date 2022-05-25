@@ -12,6 +12,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		IScavengeStateForCleaner {
 
 		bool TryGetCheckpoint(out ScavengeCheckpoint checkpoint);
+
+		IEnumerable<TStreamId> AllCollisions();
 	}
 
 	// all the components use these

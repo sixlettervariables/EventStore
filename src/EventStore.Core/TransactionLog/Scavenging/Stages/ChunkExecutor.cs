@@ -41,6 +41,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Starting new scavenge chunk execution phase for {scavengePoint}",
+				scavengePoint.GetName());
+
 			var checkpoint = new ScavengeCheckpoint.ExecutingChunks(
 				scavengePoint: scavengePoint,
 				doneLogicalChunkNumber: default);
@@ -53,6 +56,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForChunkExecutor<TStreamId> state,
 			ITFChunkScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
+
+			Log.Trace("Executing chunks from checkpoint: {checkpoint}", checkpoint);
 
 			var startFromChunk = checkpoint?.DoneLogicalChunkNumber + 1 ?? 0;
 			var scavengePoint = checkpoint.ScavengePoint;

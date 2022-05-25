@@ -3,6 +3,7 @@ using System;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.Data;
+using EventStore.Common.Log;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// This datastructure is read and written to by the Accumulator/Calculator/Executors.
@@ -12,7 +13,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	// different data for each so we have two maps. we have one collision detector since
 	// we need to detect collisions between all of the streams.
 	// we don't need to store data for every original stream, only ones that need scavenging.
-	public class ScavengeState<TStreamId> : IScavengeState<TStreamId> {
+	public class ScavengeState {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<ScavengeState>();
+	}
+
+	public class ScavengeState<TStreamId> : ScavengeState, IScavengeState<TStreamId> {
 
 		private readonly CollisionDetector<TStreamId> _collisionDetector;
 
@@ -105,6 +110,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				out var collision);
 
 			if (collisionResult == CollisionResult.NewCollision) {
+				Log.Info(
+					"Detected collision between streams \"{streamId}\" and \"{previous}\"",
+					streamId, collision);
+
 				_metastreamDatas.NotifyCollision(collision);
 				_originalStreamDatas.NotifyCollision(collision);
 			}

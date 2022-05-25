@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EventStore.Common.Log;
@@ -49,18 +50,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public async Task ScavengeAsync(CancellationToken cancellationToken) {
 
 			Log.Trace("SCAVENGING: started scavenging DB.");
-			var sw = Stopwatch.StartNew();
+			LogCollisions();
+
+			var stopwatch = Stopwatch.StartNew();
 
 			var result = ScavengeResult.Success;
 			string error = null;
 			try {
 				_scavengerLogger.ScavengeStarted();
 
-				await StartInternal(_scavengerLogger, cancellationToken);
+				await RunInternal(_scavengerLogger, stopwatch, cancellationToken);
 
 				Log.Trace(
 					"SCAVENGING: total time taken: {elapsed}, total space saved: {spaceSaved}.",
-					sw.Elapsed, _scavengerLogger.SpaceSaved);
+					stopwatch.Elapsed, _scavengerLogger.SpaceSaved);
 
 			} catch (OperationCanceledException) {
 				Log.Info("SCAVENGING: Scavenge cancelled.");
@@ -71,20 +74,31 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				error = string.Format("Error while scavenging DB: {0}.", exc.Message);
 				throw; //qqq probably dont want this line, just here for tests i dont want to touch atm
 			} finally {
+				LogCollisions();
 				try {
-					_scavengerLogger.ScavengeCompleted(result, error, sw.Elapsed);
+					_scavengerLogger.ScavengeCompleted(result, error, stopwatch.Elapsed);
 				} catch (Exception ex) {
 					Log.ErrorException(
 						ex,
 						"Error whilst recording scavenge completed. " +
 						"Scavenge result: {result}, Elapsed: {elapsed}, Original error: {e}",
-						result, sw.Elapsed, error);
+						result, stopwatch.Elapsed, error);
 				}
 			}
 		}
 
-		private async Task StartInternal(
+		private void LogCollisions() {
+			var collisions = _state.AllCollisions().ToArray();
+			Log.Trace("{count} KNOWN COLLISIONS", collisions.Length);
+
+			foreach (var collision in collisions) {
+				Log.Trace("KNOWN COLLISION: \"{collision}\"", collision);
+			}
+		}
+
+		private async Task RunInternal(
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
 			//qq consider exceptions (cancelled, and others)
@@ -102,35 +116,54 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// there is no checkpoint, so this is the first scavenge of this scavenge state
 				// (not necessarily the first scavenge of this database, old scavenged may have been run
 				// or new scavenges run and the scavenge state deleted)
-				await StartNewAsync(prevScavengePoint: null, scavengerLogger, cancellationToken);
+				await StartNewAsync(
+					prevScavengePoint: null,
+					scavengerLogger,
+					stopwatch,
+					cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.Done done) {
 				// start of a subsequent scavenge.
-				await StartNewAsync(prevScavengePoint: done.ScavengePoint, scavengerLogger, cancellationToken);
+				await StartNewAsync(
+					prevScavengePoint: done.ScavengePoint,
+					scavengerLogger,
+					stopwatch,
+					cancellationToken);
 
 				// the other cases are continuing an incomplete scavenge
 			} else if (checkpoint is ScavengeCheckpoint.Accumulating accumulating) {
-				_accumulator.Accumulate(accumulating, _state, cancellationToken);
-				AfterAccumulation(accumulating.ScavengePoint, scavengerLogger, cancellationToken);
+				Time(stopwatch, "Accumulation", () =>
+					_accumulator.Accumulate(accumulating, _state, cancellationToken));
+				AfterAccumulation(
+					accumulating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.Calculating<TStreamId> calculating) {
-				_calculator.Calculate(calculating, _state, cancellationToken);
-				AfterCalculation(calculating.ScavengePoint, scavengerLogger, cancellationToken);
+				Time(stopwatch, "Calculation", () =>
+					_calculator.Calculate(calculating, _state, cancellationToken));
+				AfterCalculation(
+					calculating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
-				_chunkExecutor.Execute(executingChunks, _state, scavengerLogger, cancellationToken);
-				AfterChunkExecution(executingChunks.ScavengePoint, scavengerLogger, cancellationToken);
+				Time(stopwatch, "Chunk execution", () =>
+					_chunkExecutor.Execute(executingChunks, _state, scavengerLogger, cancellationToken));
+				AfterChunkExecution(
+					executingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.MergingChunks mergingChunks) {
-				_chunkMerger.MergeChunks(mergingChunks, _state, scavengerLogger, cancellationToken);
-				AfterChunkMerging(mergingChunks.ScavengePoint, scavengerLogger, cancellationToken);
+				Time(stopwatch, "Chunk merging", () =>
+					_chunkMerger.MergeChunks(mergingChunks, _state, scavengerLogger, cancellationToken));
+				AfterChunkMerging(
+					mergingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
-				_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken);
-				AfterIndexExecution(executingIndex.ScavengePoint, cancellationToken);
+				Time(stopwatch, "Index execution", () =>
+					_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken));
+				AfterIndexExecution(
+					executingIndex.ScavengePoint, stopwatch, cancellationToken);
 
 			} else if (checkpoint is ScavengeCheckpoint.Cleaning cleaning) {
-				_cleaner.Clean(cleaning, _state, cancellationToken);
+				Time(stopwatch, "Cleaning", () =>
+					_cleaner.Clean(cleaning, _state, cancellationToken));
 				AfterCleaning(cleaning.ScavengePoint);
 
 			} else {
@@ -138,9 +171,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
+		private void Time(Stopwatch stopwatch, string name, Action f) {
+			var start = stopwatch.Elapsed;
+			f();
+			var elapsed = stopwatch.Elapsed - start;
+			Log.Trace("{name} took {elapsed}", name, elapsed);
+		}
+
 		private async Task StartNewAsync(
 			ScavengePoint prevScavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
 			// prevScavengePoint is the previous one that was completed
@@ -181,51 +222,62 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			// we now have a nextScavengePoint.
-			_accumulator.Accumulate(prevScavengePoint, nextScavengePoint, _state, cancellationToken);
-			AfterAccumulation(nextScavengePoint, scavengerLogger, cancellationToken);
+			Time(stopwatch, "Accumulation", () =>
+				_accumulator.Accumulate(prevScavengePoint, nextScavengePoint, _state, cancellationToken));
+			AfterAccumulation(nextScavengePoint, scavengerLogger, stopwatch, cancellationToken);
 		}
 
 		private void AfterAccumulation(
 			ScavengePoint scavengepoint,
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
-			_calculator.Calculate(scavengepoint, _state, cancellationToken);
-			AfterCalculation(scavengepoint, scavengerLogger, cancellationToken);
+			Time(stopwatch, "Calculation", () =>
+				_calculator.Calculate(scavengepoint, _state, cancellationToken));
+			AfterCalculation(scavengepoint, scavengerLogger, stopwatch, cancellationToken);
 		}
 
 		private void AfterCalculation(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
-			_chunkExecutor.Execute(scavengePoint, _state, scavengerLogger, cancellationToken);
-			AfterChunkExecution(scavengePoint, scavengerLogger, cancellationToken);
+			Time(stopwatch, "Chunk execution", () =>
+				_chunkExecutor.Execute(scavengePoint, _state, scavengerLogger, cancellationToken));
+			AfterChunkExecution(scavengePoint, scavengerLogger, stopwatch, cancellationToken);
 		}
 
 		private void AfterChunkExecution(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
-			_chunkMerger.MergeChunks(scavengePoint, _state, scavengerLogger, cancellationToken);
-			AfterChunkMerging(scavengePoint, scavengerLogger, cancellationToken);
+			Time(stopwatch, "Chunk merging", () =>
+				_chunkMerger.MergeChunks(scavengePoint, _state, scavengerLogger, cancellationToken));
+			AfterChunkMerging(scavengePoint, scavengerLogger, stopwatch, cancellationToken);
 		}
 
 		private void AfterChunkMerging(
 			ScavengePoint scavengePoint,
 			ITFChunkScavengerLog scavengerLogger,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
-			_indexExecutor.Execute(scavengePoint, _state, scavengerLogger, cancellationToken);
-			AfterIndexExecution(scavengePoint, cancellationToken);
+			Time(stopwatch, "Index execution", () =>
+				_indexExecutor.Execute(scavengePoint, _state, scavengerLogger, cancellationToken));
+			AfterIndexExecution(scavengePoint, stopwatch, cancellationToken);
 		}
 
 		private void AfterIndexExecution(
 			ScavengePoint scavengePoint,
+			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
-			_cleaner.Clean(scavengePoint, _state, cancellationToken);
+			Time(stopwatch, "Cleaning", () =>
+				_cleaner.Clean(scavengePoint, _state, cancellationToken));
 			AfterCleaning(scavengePoint);
 		}
 

@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Threading;
+using EventStore.Common.Log;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class Cleaner : ICleaner {
+		protected static readonly ILogger Log = LogManager.GetLoggerFor<Cleaner>();
+
 		private readonly bool _unsafeIgnoreHardDeletes;
 
 		public Cleaner(
@@ -15,6 +18,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForCleaner state,
 			CancellationToken cancellationToken) {
 
+			Log.Trace("Starting new scavenge clean up phase for {scavengePoint}",
+				scavengePoint.GetName());
+
 			var checkpoint = new ScavengeCheckpoint.Cleaning(scavengePoint);
 			state.SetCheckpoint(checkpoint);
 			Clean(checkpoint, state, cancellationToken);
@@ -24,6 +30,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ScavengeCheckpoint.Cleaning checkpoint,
 			IScavengeStateForCleaner state,
 			CancellationToken cancellationToken) {
+
+			Log.Trace("Cleaning checkpoint: {checkpoint}", checkpoint);
 
 			cancellationToken.ThrowIfCancellationRequested();
 
@@ -47,23 +55,26 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (state.AllChunksExecuted()) {
 				// Now we know we have successfully executed every chunk with weight.
 
+				Log.Trace("Deleting metastream data");
 				state.DeleteMetastreamData();
 
 				cancellationToken.ThrowIfCancellationRequested();
 
+				Log.Trace("Deleting originalstream data. Deleting archived: {deleteArchived}",
+					_unsafeIgnoreHardDeletes);
 				state.DeleteOriginalStreamData(deleteArchived: _unsafeIgnoreHardDeletes);
 
 			} else {
 				// one or more chunks was not executed, due to error or not meeting the threshold
-				// either way, we cannot remove records 
+				// either way, we cannot clean up the stream datas
 				if (_unsafeIgnoreHardDeletes) {
 					// the chunk executor should have stopped the scavenge if it couldn't execute any
 					// chunk when this flag is set.
-					//qqqq log: a serious error, we could have removed the tombstone without removing all the other records.
-
+					// we could have removed the tombstone without removing all the other records.
+					throw new Exception(
+						"UnsafeIgnoreHardDeletes is true but not all chunks have been executed");
 				} else {
-					//qq log: this is fine just log something about not cleaning the state because there are
-					// chunks pending execution.
+					Log.Trace("Skipping cleaup because some chunks have not been executed");
 				}
 			}
 		}
