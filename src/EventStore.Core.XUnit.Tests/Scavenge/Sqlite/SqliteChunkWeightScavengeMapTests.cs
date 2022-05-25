@@ -5,9 +5,6 @@ using Xunit;
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteChunkWeightScavengeMapTests : SqliteDbPerTest<SqliteChunkWeightScavengeMapTests> {
 
-		public SqliteChunkWeightScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
-		}
-
 		[Fact]
 		public void can_increase_existing_chunk_weight() {
 			var sut = new SqliteChunkWeightScavengeMap();

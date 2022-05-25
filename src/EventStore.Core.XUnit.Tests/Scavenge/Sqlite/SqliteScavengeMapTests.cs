@@ -5,9 +5,6 @@ using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteScavengeMapTests : SqliteDbPerTest<SqliteScavengeMapTests> {
-		public SqliteScavengeMapTests() : base(deleteDir:false) {
-			//qq Db is locked for some reason and is blocking the deletion.
-		}
 		
 		[Fact]
 		public void throws_on_unsupported_type() {

@@ -6,9 +6,6 @@ using Xunit;
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteScavengeCheckpointMapTests : SqliteDbPerTest<SqliteScavengeCheckpointMapTests> {
 
-		public SqliteScavengeCheckpointMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
-		}
-
 		[Fact]
 		public void can_store_checkpoint() {
 			var sut = new SqliteScavengeCheckpointMap<int>();
