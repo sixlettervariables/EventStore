@@ -3,8 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
-{
+namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteDbFixture<T> : IAsyncLifetime {
 		private readonly string _connectionString;
 

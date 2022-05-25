@@ -2,8 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
-namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
-{
+namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteBackend {
 		private readonly SqliteConnection _connection;
 		private SqliteTransaction _transaction;

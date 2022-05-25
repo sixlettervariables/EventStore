@@ -2,8 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
-namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
-{
+namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public static class SqliteTypeMapping {
 		private static readonly Dictionary<Type, SqliteType> _sqliteTypeMap = new Dictionary<Type, SqliteType>() {
 			{typeof(int), SqliteType.Integer},

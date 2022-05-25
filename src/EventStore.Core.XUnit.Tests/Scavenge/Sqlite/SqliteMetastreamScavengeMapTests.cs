@@ -92,7 +92,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 		
 		[Fact]
-		public void can_enumerate_all_items() {
+		public void can_get_all_records() {
 			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateAll");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
@@ -104,7 +104,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[3] = osd[3];
 			sut[4] = osd[4];
 
-			Assert.Collection(sut,
+			Assert.Collection(sut.AllRecords(),
 				item => {
 					Assert.Equal(0ul, item.Key);
 					Assert.Equal(osd[0], item.Value);
@@ -128,7 +128,43 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 
 		[Fact]
-		public void can_enumerate_from_checkpoint() {
+		public void can_get_active_records() {
+			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateAll");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var osd = GetMetastreamTestData();
+			
+			sut[0] = osd[0];
+			sut[1] = osd[1];
+			sut[2] = osd[2];
+			sut[3] = osd[3];
+			sut[4] = osd[4];
+
+			Assert.Collection(sut.ActiveRecords(),
+				item => {
+					Assert.Equal(0ul, item.Key);
+					Assert.Equal(osd[0], item.Value);
+				},
+				item => {
+					Assert.Equal(1ul, item.Key);
+					Assert.Equal(osd[1], item.Value);
+				},
+				item => {
+					Assert.Equal(2ul, item.Key);
+					Assert.Equal(osd[2], item.Value);
+				},
+				item => {
+					Assert.Equal(3ul, item.Key);
+					Assert.Equal(osd[3], item.Value);
+				},
+				item => {
+					Assert.Equal(4ul, item.Key);
+					Assert.Equal(osd[4], item.Value);
+				});
+		}
+		
+		[Fact]
+		public void can_get_active_records_from_checkpoint() {
 			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateFromCheckpoint");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
@@ -140,7 +176,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[3] = osd[3];
 			sut[4] = osd[4];
 			
-			Assert.Collection(sut.FromCheckpoint(2),
+			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
 				item => {
 					Assert.Equal(3ul, item.Key);
 					Assert.Equal(osd[3], item.Value);
@@ -176,6 +212,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			Assert.False(sut.TryRemove(33, out _));
+		}
+		
+		[Fact]
+		public void can_remove_all() {
+			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateAll");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var osd = GetMetastreamTestData();
+			
+			sut[0] = osd[0];
+			sut[1] = osd[1];
+			sut[2] = osd[2];
+			sut[3] = osd[3];
+			sut[4] = osd[4];
+
+			sut.DeleteAll();
+
+			Assert.Empty(sut.AllRecords());
 		}
 
 		private MetastreamData[] GetMetastreamTestData() {

@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
@@ -9,9 +8,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private SetTombstoneCommand _setTombstone;
 		private SetDiscardPointCommand _setDiscardPoint;
 		private GetCommand _get;
-		private RemoveCommand _delete;
+		private DeleteCommand _delete;
+		private DeleteAllCommand _deleteAll;
 		private FromCheckpointCommand _fromCheckpoint;
-		private EnumeratorCommand _enumerator;
+		private AllRecordsCommand _all;
 
 		private string TableName { get; }
 
@@ -32,9 +32,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_setTombstone = new SetTombstoneCommand(TableName, sqlite);
 			_setDiscardPoint = new SetDiscardPointCommand(TableName, sqlite);
 			_get = new GetCommand(TableName, sqlite);
-			_delete = new RemoveCommand(TableName, sqlite);
+			_delete = new DeleteCommand(TableName, sqlite);
+			_deleteAll = new DeleteAllCommand(TableName, sqlite);
 			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
-			_enumerator = new EnumeratorCommand(TableName, sqlite);
+			_all = new AllRecordsCommand(TableName, sqlite);
 		}
 
 		public MetastreamData this[TKey key] {
@@ -48,29 +49,29 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public bool TryRemove(TKey key, out MetastreamData value) {
 			return _delete.TryExecute(key, out value);
 		}
-		
+
+		public IEnumerable<KeyValuePair<TKey, MetastreamData>> AllRecords() {
+			return _all.Execute();
+		}
+
+		public IEnumerable<KeyValuePair<TKey, MetastreamData>> ActiveRecords() {
+			return _all.Execute();
+		}
+
+		public IEnumerable<KeyValuePair<TKey, MetastreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
+			return _fromCheckpoint.Execute(checkpoint);
+		}
+
 		public void SetTombstone(TKey key) {
 			_setTombstone.Execute(key);
 		}
-		
-		public void DeleteTombstoned() {
-			throw new System.NotImplementedException();
-		}
-		
+
 		public void SetDiscardPoint(TKey key, DiscardPoint discardPoint) {
 			_setDiscardPoint.Execute(key, discardPoint);
 		}
 
-		public IEnumerable<KeyValuePair<TKey, MetastreamData>> FromCheckpoint(TKey checkpoint) {
-			return _fromCheckpoint.Execute(checkpoint);
-		}
-
-		public IEnumerator<KeyValuePair<TKey, MetastreamData>> GetEnumerator() {
-			return _enumerator.Execute();
-		}
-		
-		IEnumerator IEnumerable.GetEnumerator() {
-			return GetEnumerator();
+		public void DeleteAll() {
+			_deleteAll.Execute();
 		}
 
 		private static MetastreamData ReadMetastreamData(SqliteDataReader reader) {
@@ -186,14 +187,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			}
 		}
 
-		private class RemoveCommand {
+		private class DeleteCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _selectCmd;
 			private readonly SqliteCommand _deleteCmd;
 			private readonly SqliteParameter _selectKeyParam;
 			private readonly SqliteParameter _deleteKeyParam;
 
-			public RemoveCommand(string tableName, SqliteBackend sqlite) {
+			public DeleteCommand(string tableName, SqliteBackend sqlite) {
 				var selectSql = $"SELECT isTombstoned, discardPoint FROM {tableName} WHERE key = $key";
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
@@ -216,6 +217,24 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			}
 		}
 
+		private class DeleteAllCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _deleteCmd;
+
+			public DeleteAllCommand(string tableName, SqliteBackend sqlite) {
+				var deleteSql = $"DELETE FROM {tableName}";
+				_deleteCmd = sqlite.CreateCommand();
+				_deleteCmd.CommandText = deleteSql;
+				_deleteCmd.Prepare();
+				
+				_sqlite = sqlite;
+			}
+
+			public void Execute() {
+				_sqlite.ExecuteNonQuery(_deleteCmd);
+			}
+		}
+		
 		private class FromCheckpointCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
@@ -238,11 +257,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			}
 		}
 		
-		private class EnumeratorCommand {
+		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 
-			public EnumeratorCommand(string tableName, SqliteBackend sqlite) {
+			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $"SELECT isTombstoned, discardPoint, key FROM {tableName}";
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -251,9 +270,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite = sqlite;
 			}
 
-			public IEnumerator<KeyValuePair<TKey, MetastreamData>> Execute() {
+			public IEnumerable<KeyValuePair<TKey, MetastreamData>> Execute() {
 				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, MetastreamData>(
-					reader.GetFieldValue<TKey>(2), ReadMetastreamData(reader))).GetEnumerator();
+					reader.GetFieldValue<TKey>(2), ReadMetastreamData(reader)));
 			}
 		}
 	}

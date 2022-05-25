@@ -610,9 +610,6 @@ namespace EventStore.Core {
 				ScavengeState<string> scavengeState;
 				var sqlite = true;
 				if (sqlite) {
-
-					Console.WriteLine("SQLITE:: " + indexPath);
-
 					_sqliteScavengeBackend = new SqliteScavengeBackend<string>();
 					//qq store in index dir?
 					_sqliteScavengeBackend.Initialize(Path.Combine(indexPath, "scavenging"));

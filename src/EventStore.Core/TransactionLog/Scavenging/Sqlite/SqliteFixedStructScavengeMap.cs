@@ -1,20 +1,17 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Microsoft.Data.Sqlite;
 
-namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
-{
-	public class SqliteFixedStructScavengeMap<TKey, TValue> :
-		ISqliteScavengeBackend,
+namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
+	public class SqliteFixedStructScavengeMap<TKey, TValue> : ISqliteScavengeBackend,
 		IScavengeMap<TKey, TValue> where TValue : struct {
 		
 		private AddCommand _add;
         private GetCommand _get;
         private RemoveCommand _delete;
         private FromCheckpointCommand _fromCheckpoint;
-        private EnumeratorCommand _enumerator;
+        private AllRecordsCommand _all;
 		private readonly byte[] _buffer;
 
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
@@ -64,8 +61,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			_add = new AddCommand(TableName, sqlite);
 			_get = new GetCommand(TableName, sqlite);
 			_delete = new RemoveCommand(TableName, sqlite);
+			_all = new AllRecordsCommand(TableName, sqlite);
 			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
-			_enumerator = new EnumeratorCommand(TableName, sqlite);
 		}
 
 		public TValue this[TKey key] {
@@ -86,11 +83,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 		}
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() {
-			throw new NotImplementedException(); //qqqqq all records
+			return _all.Execute();
 		}
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() {
-			throw new NotImplementedException(); //qqqqq records whose status is active
+			return _all.Execute();
 		}
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
@@ -101,10 +98,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 			var bytes = (byte[])r.GetValue(ordinal);
 			return MemoryMarshal.Read<TValue>(bytes);
 		}
-
-		//qq remove IEnumerator IEnumerable.GetEnumerator() {
-		//	return GetEnumerator();
-		//}
 		
 		private class AddCommand {
 			private readonly SqliteBackend _sqlite;
@@ -200,11 +193,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 					reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
 			}
 		}
-		private class EnumeratorCommand {
+		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 
-			public EnumeratorCommand(string tableName, SqliteBackend sqlite) {
+			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $"SELECT key, value FROM {tableName}";
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -213,9 +206,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite
 				_sqlite = sqlite;
 			}
 
-			public IEnumerator<KeyValuePair<TKey, TValue>> Execute() {
+			public IEnumerable<KeyValuePair<TKey, TValue>> Execute() {
 				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
-					reader.GetFieldValue<TKey>(0), GetValueField(1, reader))).GetEnumerator();
+					reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
 			}
 		}
 	}

@@ -2,9 +2,7 @@
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteChunkWeightScavengeMap :
-		SqliteScavengeMap<int, float>,
-		IChunkWeightScavengeMap {
+	public class SqliteChunkWeightScavengeMap : SqliteScavengeMap<int, float>, IChunkWeightScavengeMap {
 		private IncreaseWeightCommand _increaseWeight;
 		private SumChunkWeightsCommand _sumChunkWeights;
 		private ResetChunkWeightsCommand _resetChunkWeights;

@@ -2,15 +2,10 @@ using System;
 using System.Collections.Generic;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
-using Xunit.Abstractions;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
-{
+namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteScavengeMapTests : SqliteDbPerTest<SqliteScavengeMapTests> {
-		private readonly ITestOutputHelper _testOutputHelper;
-
-		public SqliteScavengeMapTests(ITestOutputHelper testOutputHelper) : base(deleteDir:false) {
-			_testOutputHelper = testOutputHelper;
+		public SqliteScavengeMapTests() : base(deleteDir:false) {
 			//qq Db is locked for some reason and is blocking the deletion.
 		}
 		
@@ -113,7 +108,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_enumerate_map() {
+		public void can_get_all_records() {
 			var sut = new SqliteScavengeMap<int, int>("EnumerateMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
@@ -132,7 +127,26 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_enumerate_map_from_checkpoint() {
+		public void can_get_active_records() {
+			var sut = new SqliteScavengeMap<int, int>("EnumerateMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			sut[0] = 4;
+			sut[1] = 3;
+			sut[2] = 2;
+			sut[3] = 1;
+			sut[4] = 0;
+			
+			Assert.Collection(sut.ActiveRecords(),
+				item => Assert.Equal(new KeyValuePair<int,int>(0,4), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(1,3), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(2,2), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
+				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
+		}
+		
+		[Fact]
+		public void can_get_active_records_from_checkpoint() {
 			var sut = new SqliteScavengeMap<int, int>("EnumerateFromCheckpointMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 

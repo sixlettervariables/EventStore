@@ -3,8 +3,7 @@ using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Xunit;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
-{
+namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 	public class SqliteFixedStructScavengeMapTests : SqliteDbPerTest<SqliteFixedStructScavengeMapTests> {
 
 		public SqliteFixedStructScavengeMapTests() : base(deleteDir:false){ //qq Db is locked for some reason and is blocking the deletion.
@@ -38,7 +37,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_enumerate_all_items() {
+		public void can_get_all_records() {
 			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
@@ -57,7 +56,26 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite
 		}
 		
 		[Fact]
-		public void can_enumerate_from_checkpoint() {
+		public void can_get_active_records() {
+			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			sut[0] = DiscardPoint.DiscardBefore(10);
+			sut[1] = DiscardPoint.DiscardBefore(20);
+			sut[2] = DiscardPoint.DiscardBefore(30);
+			sut[3] = DiscardPoint.DiscardBefore(40);
+			sut[4] = DiscardPoint.DiscardBefore(50);
+			
+			Assert.Collection(sut.ActiveRecords(),
+				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(0, DiscardPoint.DiscardBefore(10)), item),
+				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(1, DiscardPoint.DiscardBefore(20)), item),
+				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(2, DiscardPoint.DiscardBefore(30)), item),
+				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(3, DiscardPoint.DiscardBefore(40)), item),
+				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(4, DiscardPoint.DiscardBefore(50)), item));
+		}
+		
+		[Fact]
+		public void can_get_active_records_from_checkpoint() {
 			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 

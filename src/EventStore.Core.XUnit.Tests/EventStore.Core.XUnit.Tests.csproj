@@ -6,7 +6,7 @@
 		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<!-- qq Only required for ES5 -->
-    	<LangVersion>7.2</LangVersion>
+    	<LangVersion>7.3</LangVersion>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.1" />
@@ -33,13 +33,13 @@
 		<IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
 		<IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
 	</PropertyGroup>
-	<PropertyGroup Condition=" '$(IsWindows)' == 'true' And '$(TargetFramework)' == 'net471' " >
+	<PropertyGroup Condition=" '$(IsWindows)' == 'true' And '$(TargetFramework)' == 'net471' ">
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
 	</PropertyGroup>
-	<PropertyGroup Condition=" '$(IsLinux)' == 'true' And '$(TargetFramework)' == 'net471' " >
+	<PropertyGroup Condition=" '$(IsLinux)' == 'true' And '$(TargetFramework)' == 'net471' ">
 		<RuntimeIdentifier>linux-x64</RuntimeIdentifier>
 	</PropertyGroup>
-	<PropertyGroup Condition=" '$(IsOSX)' == 'true' And '$(TargetFramework)' == 'net471' " >
+	<PropertyGroup Condition=" '$(IsOSX)' == 'true' And '$(TargetFramework)' == 'net471' ">
 		<RuntimeIdentifier>osx-x64</RuntimeIdentifier>
 	</PropertyGroup>
 
@@ -50,6 +50,6 @@
 	<Reference Condition=" '$(FrameworkPathOverride)' != '' " Include="System.Threading.Tasks" />
   </ItemGroup>
   <PropertyGroup>
-    <AssemblySearchPaths Condition=" '$(FrameworkPathOverride)' != '' " >$(FrameworkPathOverride)/Facades/;$(AssemblySearchPaths)</AssemblySearchPaths>
+    <AssemblySearchPaths Condition=" '$(FrameworkPathOverride)' != '' ">$(FrameworkPathOverride)/Facades/;$(AssemblySearchPaths)</AssemblySearchPaths>
   </PropertyGroup>
 </Project>

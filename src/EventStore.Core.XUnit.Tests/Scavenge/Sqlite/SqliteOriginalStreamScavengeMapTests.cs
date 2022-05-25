@@ -21,7 +21,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				MaxAge = TimeSpan.FromDays(13),
 				MaxCount = 33,
 				MaybeDiscardPoint = DiscardPoint.DiscardBefore(long.MaxValue-1),
-				TruncateBefore = 43
+				TruncateBefore = 43,
+				Status = CalculationStatus.Archived
 			};
 
 			sut[33] = data;
@@ -41,7 +42,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				MaxAge = TimeSpan.FromDays(13),
 				MaxCount = 33,
 				MaybeDiscardPoint = DiscardPoint.DiscardBefore(long.MaxValue-1),
-				TruncateBefore = 43
+				TruncateBefore = 43,
+				Status = CalculationStatus.Active
 			};
 			
 			var data = new OriginalStreamData {
@@ -50,7 +52,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				MaxAge = TimeSpan.FromDays(30),
 				MaxCount = 303,
 				MaybeDiscardPoint = DiscardPoint.DiscardBefore(long.MaxValue-100),
-				TruncateBefore = 430
+				TruncateBefore = 430,
+				Status = CalculationStatus.Archived
 			};
 
 			sut[33] = data;
@@ -69,13 +72,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				MaxAge = TimeSpan.FromDays(13),
 				MaxCount = 33,
 				MaybeDiscardPoint = DiscardPoint.DiscardBefore(12),
-				TruncateBefore = 43
+				TruncateBefore = 43,
+				Status = CalculationStatus.Archived
 			};
 
 			sut[33] = data;
 			
 			sut.SetTombstone(33);
 			data.IsTombstoned = true;
+			data.Status = CalculationStatus.Active;
 			
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
@@ -91,6 +96,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData {
 				IsTombstoned = true,
+				Status = CalculationStatus.Active
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
@@ -101,7 +107,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			var data = new OriginalStreamData() {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
-				MaybeDiscardPoint = DiscardPoint.DiscardBefore(12)
+				MaybeDiscardPoint = DiscardPoint.DiscardBefore(12),
+				Status = CalculationStatus.Archived
 			};
 
 			sut[33] = data;
@@ -115,6 +122,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			data.MaxAge = metadata.MaxAge;
 			data.MaxCount = metadata.MaxCount;
 			data.TruncateBefore = metadata.TruncateBefore;
+			data.Status = CalculationStatus.Active;
 			
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
@@ -134,7 +142,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData() {
 				MaxCount = metadata.MaxCount,
-				TruncateBefore = metadata.TruncateBefore
+				TruncateBefore = metadata.TruncateBefore,
+				Status = CalculationStatus.Active
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
@@ -152,7 +161,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData() {
 				MaxAge = metadata.MaxAge,
-				TruncateBefore = metadata.TruncateBefore
+				TruncateBefore = metadata.TruncateBefore,
+				Status = CalculationStatus.Active
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
@@ -170,7 +180,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData() {
 				MaxAge = metadata.MaxAge,
-				MaxCount = metadata.MaxCount
+				MaxCount = metadata.MaxCount,
+				Status = CalculationStatus.Active
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
@@ -190,7 +201,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(new OriginalStreamData() {
 				MaxAge = metadata.MaxAge,
 				MaxCount = metadata.MaxCount,
-				TruncateBefore = metadata.TruncateBefore
+				TruncateBefore = metadata.TruncateBefore,
+				Status = CalculationStatus.Active
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
@@ -202,15 +214,16 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			var data = new OriginalStreamData() {
 				MaxAge = TimeSpan.FromDays(13),
 				MaxCount = 33,
-				TruncateBefore = 43
+				TruncateBefore = 43,
 			};
 
 			sut[33] = data;
 
+			data.Status = CalculationStatus.Spent;
 			data.DiscardPoint = DiscardPoint.DiscardIncluding(5);
 			data.MaybeDiscardPoint = DiscardPoint.DiscardIncluding(12);
-			sut.SetDiscardPoints(33, default, data.DiscardPoint, data.MaybeDiscardPoint); //qq consider default
-
+			sut.SetDiscardPoints(33, data.Status, data.DiscardPoint, data.MaybeDiscardPoint);
+			
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(data, v, OriginalStreamDataComparer.Default);
 		}
@@ -222,34 +235,40 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 
 			var discardPoint = DiscardPoint.DiscardIncluding(5);
 			var maybeDiscardPoint = DiscardPoint.DiscardIncluding(12);
-			sut.SetDiscardPoints(33, default, discardPoint, maybeDiscardPoint); //qq consider default
+			sut.SetDiscardPoints(33, CalculationStatus.Archived, discardPoint, maybeDiscardPoint);
 
 			Assert.True(sut.TryGetValue(33, out var v));
 			Assert.Equal(new OriginalStreamData() {
 				DiscardPoint = discardPoint,
 				MaybeDiscardPoint = maybeDiscardPoint,
+				Status = CalculationStatus.Archived
 			}, v, OriginalStreamDataComparer.Default);
 		}
 		
 		[Fact]
-		public void can_get_stream_execution_details() {
+		public void can_get_chunk_execution_info() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var data = new OriginalStreamData() {
 				DiscardPoint = DiscardPoint.DiscardIncluding(5),
 				MaybeDiscardPoint = DiscardPoint.DiscardIncluding(43),
-				MaxAge = TimeSpan.FromDays(13)
+				MaxAge = TimeSpan.FromDays(13),
+				IsTombstoned = true
 			};
 
 			sut[33] = data;
 
 			Assert.True(sut.TryGetChunkExecutionInfo(33, out var v));
-			Assert.Equal(new ChunkExecutionInfo(isTombstoned: false, data.DiscardPoint, data.MaybeDiscardPoint, data.MaxAge), v); //qq do istombstoned properly
+			Assert.Equal(new ChunkExecutionInfo(
+				data.IsTombstoned,
+				data.DiscardPoint,
+				data.MaybeDiscardPoint,
+				data.MaxAge), v);
 		}
 		
 		[Fact]
-		public void can_try_get_stream_execution_details_when_only_tombstoned() {
+		public void can_try_get_chunk_execution_info_when_only_tombstoned() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 			
@@ -268,7 +287,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 
 		[Fact]
-		public void can_enumerate_all_items() {
+		public void can_get_all_records() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
@@ -304,11 +323,47 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 
 		[Fact]
-		public void can_enumerate_from_checkpoint() {
+		public void can_get_active_records() {
 			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var osd = GetOriginalStreamTestData();
+			
+			osd[0].Status = CalculationStatus.Archived;
+			osd[1].Status = CalculationStatus.Spent;
+			osd[2].Status = CalculationStatus.Active;
+			osd[3].Status = CalculationStatus.Active;
+			osd[4].Status = CalculationStatus.None;
+			
+			sut[0] = osd[0];
+			sut[1] = osd[1];
+			sut[2] = osd[2];
+			sut[3] = osd[3];
+			sut[4] = osd[4];
+
+			Assert.Collection(sut.ActiveRecords(),
+				item => {
+					Assert.Equal(2, item.Key);
+					Assert.Equal(osd[2], item.Value, OriginalStreamDataComparer.Default);
+				},
+				item => {
+					Assert.Equal(3, item.Key);
+					Assert.Equal(osd[3], item.Value, OriginalStreamDataComparer.Default);
+				});
+		}
+		
+		[Fact]
+		public void can_get_all_active_records_from_checkpoint() {
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var osd = GetOriginalStreamTestData();
+
+			osd[0].Status = CalculationStatus.Active;
+			osd[1].Status = CalculationStatus.Active;
+			osd[2].Status = CalculationStatus.Active;
+			osd[3].Status = CalculationStatus.Active;
+			osd[4].Status = CalculationStatus.Archived;
 			
 			sut[0] = osd[0];
 			sut[1] = osd[1];
@@ -316,14 +371,14 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			sut[3] = osd[3];
 			sut[4] = osd[4];
 			
-			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
+			Assert.Collection(sut.ActiveRecordsFromCheckpoint(1),
+				item => {
+					Assert.Equal(2, item.Key);
+					Assert.Equal(osd[2], item.Value, OriginalStreamDataComparer.Default);
+				},
 				item => {
 					Assert.Equal(3, item.Key);
 					Assert.Equal(osd[3], item.Value, OriginalStreamDataComparer.Default);
-				},
-				item => {
-					Assert.Equal(4, item.Key);
-					Assert.Equal(osd[4], item.Value, OriginalStreamDataComparer.Default);
 				});
 		}
 		
@@ -354,6 +409,58 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.False(sut.TryRemove(33, out _));
 		}
 
+		[Fact]
+		public void can_remove_multiple_records_at_once() {
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var osd = GetOriginalStreamTestData();
+
+			osd[0].Status = CalculationStatus.Archived;
+			osd[1].Status = CalculationStatus.Spent;
+			osd[2].Status = CalculationStatus.Spent;
+			osd[3].Status = CalculationStatus.Active;
+			osd[4].Status = CalculationStatus.Archived;
+			
+			sut[0] = osd[0];
+			sut[1] = osd[1];
+			sut[2] = osd[2];
+			sut[3] = osd[3];
+			sut[4] = osd[4];
+			
+			sut.DeleteMany(deleteArchived: false);
+			
+			Assert.Collection(sut.AllRecords(),
+				item => { Assert.Equal(CalculationStatus.Archived, item.Value.Status); },
+				item => { Assert.Equal(CalculationStatus.Active, item.Value.Status); },
+				item => { Assert.Equal(CalculationStatus.Archived, item.Value.Status); });
+		}
+		
+		[Fact]
+		public void can_remove_multiple_records_at_once_including_archived() {
+			var sut = new SqliteOriginalStreamScavengeMap<int>("OriginalStreamScavengeMap");
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var osd = GetOriginalStreamTestData();
+
+			osd[0].Status = CalculationStatus.Archived;
+			osd[1].Status = CalculationStatus.Spent;
+			osd[2].Status = CalculationStatus.Spent;
+			osd[3].Status = CalculationStatus.Active;
+			osd[4].Status = CalculationStatus.Archived;
+			
+			sut[0] = osd[0];
+			sut[1] = osd[1];
+			sut[2] = osd[2];
+			sut[3] = osd[3];
+			sut[4] = osd[4];
+			
+			sut.DeleteMany(deleteArchived: true);
+			
+			Assert.Collection(sut.AllRecords(),
+				item => { Assert.Equal(CalculationStatus.Active, item.Value.Status); });
+		}
+		
 		private OriginalStreamData[] GetOriginalStreamTestData() {
 			return new[] {
 				new OriginalStreamData() {
@@ -406,7 +513,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				       x.TruncateBefore == y.TruncateBefore &&
 				       x.IsTombstoned == y.IsTombstoned &&
 				       x.DiscardPoint == y.DiscardPoint &&
-				       x.MaybeDiscardPoint == y.MaybeDiscardPoint;
+				       x.MaybeDiscardPoint == y.MaybeDiscardPoint && 
+				       x.Status == y.Status;
 			}
 
 			public int GetHashCode(OriginalStreamData obj) {
