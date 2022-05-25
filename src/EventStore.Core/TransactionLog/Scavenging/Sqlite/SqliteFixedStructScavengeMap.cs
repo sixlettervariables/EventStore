@@ -11,7 +11,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private AddCommand _add;
 		private GetCommand _get;
 		private RemoveCommand _delete;
-		private FromCheckpointCommand _fromCheckpoint;
 		private AllRecordsCommand _all;
 		private readonly byte[] _buffer;
 
@@ -63,7 +62,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_get = new GetCommand(TableName, sqlite);
 			_delete = new RemoveCommand(TableName, sqlite);
 			_all = new AllRecordsCommand(TableName, sqlite);
-			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
 		}
 
 		public TValue this[TKey key] {
@@ -91,14 +89,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			return _all.Execute();
 		}
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() {
-			return _all.Execute();
-		}
-
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
-			return _fromCheckpoint.Execute(checkpoint);
-		}
-		
 		private static TValue GetValueField(int ordinal, SqliteDataReader r) {
 			var bytes = (byte[])r.GetValue(ordinal);
 			return MemoryMarshal.Read<TValue>(bytes);
@@ -178,28 +168,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_deleteKeyParam.Value = key;
 				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd,
 					reader => GetValueField(0, reader), out value);
-			}
-		}
-
-		private class FromCheckpointCommand {
-			private readonly SqliteBackend _sqlite;
-			private readonly SqliteCommand _cmd;
-			private readonly SqliteParameter _keyParam;
-
-			public FromCheckpointCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT key, value FROM {tableName} WHERE key > $key";
-				_cmd = sqlite.CreateCommand();
-				_cmd.CommandText = sql;
-				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
-				_cmd.Prepare();
-				
-				_sqlite = sqlite;
-			}
-
-			public IEnumerable<KeyValuePair<TKey, TValue>> Execute(TKey key) {
-				_keyParam.Value = key;
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
-					reader.GetFieldValue<TKey>(0), GetValueField(1, reader)));
 			}
 		}
 

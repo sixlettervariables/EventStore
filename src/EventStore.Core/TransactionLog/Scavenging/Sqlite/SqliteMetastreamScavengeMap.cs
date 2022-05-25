@@ -10,7 +10,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private GetCommand _get;
 		private DeleteCommand _delete;
 		private DeleteAllCommand _deleteAll;
-		private FromCheckpointCommand _fromCheckpoint;
 		private AllRecordsCommand _all;
 
 		private string TableName { get; }
@@ -34,7 +33,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_get = new GetCommand(TableName, sqlite);
 			_delete = new DeleteCommand(TableName, sqlite);
 			_deleteAll = new DeleteAllCommand(TableName, sqlite);
-			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
 			_all = new AllRecordsCommand(TableName, sqlite);
 		}
 
@@ -52,14 +50,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public IEnumerable<KeyValuePair<TKey, MetastreamData>> AllRecords() {
 			return _all.Execute();
-		}
-
-		public IEnumerable<KeyValuePair<TKey, MetastreamData>> ActiveRecords() {
-			return _all.Execute();
-		}
-
-		public IEnumerable<KeyValuePair<TKey, MetastreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
-			return _fromCheckpoint.Execute(checkpoint);
 		}
 
 		public void SetTombstone(TKey key) {
@@ -237,29 +227,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_deleteCmd);
 			}
 		}
-		
-		private class FromCheckpointCommand {
-			private readonly SqliteBackend _sqlite;
-			private readonly SqliteCommand _cmd;
-			private readonly SqliteParameter _keyParam;
 
-			public FromCheckpointCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT isTombstoned, discardPoint, key FROM {tableName} WHERE key > $key";
-				_cmd = sqlite.CreateCommand();
-				_cmd.CommandText = sql;
-				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
-				_cmd.Prepare();
-				
-				_sqlite = sqlite;
-			}
-
-			public IEnumerable<KeyValuePair<TKey, MetastreamData>> Execute(TKey key) {
-				_keyParam.Value = key;
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, MetastreamData>(
-					reader.GetFieldValue<TKey>(2), ReadMetastreamData(reader)));
-			}
-		}
-		
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;

@@ -51,42 +51,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(3, DiscardPoint.DiscardBefore(40)), item),
 				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(4, DiscardPoint.DiscardBefore(50)), item));
 		}
-		
-		[Fact]
-		public void can_get_active_records() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
 
-			sut[0] = DiscardPoint.DiscardBefore(10);
-			sut[1] = DiscardPoint.DiscardBefore(20);
-			sut[2] = DiscardPoint.DiscardBefore(30);
-			sut[3] = DiscardPoint.DiscardBefore(40);
-			sut[4] = DiscardPoint.DiscardBefore(50);
-			
-			Assert.Collection(sut.ActiveRecords(),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(0, DiscardPoint.DiscardBefore(10)), item),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(1, DiscardPoint.DiscardBefore(20)), item),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(2, DiscardPoint.DiscardBefore(30)), item),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(3, DiscardPoint.DiscardBefore(40)), item),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(4, DiscardPoint.DiscardBefore(50)), item));
-		}
-		
-		[Fact]
-		public void can_get_active_records_from_checkpoint() {
-			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("EnumerateFixedStructMap");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
-
-			sut[0] = DiscardPoint.DiscardBefore(10);
-			sut[1] = DiscardPoint.DiscardBefore(20);
-			sut[2] = DiscardPoint.DiscardBefore(30);
-			sut[3] = DiscardPoint.DiscardBefore(40);
-			sut[4] = DiscardPoint.DiscardBefore(50);
-			
-			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(3, DiscardPoint.DiscardBefore(40)), item),
-				item => Assert.Equal(new KeyValuePair<int,DiscardPoint>(4, DiscardPoint.DiscardBefore(50)), item));
-		}
-		
 		[Fact]
 		public void can_try_get_value_of_non_existing() {
 			var sut = new SqliteFixedStructScavengeMap<int, DiscardPoint>("TryGetValueOfFixedStructMap");

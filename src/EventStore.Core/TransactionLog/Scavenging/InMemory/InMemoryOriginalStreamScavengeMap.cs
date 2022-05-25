@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -81,10 +82,17 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return true;
 		}
 
-		protected override bool Filter(KeyValuePair<TKey, OriginalStreamData> kvp) => 
+		private bool Filter(KeyValuePair<TKey, OriginalStreamData> kvp) => 
 			//qqqqq implement in sqlite with a where in the enumeration
 			kvp.Value.Status == CalculationStatus.Active;
-			
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecords() =>
+			AllRecords().Where(Filter);
+
+		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
+			// skip those which are before or equal to the checkpoint.
+			ActiveRecords().SkipWhile(x => Comparer<TKey>.Default.Compare(x.Key, checkpoint) <= 0);
+
 		public void DeleteMany(bool deleteArchived) {
 			foreach (var kvp in AllRecords()) {
 				if ((kvp.Value.Status == CalculationStatus.Spent) ||

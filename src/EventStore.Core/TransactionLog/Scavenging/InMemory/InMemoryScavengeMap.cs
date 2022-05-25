@@ -20,18 +20,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				.ToDictionary(x => x.Key, x => x.Value)
 				.OrderBy(x => x.Key);
 
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() =>
-			AllRecords().Where(Filter);
-
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) =>
-			// skip those which are before or equal to the checkpoint.
-			ActiveRecords().SkipWhile(x => Comparer<TKey>.Default.Compare(x.Key, checkpoint) <= 0);
-
 		public bool TryRemove(TKey key, out TValue value) {
 			_dict.TryGetValue(key, out value);
 			return _dict.Remove(key);
 		}
-
-		protected virtual bool Filter(KeyValuePair<TKey, TValue> kvp) => true;
 	}
 }

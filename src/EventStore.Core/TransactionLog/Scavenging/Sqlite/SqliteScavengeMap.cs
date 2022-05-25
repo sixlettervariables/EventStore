@@ -10,7 +10,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private AddCommand _add;
 		private GetCommand _get;
 		private RemoveCommand _delete;
-		private FromCheckpointCommand _fromCheckpoint;
 		private AllRecordsCommand _all;
 
 		private readonly Dictionary<Type, string> _sqliteTypeMap = new Dictionary<Type, string>() {
@@ -52,7 +51,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_get = new GetCommand(TableName, sqlite);
 			_delete = new RemoveCommand(TableName, sqlite);
 			_all = new AllRecordsCommand(TableName, sqlite);
-			_fromCheckpoint = new FromCheckpointCommand(TableName, sqlite);
 		}
 		
 		public TValue this[TKey key] {
@@ -73,14 +71,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public IEnumerable<KeyValuePair<TKey, TValue>> AllRecords() {
 			return _all.Execute();
-		}
-
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords() {
-			return _all.Execute();
-		}
-
-		public IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint) {
-			return _fromCheckpoint.Execute(checkpoint);
 		}
 
 		private class AddCommand {
@@ -126,6 +116,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				return _sqlite.ExecuteSingleRead(_cmd, reader => reader.GetFieldValue<TValue>(0), out value);
 			}
 		}
+
 		private class RemoveCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _selectCmd;
@@ -156,27 +147,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					reader => reader.GetFieldValue<TValue>(0), out value);
 			}
 		}
-		private class FromCheckpointCommand {
-			private readonly SqliteBackend  _sqlite;
-			private readonly SqliteCommand _cmd;
-			private readonly SqliteParameter _keyParam;
 
-			public FromCheckpointCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT key, value FROM {tableName} WHERE key > $key";
-				_cmd = sqlite.CreateCommand();
-				_cmd.CommandText = sql;
-				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
-				_cmd.Prepare();
-				
-				_sqlite = sqlite;
-			}
-
-			public IEnumerable<KeyValuePair<TKey, TValue>> Execute(TKey key) {
-				_keyParam.Value = key;
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
-					reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1)));
-			}
-		}
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;

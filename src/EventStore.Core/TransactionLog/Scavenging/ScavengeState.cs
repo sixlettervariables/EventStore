@@ -146,7 +146,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> OriginalStreamsToCalculate(
 			StreamHandle<TStreamId> checkpoint) {
 
-			return _originalStreamDatas.Enumerate(checkpoint);
+			return _originalStreamDatas.EnumerateActive(checkpoint);
 		}
 
 		public void SetOriginalStreamDiscardPoints(

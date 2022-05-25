@@ -122,40 +122,5 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
 				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
 		}
-		
-		[Fact]
-		public void can_get_active_records() {
-			var sut = new SqliteScavengeMap<int, int>("EnumerateMap");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
-
-			sut[0] = 4;
-			sut[1] = 3;
-			sut[2] = 2;
-			sut[3] = 1;
-			sut[4] = 0;
-			
-			Assert.Collection(sut.ActiveRecords(),
-				item => Assert.Equal(new KeyValuePair<int,int>(0,4), item),
-				item => Assert.Equal(new KeyValuePair<int,int>(1,3), item),
-				item => Assert.Equal(new KeyValuePair<int,int>(2,2), item),
-				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
-				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
-		}
-		
-		[Fact]
-		public void can_get_active_records_from_checkpoint() {
-			var sut = new SqliteScavengeMap<int, int>("EnumerateFromCheckpointMap");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
-
-			sut[0] = 4;
-			sut[1] = 3;
-			sut[2] = 2;
-			sut[3] = 1;
-			sut[4] = 0;
-			
-			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
-				item => Assert.Equal(new KeyValuePair<int,int>(3,1), item),
-				item => Assert.Equal(new KeyValuePair<int,int>(4,0), item));
-		}
 	}
 }

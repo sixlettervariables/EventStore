@@ -126,66 +126,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 
 		[Fact]
-		public void can_get_active_records() {
-			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateAll");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
-
-			var osd = GetMetastreamTestData();
-			
-			sut[0] = osd[0];
-			sut[1] = osd[1];
-			sut[2] = osd[2];
-			sut[3] = osd[3];
-			sut[4] = osd[4];
-
-			Assert.Collection(sut.ActiveRecords(),
-				item => {
-					Assert.Equal(0ul, item.Key);
-					Assert.Equal(osd[0], item.Value);
-				},
-				item => {
-					Assert.Equal(1ul, item.Key);
-					Assert.Equal(osd[1], item.Value);
-				},
-				item => {
-					Assert.Equal(2ul, item.Key);
-					Assert.Equal(osd[2], item.Value);
-				},
-				item => {
-					Assert.Equal(3ul, item.Key);
-					Assert.Equal(osd[3], item.Value);
-				},
-				item => {
-					Assert.Equal(4ul, item.Key);
-					Assert.Equal(osd[4], item.Value);
-				});
-		}
-		
-		[Fact]
-		public void can_get_active_records_from_checkpoint() {
-			var sut = new SqliteMetastreamScavengeMap<ulong>("EnumerateFromCheckpoint");
-			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
-
-			var osd = GetMetastreamTestData();
-			
-			sut[0] = osd[0];
-			sut[1] = osd[1];
-			sut[2] = osd[2];
-			sut[3] = osd[3];
-			sut[4] = osd[4];
-			
-			Assert.Collection(sut.ActiveRecordsFromCheckpoint(2),
-				item => {
-					Assert.Equal(3ul, item.Key);
-					Assert.Equal(osd[3], item.Value);
-				},
-				item => {
-					Assert.Equal(4ul, item.Key);
-					Assert.Equal(osd[4], item.Value);
-				});
-		}
-		
-		[Fact]
 		public void can_remove_value_from_map() {
 			var sut = new SqliteMetastreamScavengeMap<ulong>("Remove");
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));

@@ -37,14 +37,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			throw new NotImplementedException();
 		}
 
-		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> ActiveRecords() {
-			throw new NotImplementedException();
-		}
-
-		public IEnumerable<KeyValuePair<Unit, ScavengeCheckpoint>> ActiveRecordsFromCheckpoint(Unit checkpoint) {
-			throw new NotImplementedException();
-		}
-		
 		private class AddCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;

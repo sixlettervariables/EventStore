@@ -1,8 +1,13 @@
-﻿using EventStore.Core.Data;
+﻿using System.Collections.Generic;
+using EventStore.Core.Data;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public interface IOriginalStreamScavengeMap<TKey> :
 		IScavengeMap<TKey, OriginalStreamData> {
+
+		IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecords();
+
+		IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecordsFromCheckpoint(TKey checkpoint);
 
 		void SetTombstone(TKey key);
 

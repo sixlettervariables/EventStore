@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using EventStore.Core.Data;
 using EventStore.Core.Index.Hashes;
 
@@ -73,6 +75,45 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public void DeleteMany(bool deleteArchived) {
 			_collisions.DeleteMany(deleteArchived: deleteArchived);
 			_nonCollisions.DeleteMany(deleteArchived: deleteArchived);
+		}
+
+		// overall sequence is collisions ++ noncollisions
+		public IEnumerable<(StreamHandle<TStreamId>, OriginalStreamData)> EnumerateActive(
+			StreamHandle<TStreamId> checkpoint) {
+
+			IEnumerable<KeyValuePair<TStreamId, OriginalStreamData>> collisionsEnumerable;
+			IEnumerable<KeyValuePair<ulong, OriginalStreamData>> nonCollisionsEnumerable;
+
+			switch (checkpoint.Kind) {
+				case StreamHandle.Kind.None:
+					// no checkpoint, emit everything
+					collisionsEnumerable = _collisions.ActiveRecords();
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecords();
+					break;
+
+				case StreamHandle.Kind.Id:
+					// checkpointed in the collisions. emit the rest of those, then the non-collisions
+					collisionsEnumerable = _collisions.ActiveRecordsFromCheckpoint(checkpoint.StreamId);
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecords();
+					break;
+
+				case StreamHandle.Kind.Hash:
+					// checkpointed in the noncollisions. emit the rest of those
+					collisionsEnumerable = Enumerable.Empty<KeyValuePair<TStreamId, OriginalStreamData>>();
+					nonCollisionsEnumerable = _nonCollisions.ActiveRecordsFromCheckpoint(checkpoint.StreamHash);
+					break;
+
+				default:
+					throw new ArgumentOutOfRangeException(nameof(checkpoint), checkpoint.Kind, null);
+			}
+
+			foreach (var kvp in collisionsEnumerable) {
+				yield return (StreamHandle.ForStreamId(kvp.Key), kvp.Value);
+			}
+
+			foreach (var kvp in nonCollisionsEnumerable) {
+				yield return (StreamHandle.ForHash<TStreamId>(kvp.Key), kvp.Value);
+			}
 		}
 	}
 }

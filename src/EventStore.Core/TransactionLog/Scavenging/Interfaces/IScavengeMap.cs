@@ -6,7 +6,5 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		TValue this[TKey key] { set; }
 		bool TryRemove(TKey key, out TValue value);
 		IEnumerable<KeyValuePair<TKey, TValue>> AllRecords();
-		IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecords();
-		IEnumerable<KeyValuePair<TKey, TValue>> ActiveRecordsFromCheckpoint(TKey checkpoint);
 	}
 }
