@@ -1,4 +1,5 @@
 ﻿using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
@@ -6,10 +7,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		
 		[Fact]
 		public void should_successfully_enable_features_on_initialization() {
-			var sut = new SqliteScavengeBackend<string>();
-
-			var result = Record.Exception(() => sut.Initialize(Fixture.Directory));
-			Assert.Null(result);
+			using (var sut = new SqliteScavengeBackend<string>()) {
+				var result = Record.Exception(() => sut.Initialize(Fixture.Directory));
+				Assert.Null(result);
+			}
+			SqliteConnection.ClearAllPools();
 		}
 	}
 }
