@@ -29,6 +29,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_hasher = hasher;
 		}
 
+		public void ClearCaches() {
+			_collisionsCache = null;
+			_collisionsHashCache = null;
+		}
+
 		public bool IsCollision(T item) {
 			if (_collisionsCache == null)
 				_collisionsCache = _collisions.AllRecords().ToDictionary(
@@ -119,8 +124,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// hash in use by a different item! found new collision. 2a
 			_collisions[item] = Unit.Instance;
 			_collisions[collision] = Unit.Instance;
-			_collisionsCache = null;
-			_collisionsHashCache = null;
+			ClearCaches();
 
 			return CollisionResult.NewCollision;
 		}

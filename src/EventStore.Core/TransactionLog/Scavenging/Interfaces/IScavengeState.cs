@@ -31,6 +31,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 	public interface ITransactionManager : ITransactionCompleter{
 		void Begin();
+		void RegisterOnRollback(Action onRollback);
 	}
 
 	// abstraction for the backing store. memory, sqlite etc.

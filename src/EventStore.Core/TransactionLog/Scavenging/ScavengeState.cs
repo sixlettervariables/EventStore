@@ -77,6 +77,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkWeights = chunkWeights;
 
 			_transactionManager = transactionManager;
+			_transactionManager.RegisterOnRollback(OnRollback);
+		}
+
+		private void OnRollback() {
+			// a transaction has been rolled back, clear whatever cached data we have
+			_collisionDetector.ClearCaches();
+			//qq others? the lrucache?
 		}
 
 		// reuses the same transaction object for multiple transactions.

@@ -1,4 +1,5 @@
-﻿using EventStore.Core.TransactionLog.Scavenging;
+﻿using System;
+using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TracingTransactionManager : ITransactionManager {
@@ -8,6 +9,10 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public TracingTransactionManager(ITransactionManager wrapped, Tracer tracer) {
 			_wrapped = wrapped;
 			_tracer = tracer;
+		}
+
+		public void RegisterOnRollback(Action onRollback) {
+			_wrapped.RegisterOnRollback(onRollback);
 		}
 
 		public void Begin() {

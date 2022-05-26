@@ -6,6 +6,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	public class TransactionManager<TTransaction> : ITransactionManager {
 		private readonly ITransactionFactory<TTransaction> _factory;
 		private readonly IScavengeMap<Unit, ScavengeCheckpoint> _storage;
+		private Action _onRollback;
 		private bool _began;
 		private TTransaction _transaction;
 
@@ -15,6 +16,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_factory = factory;
 			_storage = storage;
+		}
+
+		public void RegisterOnRollback(Action onRollback) {
+			if (_onRollback != null)
+				throw new InvalidOperationException();
+
+			_onRollback = onRollback;
 		}
 
 		public void Begin() {
@@ -30,6 +38,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				throw new InvalidOperationException("Cannot rollback a transaction that has not begun.");
 
 			_factory.Rollback(_transaction);
+			_onRollback?.Invoke();
 			_began = false;
 		}
 
