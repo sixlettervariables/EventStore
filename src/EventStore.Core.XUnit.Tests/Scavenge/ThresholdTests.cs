@@ -1,10 +1,11 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ThresholdTests : DirectoryPerTest<ThresholdTests> {
+	public class ThresholdTests : SqliteDbPerTest<ThresholdTests> {
 		[Fact]
 		public async Task negative_threshold_executes_all_chunks() {
 			var threshold = -1;
@@ -25,6 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
 					Tracer.Line("    Begin"),
@@ -111,6 +113,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
 					Tracer.Line("    Begin"),
@@ -197,6 +200,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: threshold))
 					.CompleteLastChunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0], // not executed so still has its records

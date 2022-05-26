@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class TombstoneTests : DirectoryPerTest<TombstoneTests> {
+	public class TombstoneTests : SqliteDbPerTest<TombstoneTests> {
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
@@ -16,6 +17,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(1),
 					x.Recs[1],
@@ -31,6 +33,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(0),
 					x.Recs[1],
@@ -49,6 +52,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 					// when the stream is hard deleted we can get rid of _all_ the metadata too
 					// do not keep the last metadata record
@@ -72,6 +76,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						.Chunk(
 							Rec.CommittedDelete(t++, "$$ab-1"))
 						.Chunk(ScavengePointRec(t++)))
+					.WithState(x => x.WithConnection(Fixture.DbConnection))
 					.RunAsync();
 			});
 
@@ -92,6 +97,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 							Rec.TransSt(0, "ab-1"),
 							Rec.Delete(0, "ab-1"))
 						.Chunk(ScavengePointRec(1)))
+					.WithState(x => x.WithConnection(Fixture.DbConnection))
 					.RunAsync();
 			});
 

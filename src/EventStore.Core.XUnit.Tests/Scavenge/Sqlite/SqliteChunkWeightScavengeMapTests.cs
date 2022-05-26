@@ -43,6 +43,30 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 		}
 
 		[Fact]
+		public void can_see_if_all_weights_zero_false() {
+			var sut = new SqliteChunkWeightScavengeMap();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+			sut[2] = 0.1f;
+			sut[4] = -0.1f;
+			Assert.False(sut.AllWeightsAreZero());
+		}
+
+		[Fact]
+		public void can_see_if_all_weights_zero_true() {
+			var sut = new SqliteChunkWeightScavengeMap();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+			sut[2] = 0.0f;
+			Assert.True(sut.AllWeightsAreZero());
+		}
+
+		[Fact]
+		public void can_see_if_all_weights_zero_true_empty() {
+			var sut = new SqliteChunkWeightScavengeMap();
+			sut.Initialize(new SqliteBackend(Fixture.DbConnection));
+			Assert.True(sut.AllWeightsAreZero());
+		}
+
+		[Fact]
 		public void can_sum_chunk_weights() {
 			var sut = new SqliteChunkWeightScavengeMap();
 			sut.Initialize(new SqliteBackend(Fixture.DbConnection));

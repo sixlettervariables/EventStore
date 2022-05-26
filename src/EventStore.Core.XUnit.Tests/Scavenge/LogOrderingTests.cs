@@ -1,11 +1,12 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class LogDisorderingTests : DirectoryPerTest<LogDisorderingTests> {
+	public class LogDisorderingTests : SqliteDbPerTest<LogDisorderingTests> {
 		// if a metadata was ever written with the wrong event number (e.g. 0) due to old bugs
 		// the rest of the system will not respect it, so scavenge must not either
 		[Fact(Skip = "should pass when we have the accumulator index access")]
@@ -19,6 +20,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 5, metadata: MaxCount2))
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 						x.Recs[0],
 						x.Recs[1],
@@ -40,6 +42,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 3 skip
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(0, state.SumChunkWeights(0, 0));
@@ -67,6 +70,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(0, state.SumChunkWeights(0, 0));
@@ -94,6 +98,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 4, metadata: MaxCount2)) // 3 apply
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(0, state.SumChunkWeights(0, 0));
@@ -121,6 +126,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(0, state.SumChunkWeights(0, 0));
@@ -148,6 +154,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 2, metadata: MaxCount1)) // 3 skip
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 3, metadata: MaxCount1)) // 4 skip
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(0, state.SumChunkWeights(0, 0));
@@ -175,6 +182,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 0, metadata: MaxCount3))
 					.Chunk(Rec.Write(t++, "$$ab-1", "$metadata", eventNumber: 6, metadata: MaxCount2))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 						x.Recs[0],
 						x.Recs[1],

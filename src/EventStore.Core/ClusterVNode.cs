@@ -41,6 +41,7 @@ using EventStore.Core.LogV2;
 using EventStore.Core.TransactionLog.Chunks.TFChunk;
 using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using EventStore.Core.TransactionLog.LogRecords;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core {
 	public class ClusterVNode :
@@ -93,8 +94,6 @@ namespace EventStore.Core {
 		private readonly ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 		private readonly IAuthenticationProvider _internalAuthenticationProvider;
 
-		private readonly SqliteScavengeBackend<string> _sqliteScavengeBackend;
-		
 		private readonly InMemoryBus[] _workerBuses;
 		private readonly MultiQueuedHandler _workersHandler;
 		public event EventHandler<VNodeStatusChangeArgs> NodeStatusChanged;
@@ -605,48 +604,33 @@ namespace EventStore.Core {
 
 				var scavengePointSource = new ScavengePointSource(ioDispatcher);
 
-				ScavengeState<string> scavengeState;
-				var sqlite = true;
-				if (sqlite) {
-					_sqliteScavengeBackend = new SqliteScavengeBackend<string>();
-					//qq store in index dir?
-					_sqliteScavengeBackend.Initialize(Path.Combine(indexPath, "scavenging"));
+				//qq store in index dir?
+				var scavengeDirectory = Path.Combine(indexPath, "scavenging");
+				Directory.CreateDirectory(scavengeDirectory);
 
-					scavengeState = new ScavengeState<string>(
-						longHasher,
-						metastreamLookup,
-						_sqliteScavengeBackend.CollisionStorage,
-						_sqliteScavengeBackend.Hashes,
-						_sqliteScavengeBackend.MetaStorage,
-						_sqliteScavengeBackend.MetaCollisionStorage,
-						_sqliteScavengeBackend.OriginalStorage,
-						_sqliteScavengeBackend.OriginalCollisionStorage,
-						_sqliteScavengeBackend.CheckpointStorage,
-						_sqliteScavengeBackend.ChunkTimeStampRanges,
-						_sqliteScavengeBackend.ChunkWeights,
-						new SqliteTransactionManager(
-							_sqliteScavengeBackend,
-							_sqliteScavengeBackend.CheckpointStorage));
+				var connectionStringBuilder = new SqliteConnectionStringBuilder();
+				connectionStringBuilder.DataSource = Path.Combine(scavengeDirectory, "scavenging.db");
+				var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
 
-				} else {
-					var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
-					scavengeState = new ScavengeState<string>(
-						longHasher,
-						metastreamLookup,
-						new InMemoryScavengeMap<string, Unit>(),
-						new InMemoryScavengeMap<ulong, string>(),
-						new InMemoryMetastreamScavengeMap<ulong>(),
-						new InMemoryMetastreamScavengeMap<string>(),
-						new InMemoryOriginalStreamScavengeMap<ulong>(),
-						new InMemoryOriginalStreamScavengeMap<string>(),
-						checkpointStorage,
-						new InMemoryScavengeMap<int, ChunkTimeStampRange>(),
-						new InMemoryChunkWeightScavengeMap(),
-						new TransactionManager<int>(
-							new InMemoryTransactionFactory(),
-							checkpointStorage));
-				}
-				
+				var sqlite = new SqliteScavengeBackend<string>();
+				sqlite.Initialize(connection);
+
+				var scavengeState = new ScavengeState<string>(
+					longHasher,
+					metastreamLookup,
+					sqlite.CollisionStorage,
+					sqlite.Hashes,
+					sqlite.MetaStorage,
+					sqlite.MetaCollisionStorage,
+					sqlite.OriginalStorage,
+					sqlite.OriginalCollisionStorage,
+					sqlite.CheckpointStorage,
+					sqlite.ChunkTimeStampRanges,
+					sqlite.ChunkWeights,
+					new SqliteTransactionManager(
+						sqlite.TransactionFactory,
+						sqlite.CheckpointStorage));
+
 				var storageScavenger = new StorageScavenger(
 					logManager: scavengerLogManager,
 					scavengerFactory: new NewScavengerFactory(
@@ -801,7 +785,6 @@ namespace EventStore.Core {
 
 		public void Handle(SystemMessage.BecomeShutdown message) {
 			_shutdownEvent.Set();
-			_sqliteScavengeBackend?.Dispose();
 		}
 
 		public void AddTasks(IEnumerable<Task> tasks) {

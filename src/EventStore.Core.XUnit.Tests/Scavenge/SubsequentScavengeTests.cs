@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
@@ -10,7 +11,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// these tests test that the right steps happen and the right results are obtained when scavenge is
 	// run on a database that already has already been scavenged.
 	// a new scavenge point may need to be created, but not necessarily.
-	public class SubsequentScavengeTests : DirectoryPerTest<SubsequentScavengeTests> {
+	public class SubsequentScavengeTests : SqliteDbPerTest<SubsequentScavengeTests> {
 		[Fact]
 		public async Task can_create_first_scavenge_point() {
 			// first scavenge creates the first scavenge point SP-1
@@ -25,6 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelOnNewScavengePoint(newScavengePoint)
 				.RunAsync();
 
@@ -58,6 +60,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
@@ -107,6 +110,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						ScavengePointRec(t++), // <-- SP-2 added by another node
 						Rec.Write(t++, "ab-1"))
 					.CompleteLastChunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(
@@ -220,6 +224,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						ScavengePointRec(t++), // <-- SP-2 added by another node
 						Rec.Write(t++, "ab-1"))
 					.CompleteLastChunk())
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 				})
 				.RunAsync(x => new[] {
@@ -239,6 +244,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDb(x => x
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(ScavengePointRec(t++, threshold: 1))) // SP-1
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
 						chunk: 0,
@@ -321,6 +327,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(ScavengePointRec(t++)) // SP-1
 					.Chunk(ScavengePointRec(t++)) // SP-2
 					.Chunk(ScavengePointRec(t++, threshold: 1))) // SP-3
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					x.SetCheckpoint(new ScavengeCheckpoint.Done(ScavengePoint(
 						chunk: 2,
@@ -421,6 +428,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1")) // 4
 					.Chunk(
 						ScavengePointRec(t++))) // <-- SP-1
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					x.SetOriginalStreamMetadata("ab-1", MaxCount1);
 					x.SetOriginalStreamDiscardPoints(

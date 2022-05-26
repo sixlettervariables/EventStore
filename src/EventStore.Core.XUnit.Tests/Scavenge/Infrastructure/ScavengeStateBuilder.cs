@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Threading;
 using EventStore.Core.Index.Hashes;
 using EventStore.Core.LogAbstraction;
@@ -8,16 +7,15 @@ using EventStore.Core.TransactionLog.Scavenging.Sqlite;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ScavengeStateBuilder : IDisposable {
+	public class ScavengeStateBuilder {
 		private readonly ILongHasher<string> _hasher;
 		private readonly IMetastreamLookup<string> _metastreamLookup;
 
-		private ScavengeState<string> _preexisting;
 		private Tracer _tracer;
+		private SqliteConnection _connection;
 		private Type _cancelWhenCheckpointingType;
 		private CancellationTokenSource _cancellationTokenSource;
 		private Action<ScavengeState<string>> _mutateState;
-		private SqliteScavengeBackend<string> _sqliteBackend;
 
 		public ScavengeStateBuilder(
 			ILongHasher<string> hasher,
@@ -26,11 +24,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			_hasher = hasher;
 			_metastreamLookup = metastreamLookup;
 			_mutateState = x => { };
-		}
-
-		public ScavengeStateBuilder ExistingState(ScavengeState<string> state) {
-			_preexisting = state;
-			return this;
 		}
 
 		public ScavengeStateBuilder TransformBuilder(Func<ScavengeStateBuilder, ScavengeStateBuilder> f) =>
@@ -56,53 +49,39 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			return this;
 		}
 
+		public ScavengeStateBuilder WithConnection(SqliteConnection connection) {
+			_connection = connection;
+			return this;
+		}
+
 		public ScavengeState<string> Build() {
 			var state = BuildInternal();
 			_mutateState(state);
 			return state;
 		}
 
-		private ScavengeState<string> BuildInternal(bool inMemory=true) {
-			if (_preexisting != null)
-				return _preexisting;
+		private ScavengeState<string> BuildInternal() {
+			if (_connection == null)
+				throw new Exception("call WithConnection");
 
-			if (!inMemory) {
-				_sqliteBackend = new SqliteScavengeBackend<string>();
-				_sqliteBackend.Initialize(Path.Combine("scavenge-state",Guid.NewGuid().ToString()));
-				
-				return new ScavengeState<string>(
-					_hasher,
-					_metastreamLookup,
-					_sqliteBackend.CollisionStorage,
-					_sqliteBackend.Hashes,
-					_sqliteBackend.MetaStorage,
-					_sqliteBackend.MetaCollisionStorage,
-					_sqliteBackend.OriginalStorage,
-					_sqliteBackend.OriginalCollisionStorage,
-					_sqliteBackend.CheckpointStorage,
-					_sqliteBackend.ChunkTimeStampRanges,
-					_sqliteBackend.ChunkWeights,
-					new SqliteTransactionManager(_sqliteBackend, _sqliteBackend.CheckpointStorage));
-			}
-			
-			
-			var collisionStorage = new InMemoryScavengeMap<string, Unit>();
-			var hashesStorage = new InMemoryScavengeMap<ulong, string>();
-			var metaStorage = new InMemoryMetastreamScavengeMap<ulong>();
-			var metaCollisionStorage = new InMemoryMetastreamScavengeMap<string>();
-			IOriginalStreamScavengeMap<ulong> originalStorage =
-				new InMemoryOriginalStreamScavengeMap<ulong>();
-			IOriginalStreamScavengeMap<string> originalCollisionStorage =
-				new InMemoryOriginalStreamScavengeMap<string>();
-			var checkpointStorage = new InMemoryScavengeMap<Unit, ScavengeCheckpoint>();
-			var chunkTimeStampRangesStorage = new InMemoryScavengeMap<int, ChunkTimeStampRange>();
-			var chunkWeightStorage = new InMemoryChunkWeightScavengeMap();
-			ITransactionFactory<int> transactionFactory = new InMemoryTransactionFactory();
+			var sqlite = new SqliteScavengeBackend<string>();
+			sqlite.Initialize(_connection);
+
+			var collisionStorage = sqlite.CollisionStorage;
+			var hashesStorage = sqlite.Hashes;
+			var metaStorage = sqlite.MetaStorage;
+			var metaCollisionStorage = sqlite.MetaCollisionStorage;
+			var originalStorage = sqlite.OriginalStorage;
+			var originalCollisionStorage = sqlite.OriginalCollisionStorage;
+			var checkpointStorage = sqlite.CheckpointStorage;
+			var chunkTimeStampRangesStorage = sqlite.ChunkTimeStampRanges;
+			var chunkWeightStorage = sqlite.ChunkWeights;
+			var transactionFactory = sqlite.TransactionFactory;
 
 			if (_tracer != null)
-				transactionFactory = new TracingTransactionFactory<int>(transactionFactory, _tracer);
+				transactionFactory = new TracingTransactionFactory<SqliteTransaction>(transactionFactory, _tracer);
 
-			ITransactionManager transactionManager = new TransactionManager<int>(
+			ITransactionManager transactionManager = new TransactionManager<SqliteTransaction>(
 				transactionFactory,
 				checkpointStorage);
 
@@ -137,11 +116,6 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				transactionManager);
 
 			return scavengeState;
-		}
-
-		//qq properly dispose in tests
-		public void Dispose() {
-			_sqliteBackend?.Dispose();
 		}
 	}
 }

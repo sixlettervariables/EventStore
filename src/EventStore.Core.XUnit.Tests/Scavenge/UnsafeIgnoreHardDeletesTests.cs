@@ -1,12 +1,12 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
-using EventStore.Core.TransactionLog.LogRecords;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class UnsafeIgnoreHardDeletesTests : DirectoryPerTest<UnsafeIgnoreHardDeletesTests> {
+	public class UnsafeIgnoreHardDeletesTests : SqliteDbPerTest<UnsafeIgnoreHardDeletesTests> {
 		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
@@ -20,6 +20,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(),
 					x.Recs[1],
@@ -47,6 +48,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(ScavengePointRec(t++))) // SP-1
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					// make it scavenge SP-0
 					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
@@ -65,7 +67,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			(state, db) = await new Scenario()
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.WithUnsafeIgnoreHardDeletes()
 				.RunAsync(x => new[] {
 						x.Recs[0].KeepIndexes(), // tombstone has gone
@@ -96,6 +98,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(ScavengePointRec(t++)) // SP-0
 					.Chunk(Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++))) // SP-1
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					// make it scavenge SP-0
 					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
@@ -120,7 +123,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.WithUnsafeIgnoreHardDeletes()
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-0 to SP-1"),

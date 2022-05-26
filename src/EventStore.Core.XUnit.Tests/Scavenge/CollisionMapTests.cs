@@ -1,13 +1,16 @@
 ﻿using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// generally the properties we need of the CollisionManager are tested at a higher
 	// level. but a couple of fiddly bits are checked in here
-	public class CollisionMapTests {
+	public class CollisionMapTests : SqliteDbPerTest<CollisionMapTests> {
 		[Fact]
 		public void sanity() {
-			var collisions = new InMemoryScavengeMap<string, Unit>();
+			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions_list");
+			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
 			var sut = GenSut(collisions);
 
 			// add a non-collision for ab-1
@@ -30,22 +33,28 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.False(sut.TryGetValue("ab-2", out _));
 		}
 
-		private static CollisionMap<string, string> GenSut(IScavengeMap<string, Unit> collisions) {
+		private CollisionMap<string, string> GenSut(IScavengeMap<string, Unit> collisions) {
+			var nonCollisionsMap = new SqliteScavengeMap<ulong, string>("non_collisions");
+			nonCollisionsMap.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var collisionsMap = new SqliteScavengeMap<string, string>("collisions");
+			collisionsMap.Initialize(new SqliteBackend(Fixture.DbConnection));
+
 			var sut = new CollisionMap<string, string>(
 				new HumanReadableHasher(),
-				x => collisions.TryGetValue(x, out _),
-				new InMemoryScavengeMap<ulong, string>(),
-				new InMemoryScavengeMap<string, string>());
+				x => collisionsMap.TryGetValue(x, out _),
+				nonCollisionsMap,
+				collisionsMap);
 
 			return sut;
 		}
 	}
 
-	public class OriginalStreamCollisionMapTests {
+	public class OriginalStreamCollisionMapTests : SqliteDbPerTest<OriginalStreamCollisionMapTests> {
 		[Fact]
 		public void can_enumerate() {
-			//qq try running against sqlite version
-			var collisions = new InMemoryScavengeMap<string, Unit>();
+			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions_list");
+			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
 			var sut = GenSut(collisions);
 
 			collisions["ac-1"] = Unit.Instance;
@@ -88,12 +97,18 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Empty(sut.EnumerateActive(checkpoint: StreamHandle.ForHash<string>(102)));
 		}
 
-		private static OriginalStreamCollisionMap<string> GenSut(IScavengeMap<string, Unit> collisions) {
+		private OriginalStreamCollisionMap<string> GenSut(IScavengeMap<string, Unit> collisions) {
+			var nonCollisionsMap = new SqliteOriginalStreamScavengeMap<ulong>("non_collisions");
+			nonCollisionsMap.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var collisionsMap = new SqliteOriginalStreamScavengeMap<string>("collisions");
+			collisionsMap.Initialize(new SqliteBackend(Fixture.DbConnection));
+
 			var sut = new OriginalStreamCollisionMap<string>(
 				new HumanReadableHasher(),
 				x => collisions.TryGetValue(x, out _),
-				new InMemoryOriginalStreamScavengeMap<ulong>(),
-				new InMemoryOriginalStreamScavengeMap<string>());
+				nonCollisionsMap,
+				collisionsMap);
 
 			return sut;
 		}

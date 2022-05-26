@@ -1,11 +1,12 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class ChunkWeightTests : DirectoryPerTest<ChunkWeightTests> {
+	public class ChunkWeightTests : SqliteDbPerTest<ChunkWeightTests> {
 		[Fact]
 		public async Task simple() {
 			var t = 0;
@@ -19,6 +20,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"))
 					.Chunk(
 						ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(4, state.SumChunkWeights(0, 0));
@@ -39,6 +41,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(
 						ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(3, state.SumChunkWeights(0, 0));
@@ -59,6 +62,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1),
 						ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(2, state.SumChunkWeights(0, 0));
@@ -76,6 +80,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.CommittedDelete(t++, "ab-1"),
 						ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(2, state.SumChunkWeights(0, 0));
@@ -97,6 +102,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxCount1), // weight: 2
 						Rec.CommittedDelete(t++, "ab-1"),
 						ScavengePointRec(t++, threshold: 1000)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			Assert.Equal(2, state.SumChunkWeights(0, 0));

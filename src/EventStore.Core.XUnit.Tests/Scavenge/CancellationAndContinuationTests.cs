@@ -1,11 +1,12 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class CancellationAndContinuationTests : DirectoryPerTest<CancellationAndContinuationTests> {
+	public class CancellationAndContinuationTests : SqliteDbPerTest<CancellationAndContinuationTests> {
 		// in these tests we we want to
 		// - run a scavenge
 		// - have a log record trigger the cancellation of that scavenge at a particular point
@@ -23,6 +24,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "$$cd-cancel-accumulation"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenAccumulatingMetaRecordFor("cd-cancel-accumulation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -50,6 +52,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "cd-cancel-calculation"),
 						Rec.Write(t++, "$$cd-cancel-calculation", metadata: MaxCount1))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenCalculatingOriginalStream("cd-cancel-calculation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -92,6 +95,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "$$ab-1", metadata: MaxCount1),
 						Rec.Write(t++, "cd-cancel-chunk-execution"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenExecutingChunk("cd-cancel-chunk-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -143,6 +147,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "cd-cancel-index-execution"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenExecutingIndexEntry("cd-cancel-index-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -203,6 +208,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithDb(x => x
 					.Chunk(Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenCheckpointing<ScavengeCheckpoint.Cleaning>()
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -277,6 +283,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenAccumulatingMetaRecordFor("cd-cancel-accumulation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -302,7 +309,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					// accumulation continues from checkpoint
 					Tracer.Line("Accumulating from checkpoint: Accumulating SP-0 done Chunk 0"),
@@ -407,6 +414,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "cd-cancel-calculation"),
 						Rec.Write(t++, "$$cd-cancel-calculation", metadata: MaxCount1))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenCalculatingOriginalStream("cd-cancel-calculation")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -447,15 +455,13 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					// no accumulation
 					// calculation continues from checkpoint
 					Tracer.Line("Calculating from checkpoint: Calculating SP-0 done None"),
 					Tracer.Line("    Begin"),
-					//qq the discard points for 98 that we set should have been rolled back
-					// so we should set them again here, but the inmem doesn't roll back
-					//Tracer.Line("        SetDiscardPoints(98, Discard before 2, Discard before 2)"),
+					Tracer.Line("        SetDiscardPoints(98, Active, Discard before 2, Discard before 2)"),
 					Tracer.Line("        Checkpoint: Calculating SP-0 done Hash: 100"),
 					Tracer.Line("    Commit"),
 					Tracer.Line("    Begin"),
@@ -530,6 +536,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "cd-cancel-chunk-execution"),
 						Rec.Write(t++, "ab-2"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenExecutingChunk("cd-cancel-chunk-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -587,7 +594,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					// no accumulation
 					// no calculation
@@ -652,6 +659,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "cd-cancel-index-execution"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenExecutingIndexEntry("cd-cancel-index-execution")
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
@@ -719,7 +727,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				// makes sure we dont reaccumulate
 				.CancelWhenAccumulatingMetaRecordFor("ab-1")
 				// make sure we dont recalculate
@@ -769,6 +777,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.CancelWhenCheckpointing<ScavengeCheckpoint.Cleaning>()
 				.RunAsync();
 
@@ -780,7 +789,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					Tracer.Line("Cleaning from checkpoint Cleaning for SP-0"),
 					Tracer.Line("    Begin"),
@@ -812,6 +821,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					Tracer.Line("Accumulating from start to SP-0"),
 					Tracer.Line("    Begin"),

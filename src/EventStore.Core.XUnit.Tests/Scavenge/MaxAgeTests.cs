@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// for testing the maxage functionality specifically
-	public class MaxAgeTests : DirectoryPerTest<MaxAgeTests> {
+	public class MaxAgeTests : SqliteDbPerTest<MaxAgeTests> {
 		[Fact]
 		public async Task simple_maxage() {
 			// records kept in the index because they are 'maybe' expired
@@ -21,6 +22,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1", timestamp: Active),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(2, 3, 4),
@@ -45,6 +47,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1", timestamp: Expired),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(2, 3),
@@ -71,6 +74,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1", timestamp: Active),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(),
@@ -93,6 +97,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(2),
@@ -114,6 +119,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: MaxAgeMetadata))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0],

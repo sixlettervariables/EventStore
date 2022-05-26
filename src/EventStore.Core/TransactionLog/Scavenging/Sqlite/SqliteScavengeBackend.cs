@@ -4,8 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	//qq i suspect this needn't be the transactionfactory any more
-	public class SqliteScavengeBackend<TStreamId> : ITransactionFactory<SqliteTransaction>, IDisposable {
-		private const string DbFileName = "scavenging.db";
+	public class SqliteScavengeBackend<TStreamId> {
 		private const string ExpectedJournalMode = "wal";
 		private const int ExpectedSynchronousValue = 1; // Normal
 		private SqliteConnection _connection;
@@ -20,10 +19,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public IScavengeMap<Unit,ScavengeCheckpoint> CheckpointStorage { get; private set; }
 		public IScavengeMap<int,ChunkTimeStampRange> ChunkTimeStampRanges { get; private set; }
 		public IChunkWeightScavengeMap ChunkWeights { get; private set; }
-		private ISqliteScavengeBackend[] AllMaps { get; set; }
+		public ITransactionFactory<SqliteTransaction> TransactionFactory { get; private set; }
 
-		public void Initialize(string dir = ".") {
-			OpenDbConnection(dir);
+		public void Initialize(SqliteConnection connection) {
+			OpenDbConnection(connection);
 			ConfigureFeatures();
 
 			var collisionStorage = new SqliteFixedStructScavengeMap<TStreamId, Unit>("CollisionStorageMap");
@@ -53,27 +52,21 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			var chunkWeights = new SqliteChunkWeightScavengeMap();
 			ChunkWeights = chunkWeights;
 
-			AllMaps = new ISqliteScavengeBackend[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
-				originalStorage, originalCollisionStorage, checkpointStorage, chunkTimeStampRanges, chunkWeights };
+			var transactionFactory = new SqliteTransactionFactory();
+			TransactionFactory = transactionFactory;
 
-			//qq maybe want try/finally rollback, if these need to be in an explicit transaction at all
-			var transaction = Begin();
-			
-			foreach (var map in AllMaps) {
+			var allMaps = new ISqliteScavengeBackend[] { collisionStorage, hashes, metaStorage, metaCollisionStorage,
+				originalStorage, originalCollisionStorage, checkpointStorage, chunkTimeStampRanges, chunkWeights,
+				transactionFactory};
+
+			foreach (var map in allMaps) {
 				map.Initialize(_sqliteBackend);
 			}
-			
-			Commit(transaction);
 		}
 
-		private void OpenDbConnection(string dir) {
-			Directory.CreateDirectory(dir);
-
-			var connectionStringBuilder = new SqliteConnectionStringBuilder();
-			connectionStringBuilder.DataSource = Path.Combine(dir, DbFileName);
-			_connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
+		private void OpenDbConnection(SqliteConnection connection) {
+			_connection = connection;
 			_connection.Open();
-
 			_sqliteBackend = new SqliteBackend(_connection);
 		}
 
@@ -96,38 +89,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			if (!synchronousMode.HasValue || synchronousMode.Value != ExpectedSynchronousValue) {
 				throw new Exception($"SQLite database is in unexpected synchronous mode: {synchronousMode}");
 			}
-		}
-
-		public SqliteTransaction Begin() {
-			if (_connection == null) {
-				throw new InvalidOperationException("Cannot start a scavenge state transaction without an open connection");
-			}
-
-			return _sqliteBackend.BeginTransaction();
-		}
-
-		public void Rollback(SqliteTransaction transaction) {
-			if (transaction == null) {
-				throw new InvalidOperationException("Cannot rollback a scavenge state transaction without an active transaction");
-			}
-
-			transaction.Rollback();
-			transaction.Dispose();
-			_sqliteBackend.ClearTransaction();
-		}
-
-		public void Commit(SqliteTransaction transaction) {
-			if (transaction == null) {
-				throw new InvalidOperationException("Cannot commit a scavenge state transaction without an active transaction");
-			}
-			
-			transaction.Commit();
-			transaction.Dispose();
-			_sqliteBackend.ClearTransaction();
-		}
-
-		public void Dispose() {
-			_connection?.Dispose();
 		}
 	}
 }

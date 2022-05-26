@@ -2,11 +2,12 @@
 using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class SoftDeleteTests : DirectoryPerTest<SoftDeleteTests> {
+	public class SoftDeleteTests : SqliteDbPerTest<SoftDeleteTests> {
 		[Fact]
 		public async Task undelete_when_soft_delete_across_chunk_boundary() {
 			// accumulation has to go up to the scavenge point and not stop at the end of the chunk
@@ -33,6 +34,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					.Chunk(
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: TruncateBefore3),
 						ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(4),
@@ -52,6 +54,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: SoftDelete))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(2, 3), // keep the last event
@@ -76,7 +79,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: TruncateBefore3))
 					.Chunk(ScavengePointRec(t++)))
-				.WithDbPath(Fixture.Directory)
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(4, 5),
@@ -106,6 +109,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.Write(t++, "$$ab-1", "$metadata", metadata: TruncateBefore3))
 					.Chunk(ScavengePointRec(t++))) // SP-1
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.MutateState(x => {
 					// make it scavenge SP-0
 					x.SetCheckpoint(new ScavengeCheckpoint.Accumulating(
@@ -133,7 +137,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.WithTracerFrom(scenario)
 				.WithDbPath(Fixture.Directory)
 				.WithDb(db)
-				.WithState(x => x.ExistingState(state))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.AssertTrace(
 					Tracer.Line("Accumulating from SP-0 to SP-1"),
 					Tracer.AnythingElse)
@@ -163,6 +167,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// hard delete
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(6),
@@ -186,6 +191,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						// hard delete
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(
 					x => new[] {
 						x.Recs[0].KeepIndexes(4),

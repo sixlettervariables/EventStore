@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.TransactionLog.Scavenging.Sqlite;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class CollisionDetectorTests {
+	public class CollisionDetectorTests : SqliteDbPerTest<CollisionDetectorTests> {
 		public static IEnumerable<object[]> TheCases() {
 			var none = Array.Empty<string>();
 			
@@ -91,11 +93,17 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				entries.Insert(0, i);
 			}
 
+			var hashes = new SqliteScavengeMap<ulong, string>("hashes");
+			hashes.Initialize(new SqliteBackend(Fixture.DbConnection));
+
+			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions");
+			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
+
 			var sut = new CollisionDetector<string>(
 				new LruCachingScavengeMap<ulong, string>(
-					new InMemoryScavengeMap<ulong, string>(),
+					hashes,
 					cacheMaxCount: 1000),
-				new InMemoryScavengeMap<string, Unit>(),
+				collisions,
 				hasher);
 
 			var expectedCollisions = new HashSet<string>();

@@ -1,10 +1,11 @@
 ﻿using System.Threading.Tasks;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class CombinationCriteriaTests : DirectoryPerTest<CombinationCriteriaTests> {
+	public class CombinationCriteriaTests : SqliteDbPerTest<CombinationCriteriaTests> {
 		//qq need more of these, check that the criteria work well in different combinations
 		// and set in different orders
 		[Fact]
@@ -19,6 +20,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Rec.Write(t++, "ab-1"),
 						Rec.CommittedDelete(t++, "ab-1"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync(x => new[] {
 					x.Recs[0].KeepIndexes(3),
 					x.Recs[1],

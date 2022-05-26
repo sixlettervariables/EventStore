@@ -4,11 +4,12 @@ using System.Threading.Tasks;
 using EventStore.Core.Data;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
-	public class CalculationStatusTests : DirectoryPerTest <CalculationStatusTests> {
+	public class CalculationStatusTests : SqliteDbPerTest<CalculationStatusTests> {
 		async Task RunAsync(
 			CalculationStatus expected,
 			StreamMetadata metadata,
@@ -28,6 +29,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						? Rec.CommittedDelete(t++, "ab-1")
 						: Rec.Write(t++, "cd-2"))
 					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
 				.RunAsync();
 
 			if (expected == CalculationStatus.Spent) {

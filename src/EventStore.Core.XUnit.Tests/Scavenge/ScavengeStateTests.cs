@@ -1,16 +1,19 @@
 ﻿using EventStore.Core.LogV2;
 using EventStore.Core.TransactionLog.Scavenging;
+using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	// generally the properties we need of the ScavengeState are tested at a higher
 	// level. but a couple of fiddly bits are checked in here
-	public class ScavengeStateTests {
+	public class ScavengeStateTests : SqliteDbPerTest<ScavengeStateTests> {
 		[Fact]
 		public void pending_changes_are_still_read() {
 			var hasher = new HumanReadableHasher();
 			var metastreamLookup = new LogV2SystemStreams();
-			var sut = new ScavengeStateBuilder(hasher, metastreamLookup).Build();
+			var sut = new ScavengeStateBuilder(hasher, metastreamLookup)
+				.WithConnection(Fixture.DbConnection)
+				.Build();
 
 			var trans = sut.BeginTransaction();
 

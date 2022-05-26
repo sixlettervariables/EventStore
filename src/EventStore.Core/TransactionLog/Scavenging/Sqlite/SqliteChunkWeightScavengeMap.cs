@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteChunkWeightScavengeMap : SqliteScavengeMap<int, float>, IChunkWeightScavengeMap {
 		private IncreaseWeightCommand _increaseWeight;
+		private AllWeightsAreZeroCommand _allWeightsAreZero;
 		private SumChunkWeightsCommand _sumChunkWeights;
 		private ResetChunkWeightsCommand _resetChunkWeights;
 
@@ -15,12 +16,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			base.Initialize(sqlite);
 
 			_increaseWeight = new IncreaseWeightCommand(TableName, sqlite);
+			_allWeightsAreZero = new AllWeightsAreZeroCommand(TableName, sqlite);
 			_sumChunkWeights = new SumChunkWeightsCommand(TableName, sqlite);
 			_resetChunkWeights = new ResetChunkWeightsCommand(TableName, sqlite);
 		}
 
 		public bool AllWeightsAreZero() {
-			throw new NotImplementedException(); //qqq
+			return _allWeightsAreZero.Execute();
 		}
 
 		public void IncreaseWeight(int logicalChunkNumber, float extraWeight) {
@@ -60,7 +62,33 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
-		
+
+		// All weights are zero if there do not exist any rows with a nonzero weight
+		private class AllWeightsAreZeroCommand {
+			private readonly SqliteBackend _sqlite;
+			private readonly SqliteCommand _cmd;
+
+			public AllWeightsAreZeroCommand(string tableName, SqliteBackend sqlite) {
+				var sql = $@"
+					SELECT EXISTS (
+						SELECT 1
+						FROM {tableName}
+						WHERE value <> 0
+					)";
+
+				_cmd = sqlite.CreateCommand();
+				_cmd.CommandText = sql;
+				_cmd.Prepare();
+
+				_sqlite = sqlite;
+			}
+
+			public bool Execute() {
+				_sqlite.ExecuteSingleRead(_cmd, reader => reader.GetBoolean(0), out var exists);
+				return !exists;
+			}
+		}
+
 		private class SumChunkWeightsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
