@@ -96,6 +96,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
+
 		private class GetCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;

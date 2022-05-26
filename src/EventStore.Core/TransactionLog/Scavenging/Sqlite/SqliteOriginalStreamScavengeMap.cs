@@ -106,12 +106,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			var discardPoint = SqliteBackend.GetNullableFieldValue<long?>(4, reader);
 			if (discardPoint.HasValue) {
-				d.DiscardPoint = DiscardPoint.DiscardBefore(discardPoint.Value);					
+				d.DiscardPoint = DiscardPoint.DiscardBefore(discardPoint.Value);
 			}
 
 			var maybeDiscardPoint = SqliteBackend.GetNullableFieldValue<long?>(5, reader);
 			if (maybeDiscardPoint.HasValue) {
-				d.MaybeDiscardPoint = DiscardPoint.DiscardBefore(maybeDiscardPoint.Value);					
+				d.MaybeDiscardPoint = DiscardPoint.DiscardBefore(maybeDiscardPoint.Value);
 			}
 
 			return d;
@@ -130,16 +130,24 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public AddCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} VALUES($key, $isTombstoned, $maxAge, $maxCount, $truncateBefore, $discardPoint, $maybeDiscardPoint, $status)" +
-					"ON CONFLICT(key) DO UPDATE SET " +
-					"isTombstoned=$isTombstoned," +
-					"maxAge=$maxAge, " +
-					"maxCount=$maxCount, " +
-					"truncateBefore=$truncateBefore, " + 
-					"discardPoint=$discardPoint, " +
-					"maybeDiscardPoint=$maybeDiscardPoint, " +
-					"status=$status";
+				var sql = $@"
+					INSERT INTO {tableName} VALUES(
+						$key,
+						$isTombstoned,
+						$maxAge,
+						$maxCount,
+						$truncateBefore,
+						$discardPoint,
+						$maybeDiscardPoint,
+						$status)
+					ON CONFLICT(key) DO UPDATE SET
+						isTombstoned = $isTombstoned,
+						maxAge = $maxAge,
+						maxCount = $maxCount,
+						truncateBefore = $truncateBefore,
+						discardPoint = $discardPoint,
+						maybeDiscardPoint = $maybeDiscardPoint,
+						status = $status";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -178,9 +186,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public SetTombstoneCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} (key, isTombstoned, status) VALUES($key, 1, $status) " + 
-					"ON CONFLICT(key) DO UPDATE SET isTombstoned=1, status=$status";
+				var sql = $@"
+					INSERT INTO {tableName} (key, isTombstoned, status)
+					VALUES ($key, 1, $status)
+					ON CONFLICT(key) DO UPDATE SET
+						isTombstoned = 1,
+						status = $status";
 				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -208,9 +219,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public SetMetadataCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} (key, maxAge, maxCount, truncateBefore, status) VALUES($key, $maxAge, $maxCount, $truncateBefore, $status) " + 
-					"ON CONFLICT(key) DO UPDATE SET maxAge=$maxAge, maxCount=$maxCount, truncateBefore=$truncateBefore, status=$status";
+				var sql = $@"
+					INSERT INTO {tableName} (key, maxAge, maxCount, truncateBefore, status)
+					VALUES($key, $maxAge, $maxCount, $truncateBefore, $status)
+					ON CONFLICT(key) DO UPDATE SET
+						maxAge = $maxAge,
+						maxCount = $maxCount,
+						truncateBefore = $truncateBefore,
+						status = $status";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -243,9 +259,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public SetDiscardPointsCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} (key, discardPoint, maybeDiscardPoint, status) VALUES($key, $discardPoint, $maybeDiscardPoint, $status) " + 
-					"ON CONFLICT(key) DO UPDATE SET discardPoint=$discardPoint, maybeDiscardPoint=$maybeDiscardPoint, status=$status";
+				var sql = $@"
+					INSERT INTO {tableName} (key, discardPoint, maybeDiscardPoint, status)
+					VALUES ($key, $discardPoint, $maybeDiscardPoint, $status)
+					ON CONFLICT(key) DO UPDATE SET
+						discardPoint = $discardPoint,
+						maybeDiscardPoint = $maybeDiscardPoint,
+						status = $status";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -266,15 +286,18 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
-		
+
 		private class GetCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 			private readonly SqliteParameter _keyParam;
 
 			public GetCommand(string tableName, SqliteBackend sqlite) {
-				var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status " +
-				          $"FROM {tableName} WHERE key = $key";
+				var sql = $@"
+					SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status
+					FROM {tableName}
+					WHERE key = $key";
+
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
@@ -295,8 +318,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _keyParam;
 
 			public GetChunkExecutionInfoCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT isTombstoned, maxAge, discardPoint, maybeDiscardPoint FROM {tableName} " +
-				          "WHERE key = $key AND discardPoint IS NOT NULL AND maybeDiscardPoint IS NOT NULL";
+				var sql = $@"
+					SELECT isTombstoned, maxAge, discardPoint, maybeDiscardPoint
+					FROM {tableName}
+					WHERE key = $key AND discardPoint IS NOT NULL AND maybeDiscardPoint IS NOT NULL";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -326,9 +351,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _deleteKeyParam;
 
 			public DeleteCommand(string tableName, SqliteBackend sqlite) {
-				var selectSql =
-					"SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status " + 
-					$"FROM {tableName} WHERE key = $key";
+				var selectSql = $@"
+					SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status
+					FROM {tableName}
+					WHERE key = $key";
+
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
 				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
@@ -357,7 +384,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _archiveStatusParam;
 
 			public DeleteManyCommand(string tableName, SqliteBackend sqlite) {
-				var deleteSql = $"DELETE FROM {tableName} WHERE status = $spent OR status = $archive";
+				var deleteSql = $@"
+					DELETE FROM {tableName}
+					WHERE status = $spent OR status = $archive";
+
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
 				_spentStatusParam = _deleteCmd.Parameters.Add("$spent", SqliteType.Integer);
@@ -382,8 +412,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public FromCheckpointCommand(string tableName, SqliteBackend sqlite) {
-				var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key " +
-				          $"FROM {tableName} WHERE key > $key AND status=$status";
+				var sql = $@"
+					SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key
+					FROM {tableName}
+					WHERE key > $key AND status=$status";
+
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
@@ -400,13 +433,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					reader.GetFieldValue<TKey>(7), ReadOriginalStreamData(reader)));
 			}
 		}
+
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
-				var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key " + 
-				          $"FROM {tableName}";
+				var sql = $@"
+					SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key
+					FROM {tableName}";
+
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_cmd.Prepare();
@@ -426,8 +462,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _statusParam;
 
 			public ActiveRecordsCommand(string tableName, SqliteBackend sqlite) {
-				var sql = "SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key " + 
-				          $"FROM {tableName} WHERE status = $status";
+				var sql = $@"
+					SELECT isTombstoned, maxAge, maxCount, truncateBefore, discardPoint, maybeDiscardPoint, status, key
+					FROM {tableName}
+					WHERE status = $status";
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_statusParam = _cmd.Parameters.Add("$status", SqliteType.Integer);

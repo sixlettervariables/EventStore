@@ -19,11 +19,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		public void Initialize(SqliteBackend sqlite) {
-			var sql = 
-				$"CREATE TABLE IF NOT EXISTS {TableName} (" +
-				$"key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY, " +
-				"isTombstoned INTEGER DEFAULT 0, " +
-				"discardPoint INTEGER NULL)";
+			var sql = $@"
+				CREATE TABLE IF NOT EXISTS {TableName} (
+					key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY,
+					isTombstoned INTEGER DEFAULT 0,
+					discardPoint INTEGER NULL)";
 		
 			sqlite.InitializeDb(sql);
 

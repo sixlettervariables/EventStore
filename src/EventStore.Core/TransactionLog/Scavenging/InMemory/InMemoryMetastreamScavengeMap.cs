@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace EventStore.Core.TransactionLog.Scavenging {
+﻿namespace EventStore.Core.TransactionLog.Scavenging {
 	public class InMemoryMetastreamScavengeMap<TKey> :
 		InMemoryScavengeMap<TKey, MetastreamData>,
 		IMetastreamScavengeMap<TKey> {
