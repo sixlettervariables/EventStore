@@ -215,6 +215,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _deleteCmd;
 
 			public DeleteAllCommand(string tableName, SqliteBackend sqlite) {
+				//qq would deleting / truncating the table be quicker
 				var deleteSql = $"DELETE FROM {tableName}";
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;

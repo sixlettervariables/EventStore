@@ -20,7 +20,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				TruncateBefore = x.TruncateBefore,
 
 				// sqlite implementation would insert the record or update these columns
-				Status = CalculationStatus.Active, //qqq sqlite to do this
+				Status = CalculationStatus.Active,
 				IsTombstoned = true,
 			};
 		}
@@ -35,7 +35,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				IsTombstoned = x.IsTombstoned,
 
 				// sqlite implementation would insert the record or update these columns
-				Status = CalculationStatus.Active, //qqq sqlite to do this
+				Status = CalculationStatus.Active,
 				MaxAge = metadata.MaxAge,
 				MaxCount = metadata.MaxCount,
 				TruncateBefore = metadata.TruncateBefore,
@@ -49,9 +49,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			DiscardPoint maybeDiscardPoint) {
 
 			if (!TryGetValue(key, out var x))
-				//qq rather improve the iteration so that it can update the values without 
-				// having to do a lookup here.
-				throw new Exception("this shouldn't happen"); //qq detail
+				throw new Exception("this shouldn't happen");
 
 			this[key] = new OriginalStreamData {
 				IsTombstoned = x.IsTombstoned,
@@ -82,8 +80,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			return true;
 		}
 
-		private bool Filter(KeyValuePair<TKey, OriginalStreamData> kvp) => 
-			//qqqqq implement in sqlite with a where in the enumeration
+		private bool Filter(KeyValuePair<TKey, OriginalStreamData> kvp) =>
 			kvp.Value.Status == CalculationStatus.Active;
 
 		public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> ActiveRecords() =>

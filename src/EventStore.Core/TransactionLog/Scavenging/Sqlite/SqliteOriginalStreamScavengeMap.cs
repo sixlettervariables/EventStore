@@ -204,7 +204,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public void Execute(TKey key) {
 				_keyParam.Value = key;
-				_statusParam.Value = CalculationStatus.Active;
+				_statusParam.Value = CalculationStatus.Active; //qq can be part of the sql instead of param
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
@@ -245,7 +245,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_maxAgeParam.Value = value.MaxAge.HasValue ? (object)value.MaxAge : DBNull.Value;
 				_maxCountParam.Value = value.MaxCount.HasValue ? (object)value.MaxCount : DBNull.Value;
 				_truncateBeforeParam.Value = value.TruncateBefore.HasValue ? (object)value.TruncateBefore : DBNull.Value;
-				_statusParam.Value = CalculationStatus.Active;
+				_statusParam.Value = CalculationStatus.Active; //qq can be part of the sql instead of param
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
@@ -322,6 +322,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					SELECT isTombstoned, maxAge, discardPoint, maybeDiscardPoint
 					FROM {tableName}
 					WHERE key = $key AND discardPoint IS NOT NULL AND maybeDiscardPoint IS NOT NULL";
+				//qq ^ suspicious about the ANDs in the where clause, but these will go away if we
+				// give the discard points default values
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -399,6 +401,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public void Execute(bool deleteArchived) {
 				_spentStatusParam.Value = CalculationStatus.Spent;
+				//qq ^ can be directly in the sql {(int)CalculationStatus.Spent}
 				// only delete archived when requested, otherwise only delete Spent.
 				_archiveStatusParam.Value = deleteArchived ? CalculationStatus.Archived : CalculationStatus.Spent;
 				_sqlite.ExecuteNonQuery(_deleteCmd);
@@ -429,6 +432,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> Execute(TKey key) {
 				_keyParam.Value = key;
 				_statusParam.Value = CalculationStatus.Active;
+				//qq ^ can be direct in sql
 				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, OriginalStreamData>(
 					reader.GetFieldValue<TKey>(7), ReadOriginalStreamData(reader)));
 			}
@@ -476,8 +480,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> Execute() {
 				_statusParam.Value = CalculationStatus.Active;
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, OriginalStreamData>(
-					reader.GetFieldValue<TKey>(7), ReadOriginalStreamData(reader)));
+				//qq ^ can be direct in sql
+				return _sqlite.ExecuteReader(
+					_cmd,
+					//qq i wonder if reading the fields in order makes a difference to performance
+					// we could always read the value first into a local variable and then the key
+					reader => new KeyValuePair<TKey, OriginalStreamData>(
+						reader.GetFieldValue<TKey>(7),
+						ReadOriginalStreamData(reader)));
 			}
 		}
 	}
