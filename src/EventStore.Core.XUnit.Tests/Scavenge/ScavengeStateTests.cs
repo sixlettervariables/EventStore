@@ -1,4 +1,8 @@
-﻿using EventStore.Core.LogV2;
+﻿using System;
+using System.Collections.Generic;
+using EventStore.Core.Data;
+using EventStore.Core.Index.Hashes;
+using EventStore.Core.LogV2;
 using EventStore.Core.TransactionLog.Scavenging;
 using EventStore.Core.XUnit.Tests.Scavenge.Sqlite;
 using Xunit;
@@ -59,7 +63,114 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.False(sut.TryGetMetastreamData("$$ab-2", out _));
 			sut.DetectCollisions("$$cd-3");
 			Assert.False(sut.TryGetMetastreamData("$$cd-3", out _));
+		}
 
+		[Fact]
+		public void active_iteration_no_checkpoint() {
+			var hasher = new CompositeHasher<string>(
+				new XXHashUnsafe(),
+				new Murmur3AUnsafe());
+
+			var metastreamLookup = new LogV2SystemStreams();
+			var sut = new ScavengeStateBuilder(hasher, metastreamLookup)
+				.WithConnection(Fixture.DbConnection)
+				.Build();
+
+			var numStreams = 100;
+
+			// 'accumulate'
+			for (var i = 0; i < numStreams; i++) {
+				var streamId = $"s-{i}";
+				var metastreamId = $"$$s-{i}";
+				sut.DetectCollisions(streamId);
+				sut.DetectCollisions(metastreamId);
+				sut.SetOriginalStreamMetadata(streamId, metadata: new StreamMetadata(maxCount: i + 1));
+			}
+
+			Assert.Empty(sut.AllCollisions());
+
+			// 'calculate'
+			var processed = 0;
+			long? lastHash = null;
+
+			var xs = sut.OriginalStreamsToCalculate(default);
+			foreach (var (handle, data) in xs) {
+				processed++;
+				Assert.Equal(StreamHandle.Kind.Hash, handle.Kind);
+				if (lastHash >= (long)handle.StreamHash) {
+					throw new Exception("repeated");
+				}
+				lastHash = (long)handle.StreamHash;
+
+				sut.SetOriginalStreamDiscardPoints(
+					handle,
+					CalculationStatus.Spent,
+					DiscardPoint.KeepAll,
+					DiscardPoint.KeepAll);
+			}
+
+			// processedd each stream exactly once
+			Assert.Equal(numStreams, processed);
+		}
+
+		[Fact]
+		public void active_iteration_with_checkpoint() {
+			var hasher = new CompositeHasher<string>(
+				new XXHashUnsafe(),
+				new Murmur3AUnsafe());
+
+			var metastreamLookup = new LogV2SystemStreams();
+			var sut = new ScavengeStateBuilder(hasher, metastreamLookup)
+				.WithConnection(Fixture.DbConnection)
+				.Build();
+
+			var numStreams = 100;
+			var stopAfter = 50;
+
+			// 'accumulate'
+			for (var i = 0; i < numStreams; i++) {
+				var streamId = $"s-{i}";
+				var metastreamId = $"$$s-{i}";
+				sut.DetectCollisions(streamId);
+				sut.DetectCollisions(metastreamId);
+				sut.SetOriginalStreamMetadata(streamId, metadata: new StreamMetadata(maxCount: i + 1));
+			}
+
+			Assert.Empty(sut.AllCollisions());
+
+			// 'calculate'
+			var processed = 0;
+			var checkpoint = new StreamHandle<string>();
+			long? lastHash = null;
+
+			void Calculate(IEnumerable<(StreamHandle<string>, OriginalStreamData)> xs) {
+				foreach (var (handle, data) in xs) {
+					processed++;
+					Assert.Equal(StreamHandle.Kind.Hash, handle.Kind);
+					if (lastHash >= (long)handle.StreamHash) {
+						throw new Exception("repeated");
+					}
+					lastHash = (long)handle.StreamHash;
+
+					sut.SetOriginalStreamDiscardPoints(
+						handle,
+						CalculationStatus.Spent,
+						DiscardPoint.KeepAll,
+						DiscardPoint.KeepAll);
+
+					checkpoint = handle;
+
+					if (processed == stopAfter)
+						break;
+				}
+			}
+
+			Calculate(sut.OriginalStreamsToCalculate(checkpoint));
+			Assert.Equal(50, processed);
+			Calculate(sut.OriginalStreamsToCalculate(checkpoint));
+
+			// processedd each stream exactly once
+			Assert.Equal(numStreams, processed);
 		}
 	}
 }

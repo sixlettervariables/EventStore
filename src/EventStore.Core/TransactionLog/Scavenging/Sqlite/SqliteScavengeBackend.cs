@@ -1,10 +1,15 @@
 ﻿using System;
-using System.IO;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	//qq i suspect this needn't be the transactionfactory any more
+	//qq i think we could do with an info table that contains the schema version (1)
 	public class SqliteScavengeBackend<TStreamId> {
+		// WAL with SYNCHRONOUS NORMAL means that
+		//  - commiting a transaction does not wait to it to flush to disk
+		//  - which is nice and quick, but means in powerloss the last x transactions
+		//    can be lost. the database will be in a valid state.
+		//  - this is suitable for us because scavenge will continue from the last
+		//    persisted checkpoint.
 		private const string ExpectedJournalMode = "wal";
 		private const int ExpectedSynchronousValue = 1; // Normal
 		private SqliteConnection _connection;
