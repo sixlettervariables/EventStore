@@ -26,6 +26,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		private Func<TFChunkDbConfig, DbResult> _getDb;
 		private Func<ScavengeStateBuilder, ScavengeStateBuilder> _stateTransform;
 		private List<ScavengePoint> _newScavengePoint;
+		private ITFChunkScavengerLog _logger;
 
 		private bool _mergeChunks;
 		private string _dbPath;
@@ -70,6 +71,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public Scenario WithDb(Func<TFChunkDbCreationHelper, TFChunkDbCreationHelper> f) {
 			_getDb = dbConfig => f(new TFChunkDbCreationHelper(dbConfig)).CreateDb();
+			return this;
+		}
+
+		public Scenario WithLogger(ITFChunkScavengerLog logger) {
+			_logger = logger;
 			return this;
 		}
 
@@ -337,7 +343,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						dbResult,
 						EffectiveNow,
 						_newScavengePoint ?? new List<ScavengePoint>()),
-					new FakeTFScavengerLog());
+					_logger ?? new FakeTFScavengerLog());
 
 				Tracer.Reset();
 				await sut.ScavengeAsync(cancellationTokenSource.Token);

@@ -68,19 +68,21 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 		public async Task tombstone_in_metadata_stream_not_supported() {
 			// eventstore refuses denies access to write such a tombstone in the first place,
 			// including in ESv5
-			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
-				var t = 0;
-				await new Scenario()
-					.WithDbPath(Fixture.Directory)
-					.WithDb(x => x
-						.Chunk(
-							Rec.CommittedDelete(t++, "$$ab-1"))
-						.Chunk(ScavengePointRec(t++)))
-					.WithState(x => x.WithConnection(Fixture.DbConnection))
-					.RunAsync();
-			});
+			var logger = new FakeTFScavengerLog();
+			var t = 0;
+			await new Scenario()
+				.WithDbPath(Fixture.Directory)
+				.WithDb(x => x
+					.Chunk(
+						Rec.CommittedDelete(t++, "$$ab-1"))
+					.Chunk(ScavengePointRec(t++)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
+				.WithLogger(logger)
+				.RunAsync();
 
-			Assert.Equal("Found Tombstone in metadata stream $$ab-1", e.Message);
+			Assert.True(logger.Completed);
+			Assert.Equal(TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
+			Assert.Equal("Error while scavenging DB: Found Tombstone in metadata stream $$ab-1.", logger.Error);
 		}
 
 		[Fact]
@@ -89,19 +91,21 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			// gets committed. also chunkexecutor would have to be careful not to discard the tombstone
 			// of a tombstoned stream even though it can discard pretty much everything in transactions
 			// in that case
-			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
-				await new Scenario()
-					.WithDbPath(Fixture.Directory)
-					.WithDb(x => x
-						.Chunk(
-							Rec.TransSt(0, "ab-1"),
-							Rec.Delete(0, "ab-1"))
-						.Chunk(ScavengePointRec(1)))
-					.WithState(x => x.WithConnection(Fixture.DbConnection))
-					.RunAsync();
-			});
+			var logger = new FakeTFScavengerLog();
+			await new Scenario()
+				.WithDbPath(Fixture.Directory)
+				.WithDb(x => x
+					.Chunk(
+						Rec.TransSt(0, "ab-1"),
+						Rec.Delete(0, "ab-1"))
+					.Chunk(ScavengePointRec(1)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
+				.WithLogger(logger)
+				.RunAsync();
 
-			Assert.Equal("Found Tombstone in transaction in stream ab-1", e.Message);
+			Assert.True(logger.Completed);
+			Assert.Equal(TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
+			Assert.Equal("Error while scavenging DB: Found Tombstone in transaction in stream ab-1.", logger.Error);
 		}
 	}
 }

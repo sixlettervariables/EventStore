@@ -33,6 +33,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				action: m => {
 					if (m.Result == ReadStreamResult.Success)
 						readTcs.TrySetResult(m.Events);
+					else if (m.Result == ReadStreamResult.NoStream)
+						readTcs.TrySetResult(Array.Empty<ResolvedEvent>());
 					else {
 						readTcs.TrySetException(new Exception(
 							$"Failed to get latest scavenge point: {m.Result}. {m.Error}"));
@@ -41,7 +43,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var events = await readTcs.Task;
 
-			if (events.Length != 1) {
+			if (events.Length == 0) {
+				Log.Info("No scavenge points exist");
+				return default;
+			} else if (events.Length != 1) {
 				throw new Exception($"Expected 1 event but got {events.Length}");
 			}
 

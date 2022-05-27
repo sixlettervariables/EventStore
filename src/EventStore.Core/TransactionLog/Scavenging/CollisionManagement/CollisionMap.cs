@@ -35,6 +35,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		// the key must already be checked for collisions so that we know if it _isCollision
+		//qqqq this is the case anytime we call iscollision, make sure that it holds.
+		// (especially, do we need to check metadta for collisions when we process a normal event) (shaan thinks no)
+		// (especially, be careful when converting a stream to its metastream or vice versa)
 		public bool TryGetValue(TKey key, out TValue value) =>
 			_isCollision(key)
 				? _collisions.TryGetValue(key, out value)

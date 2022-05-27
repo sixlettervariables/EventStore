@@ -552,119 +552,133 @@ namespace EventStore.Core {
 			perSubscrBus.Subscribe<SubscriptionMessage.PersistentSubscriptionTimerTick>(persistentSubscription);
 
 			// STORAGE SCAVENGER
-			var scavengerLogManager = new TFChunkScavengerLogManager(
-				nodeEndpoint: _nodeInfo.ExternalHttp.ToString(),
-				scavengeHistoryMaxAge: TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge),
-				ioDispatcher: ioDispatcher);
+			IScavengerFactory scavengerFactory;
 
-			var newScavenge = true; //qq make configurable
+			var newScavenge = true;
 			if (newScavenge) {
-				var metastreamLookup = new LogV2SystemStreams();
-				var streamIdConverter = new LogV2StreamIdConverter();
-				var cancellationCheckPeriod = 1024; //qq sensible?
-				//qq iron this out, possibly more needs to be in the logformat, depending on what is
-				// affected by the log format ofc.
-				var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
-				var accumulator = new Accumulator<string>(
-					chunkSize: TFConsts.ChunkSize,
-					metastreamLookup: metastreamLookup,
-					chunkReader: new ChunkReaderForAccumulator<string>(
-						db.Manager,
-						metastreamLookup,
-						streamIdConverter,
-						db.Config.ReplicationCheckpoint),
-					index: new IndexReaderForAccumulator(readIndex),
-					cancellationCheckPeriod: cancellationCheckPeriod);
-
-				var calculator = new Calculator<string>(
-					new IndexReaderForCalculator(readIndex),
-					chunkSize: TFConsts.ChunkSize,
-					cancellationCheckPeriod: cancellationCheckPeriod,
-					checkpointPeriod: 32_768); //qq sensible?
-
-				var chunkExecutor = new ChunkExecutor<string, LogRecord>(
-					metastreamLookup,
-					new ChunkManagerForExecutor(db.Manager, db.Config),
-					chunkSize: db.Config.ChunkSize,
-					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
-					cancellationCheckPeriod: cancellationCheckPeriod);
-
-				var chunkMerger = new ChunkMerger(
-					mergeChunks: !vNodeSettings.DisableScavengeMerging,
-					backend: new OldScavengeChunkMergerBackend(db: db));
-
-				//qq make sure the maxreaders for the pool is high enough to accommodate us
-				var indexExecutor = new IndexExecutor<string>(
-					new IndexScavenger(tableIndex),
-					new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
-					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
-
-				var cleaner = new Cleaner(
-					unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
-
-				var scavengePointSource = new ScavengePointSource(ioDispatcher);
-
 				//qq store in index dir?
 				var scavengeDirectory = Path.Combine(indexPath, "scavenging");
 				Directory.CreateDirectory(scavengeDirectory);
 
-				var connectionStringBuilder = new SqliteConnectionStringBuilder();
-				connectionStringBuilder.DataSource = Path.Combine(scavengeDirectory, "scavenging.db");
-				var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
+				// each scavenge we reuse the same sqlite backend
+				var lazyBackend = new Lazy<SqliteScavengeBackend<string>>(() => {
+					var connectionStringBuilder = new SqliteConnectionStringBuilder {
+						DataSource = Path.Combine(scavengeDirectory, "scavenging.db")
+					};
+					var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
 
-				var sqlite = new SqliteScavengeBackend<string>();
-				sqlite.Initialize(connection);
+					var sqlite = new SqliteScavengeBackend<string>();
+					sqlite.Initialize(connection);
+					return sqlite;
+				});
 
-				var scavengeState = new ScavengeState<string>(
-					longHasher,
-					metastreamLookup,
-					sqlite.CollisionStorage,
-					sqlite.Hashes,
-					sqlite.MetaStorage,
-					sqlite.MetaCollisionStorage,
-					sqlite.OriginalStorage,
-					sqlite.OriginalCollisionStorage,
-					sqlite.CheckpointStorage,
-					sqlite.ChunkTimeStampRanges,
-					sqlite.ChunkWeights,
-					new SqliteTransactionManager(
-						sqlite.TransactionFactory,
-						sqlite.CheckpointStorage));
+				scavengerFactory = new NewScavengerFactory((message, logger) => {
+					var metastreamLookup = new LogV2SystemStreams();
+					var streamIdConverter = new LogV2StreamIdConverter();
+					var cancellationCheckPeriod = 1024; //qq sensible?
 
-				var storageScavenger = new StorageScavenger(
-					logManager: scavengerLogManager,
-					scavengerFactory: new NewScavengerFactory(
-						state: scavengeState,
+					//qq iron this out, possibly more needs to be in the logformat, depending on what is
+					// affected by the log format ofc.
+					var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
+					var accumulator = new Accumulator<string>(
+						chunkSize: TFConsts.ChunkSize,
+						metastreamLookup: metastreamLookup,
+						chunkReader: new ChunkReaderForAccumulator<string>(
+							db.Manager,
+							metastreamLookup,
+							streamIdConverter,
+							db.Config.ReplicationCheckpoint),
+						index: new IndexReaderForAccumulator(readIndex),
+						cancellationCheckPeriod: cancellationCheckPeriod);
+
+					var calculator = new Calculator<string>(
+						new IndexReaderForCalculator(readIndex),
+						chunkSize: TFConsts.ChunkSize,
+						cancellationCheckPeriod: cancellationCheckPeriod,
+						checkpointPeriod: 32_768); //qq sensible?
+
+					var chunkExecutor = new ChunkExecutor<string, LogRecord>(
+						metastreamLookup,
+						new ChunkManagerForExecutor(db.Manager, db.Config),
+						chunkSize: db.Config.ChunkSize,
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
+						cancellationCheckPeriod: cancellationCheckPeriod);
+
+					var chunkMerger = new ChunkMerger(
+						mergeChunks: !vNodeSettings.DisableScavengeMerging,
+						backend: new OldScavengeChunkMergerBackend(db: db));
+
+					//qq make sure the maxreaders for the pool is high enough to accommodate us
+					var indexExecutor = new IndexExecutor<string>(
+						new IndexScavenger(tableIndex),
+						new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+
+					var cleaner = new Cleaner(
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+
+					var scavengePointSource = new ScavengePointSource(ioDispatcher);
+
+					var sqlite = lazyBackend.Value;
+					var state = new ScavengeState<string>(
+						longHasher,
+						metastreamLookup,
+						sqlite.CollisionStorage,
+						sqlite.Hashes,
+						sqlite.MetaStorage,
+						sqlite.MetaCollisionStorage,
+						sqlite.OriginalStorage,
+						sqlite.OriginalCollisionStorage,
+						sqlite.CheckpointStorage,
+						sqlite.ChunkTimeStampRanges,
+						sqlite.ChunkWeights,
+						new SqliteTransactionManager(
+							sqlite.TransactionFactory,
+							sqlite.CheckpointStorage));
+
+					return new Scavenger<string>(
+						state: state,
 						accumulator: accumulator,
 						calculator: calculator,
 						chunkExecutor: chunkExecutor,
 						chunkMerger: chunkMerger,
 						indexExecutor: indexExecutor,
 						cleaner: cleaner,
-						scavengePointSource: scavengePointSource));
+						scavengePointSource: scavengePointSource,
+						scavengerLogger: logger);
 
-				//qqq refactor these subscriptions now that it all uses the same StorageScavenger.
-				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
-				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
-				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
+				});
+
 			} else {
-				var storageScavenger = new StorageScavenger(
-					scavengerLogManager,
-					new OldScavengerFactory(
-						db: db,
-						tableIndex: tableIndex,
-						readIndex: readIndex,
-						alwaysKeepScavenged: vNodeSettings.AlwaysKeepScavenged,
+				scavengerFactory = new NewScavengerFactory((message, logger) =>
+					new OldScavenger(
+						alwaysKeepScaveged: vNodeSettings.AlwaysKeepScavenged,
 						mergeChunks: !vNodeSettings.DisableScavengeMerging,
-						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes));
+						startFromChunk: message.StartFromChunk,
+						tfChunkScavenger: new TFChunkScavenger(
+							db: db,
+							scavengerLog: logger,
+							tableIndex: tableIndex,
+							readIndex: readIndex,
+							unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
+							threads: message.Threads)));
 
-				// ReSharper disable RedundantTypeArgumentsOfMethod
-				_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
-				_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
-				_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
-				// ReSharper restore RedundantTypeArgumentsOfMethod
 			}
 
+			var scavengerLogManager = new TFChunkScavengerLogManager(
+				nodeEndpoint: _nodeInfo.ExternalHttp.ToString(),
+				scavengeHistoryMaxAge: TimeSpan.FromDays(vNodeSettings.ScavengeHistoryMaxAge),
+				ioDispatcher: ioDispatcher);
+
+			var storageScavenger = new StorageScavenger(
+				logManager: scavengerLogManager,
+				scavengerFactory: scavengerFactory);
+
+			// ReSharper disable RedundantTypeArgumentsOfMethod
+			_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
+			_mainBus.Subscribe<ClientMessage.StopDatabaseScavenge>(storageScavenger);
+			_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
+			// ReSharper restore RedundantTypeArgumentsOfMethod
 
 			// TIMER
 			_timeProvider = new RealTimeProvider();

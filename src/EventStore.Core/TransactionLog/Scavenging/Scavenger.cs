@@ -72,7 +72,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				result = ScavengeResult.Failed;
 				Log.ErrorException(exc, "SCAVENGING: error while scavenging DB.");
 				error = string.Format("Error while scavenging DB: {0}.", exc.Message);
-				throw; //qqq probably dont want this line, just here for tests i dont want to touch atm
 			} finally {
 				LogCollisions();
 				try {

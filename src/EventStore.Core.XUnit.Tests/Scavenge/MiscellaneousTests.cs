@@ -167,19 +167,22 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		[Fact]
 		public async Task metadata_in_transaction_not_supported() {
-			var e = await Assert.ThrowsAsync<InvalidOperationException>(async () => {
-				await new Scenario()
-					.WithDbPath(Fixture.Directory)
-					.WithDb(x => x
-						.Chunk(
-							Rec.TransSt(0, "$$ab-1"),
-							Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount1))
-						.Chunk(ScavengePointRec(1)))
-					.WithState(x => x.WithConnection(Fixture.DbConnection))
-					.RunAsync();
-			});
+			var logger = new FakeTFScavengerLog();
 
-			Assert.Equal("Found metadata in transaction in stream $$ab-1", e.Message);
+			await new Scenario()
+				.WithDbPath(Fixture.Directory)
+				.WithDb(x => x
+					.Chunk(
+						Rec.TransSt(0, "$$ab-1"),
+						Rec.Prepare(0, "$$ab-1", "$metadata", metadata: MaxCount1))
+					.Chunk(ScavengePointRec(1)))
+				.WithState(x => x.WithConnection(Fixture.DbConnection))
+				.WithLogger(logger)
+				.RunAsync();
+
+			Assert.True(logger.Completed);
+			Assert.Equal(TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
+			Assert.Equal("Error while scavenging DB: Found metadata in transaction in stream $$ab-1.", logger.Error);
 		}
 
 		[Fact]
