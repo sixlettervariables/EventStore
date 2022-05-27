@@ -229,7 +229,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					new LogV2StreamIdConverter(),
 					dbResult.Db.Config.ReplicationCheckpoint);
 
-				var indexReader = new ScaffoldCheatingIndexReaderForAccumulator();
+				var indexReader = new IndexReaderForAccumulator(readIndex);
 
 				var accumulatorMetastreamLookup = new AdHocMetastreamLookupInterceptor<string>(
 					metastreamLookup,
@@ -489,7 +489,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			}
 
 			// check we have everything we are supposed to
-			// cant use normal stram reads because they will apply metadata etc.
+			// cant use normal stream reads because they will apply metadata etc.
 			var minEventNumbers = new Dictionary<string, long>();
 			var maxEventNumbers = new Dictionary<string, long>();
 
@@ -521,7 +521,12 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 							maxCount: 1,
 							beforePosition: long.MaxValue);
 
-					Assert.True(result.EventInfos.Length == 1, $"Couldn't find {streamId}:{eventNumber} in index");
+					if (result.EventInfos.Length != 1) {
+						// remember this applies metadata, so is of limited use
+						var wholeStream = actual.ReadStreamEventsForward(streamId, fromEventNumber: 0, maxCount: 100);
+						Assert.True(result.EventInfos.Length == 1, $"Couldn't find {streamId}:{eventNumber} in index.");
+					}
+
 
 					var info = result.EventInfos[0];
 					Assert.Equal(prepare.LogPosition, info.LogPosition);

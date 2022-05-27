@@ -255,15 +255,15 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	//	}
 	//}
 
-	public class ScaffoldCheatingIndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
-		public EventInfo[] ReadEventInfoBackward(string streamId, long fromEventNumber, int maxCount, ScavengePoint scavengePoint) {
-			return new EventInfo[0];
-		}
+	//public class ScaffoldCheatingIndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
+	//	public EventInfo[] ReadEventInfoBackward(string streamId, StreamHandle<string> handle, long fromEventNumber, int maxCount, ScavengePoint scavengePoint) {
+	//		return new EventInfo[0];
+	//	}
 
-		public EventInfo[] ReadEventInfoForward(string streamId, long fromEventNumber, int maxCount, ScavengePoint scavengePoint) {
-			return new EventInfo[0];
-		}
-	}
+	//	public EventInfo[] ReadEventInfoForward(StreamHandle<string> handle, long fromEventNumber, int maxCount, ScavengePoint scavengePoint) {
+	//		return new EventInfo[0];
+	//	}
+	//}
 
 	//public class ScaffoldIndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
 	//	private readonly LogRecord[][] _log;

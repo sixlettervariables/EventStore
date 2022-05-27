@@ -4,9 +4,9 @@ using EventStore.Core.Services.Storage.ReaderIndex;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class IndexReaderForAccumulator : IIndexReaderForAccumulator<string> {
-		private readonly ReadIndex _readIndex;
+		private readonly IReadIndex _readIndex;
 
-		public IndexReaderForAccumulator(ReadIndex readIndex) {
+		public IndexReaderForAccumulator(IReadIndex readIndex) {
 			_readIndex = readIndex;
 		}
 

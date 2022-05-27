@@ -384,7 +384,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			if (isInOrder) {
-				if (eventInfos.Length > 0 && eventInfos[0].EventNumber < record.EventNumber) {
+				if (eventInfos.Length > 0 &&
+					eventInfos[0].EventNumber < record.EventNumber &&
+					eventInfos[0].LogPosition < record.LogPosition) {
 					replacedPosition = eventInfos[0].LogPosition;
 				} else {
 					replacedPosition = null;

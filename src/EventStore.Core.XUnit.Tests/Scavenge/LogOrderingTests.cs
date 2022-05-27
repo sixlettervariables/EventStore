@@ -9,7 +9,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class LogDisorderingTests : SqliteDbPerTest<LogDisorderingTests> {
 		// if a metadata was ever written with the wrong event number (e.g. 0) due to old bugs
 		// the rest of the system will not respect it, so scavenge must not either
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply() {
 			var t = 0;
 			await new Scenario()
@@ -30,7 +30,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					});;
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply_a() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -58,7 +58,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.KeepAll, metastreamData.DiscardPoint);
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply_b() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -86,7 +86,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply_c() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -114,7 +114,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply_d() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -142,7 +142,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_does_not_apply_e() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -170,7 +170,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(4), metastreamData.DiscardPoint);
 		}
 
-		[Fact(Skip = "should pass when we have the accumulator index access")]
+		[Fact]
 		public async Task wrong_order_metadata_then_right_does_apply() {
 			var t = 0;
 			await new Scenario()

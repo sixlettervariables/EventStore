@@ -65,7 +65,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadata_gets_scavenged() {
 			var t = 0;
 			await new Scenario()
@@ -101,7 +101,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadata_for_metadata_stream_does_not_apply() {
 			// e.g. can't increase the maxcount to three
 			var t = 0;
@@ -122,7 +122,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task unusual_metadata_still_takes_effect() {
 			var t = 0;
 			await new Scenario()
@@ -182,22 +182,29 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal("Found metadata in transaction in stream $$ab-1", e.Message);
 		}
 
-		[Fact(Skip = "should pass when we no longer have the scaffolding")]
+		[Fact]
 		public async Task transactions_not_scavenged() {
 			await new Scenario()
 				.WithDbPath(Fixture.Directory)
 				.WithDb(x => x
 					.Chunk(
-						Rec.Prepare(0, "ab-1"),
+						Rec.Write(0, "ab-1"),
 						Rec.TransSt(1, "ab-1"),
 						Rec.Prepare(1, "ab-1"),
 						Rec.TransEnd(1, "ab-1"),
-						Rec.Prepare(2, "ab-1"),
-						Rec.Prepare(3, "$$ab-1", "$metadata", metadata: MaxCount1))
+						Rec.Commit(1, "ab-1"),
+						Rec.Write(2, "ab-1"),
+						Rec.Write(3, "$$ab-1", "$metadata", metadata: MaxCount1))
 					.Chunk(ScavengePointRec(4)))
 				.WithState(x => x.WithConnection(Fixture.DbConnection))
-				.RunAsync(x => new[] {
-						x.Recs[0].KeepIndexes(1, 2, 3, 4, 5),
+				.RunAsync(
+					x => new[] {
+						x.Recs[0].KeepIndexes(1, 2, 3, 4, 5, 6),
+						x.Recs[1],
+					},
+					// still removed from the index
+					x => new[] {
+						x.Recs[0].KeepIndexes(5, 6),
 						x.Recs[1],
 					});
 		}

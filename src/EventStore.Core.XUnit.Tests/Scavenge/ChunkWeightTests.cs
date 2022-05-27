@@ -51,7 +51,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(DiscardPoint.DiscardBefore(3), data.MaybeDiscardPoint);
 		}
 
-		[Fact(Skip ="this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadata_replaced_by_metadata() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -69,7 +69,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(0, state.SumChunkWeights(1, 1));
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadata_replaced_by_tombstone() {
 			var t = 0;
 			var (state, db) = await new Scenario()
@@ -87,7 +87,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(0, state.SumChunkWeights(1, 1));
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadata_replaced_multiple_times() {
 			var t = 0;
 			var (state, db) = await new Scenario()

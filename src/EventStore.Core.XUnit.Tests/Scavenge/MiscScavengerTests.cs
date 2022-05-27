@@ -123,7 +123,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_non_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -142,7 +142,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_all_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -161,7 +161,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_original_streams_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -180,7 +180,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_meta_streams_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -199,7 +199,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_original_and_meta_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -218,7 +218,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_different_streams_cross_colliding() {
 			var t = 0;
 			await new Scenario()
@@ -237,7 +237,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "this should pass when the indexreaderforaccumulator is implemented")]
+		[Fact]
 		public async Task metadatas_for_same_stream() {
 			var t = 0;
 			await new Scenario()

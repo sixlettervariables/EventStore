@@ -1,4 +1,5 @@
 ﻿using System;
+using EventStore.Core.TransactionLog.LogRecords;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// this abstracts the actual log records from the chunk execution logic
@@ -14,6 +15,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				TRecord record,
 				DateTime timeStamp,
 				TStreamId streamId,
+				bool isSelfCommitted,
 				long eventNumber) {
 
 				Length = length;
@@ -21,12 +23,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				Record = record;
 				TimeStamp = timeStamp;
 				StreamId = streamId;
+				IsSelfCommitted = isSelfCommitted;
 				EventNumber = eventNumber;
 			}
 
 			public long LogPosition { get; private set; }
 			public DateTime TimeStamp { get; private set; }
 			public TStreamId StreamId { get; private set; }
+			public bool IsSelfCommitted { get; private set; }
 			public long EventNumber { get; private set; }
 		}
 

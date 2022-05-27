@@ -7,6 +7,7 @@ using EventStore.Common.Log;
 using EventStore.Core.Exceptions;
 using EventStore.Core.LogAbstraction;
 using EventStore.Core.TransactionLog.Chunks;
+using EventStore.Core.TransactionLog.LogRecords;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	public class ChunkExecutor {
@@ -240,7 +241,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			if (record.LogPosition >= scavengePoint.Position)
 				return false;
 
-			if (record.EventNumber < 0) {
+			if (!record.IsSelfCommitted) {
 				// we could discard from transactions sometimes, either by accumulating a state for them
 				// or doing a similar trick as old scavenge and limiting it to transactions that were
 				// stated and commited in the same chunk. however for now this isn't considered so

@@ -43,6 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						record: record,
 						timeStamp: sourcePrepare.TimeStamp,
 						streamId: sourcePrepare.EventStreamId,
+						isSelfCommitted: sourcePrepare.Flags.HasAnyOf(PrepareFlags.IsCommitted),
 						eventNumber: sourcePrepare.ExpectedVersion + 1);
 					yield return true;
 				}
