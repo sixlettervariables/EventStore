@@ -23,7 +23,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		/// Returns the name of the mapped type.
 		/// </summary>
 		public static string GetTypeName<T>() {
-			return Map<T>().GetType().Name;
+			return Map<T>().ToString().ToUpper();
 		}
 	}
 }

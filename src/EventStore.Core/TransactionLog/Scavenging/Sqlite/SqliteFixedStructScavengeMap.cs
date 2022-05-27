@@ -55,9 +55,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public void Initialize(SqliteBackend sqlite) {
 			var keyType = SqliteTypeMapping.GetTypeName<TKey>();
 			var sql = $"CREATE TABLE IF NOT EXISTS {TableName} (key {keyType} PRIMARY KEY, value Blob NOT NULL)";
-			//qq comes out as
-			// CREATE TABLE IF NOT EXISTS OverwriteValueFixedStructMap (key SqliteType PRIMARY KEY, value Blob NOT NULL)
-			//                                                                 ^ suspicious
 			sqlite.InitializeDb(sql);
 			
 			_add = new AddCommand(TableName, sqlite);
