@@ -58,6 +58,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		void SetOriginalStreamTombstone(TStreamId originalStreamId);
 
 		void SetChunkTimeStampRange(int logicalChunkNumber, ChunkTimeStampRange range);
+
+		StreamHandle<TStreamId> GetStreamHandle(TStreamId streamId);
 	}
 
 	public interface IScavengeStateForCalculatorReadOnly<TStreamId> : IScavengeStateCommon {

@@ -130,6 +130,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_chunkTimeStampRanges[logicalChunkNumber] = range;
 		}
 
+		public StreamHandle<TStreamId> GetStreamHandle(TStreamId streamId) =>
+			_collisionDetector.IsCollision(streamId) ?
+				StreamHandle.ForStreamId(streamId) :
+				StreamHandle.ForHash<TStreamId>(_hasher.Hash(streamId));
+
 		//
 		// FOR CALCULATOR
 		//

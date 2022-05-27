@@ -82,6 +82,16 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			return _indexReader.ReadEventInfoForward_NoCollisions(stream, fromEventNumber, maxCount, beforePosition);
 		}
 
+		public IndexReadEventInfoResult ReadEventInfoBackward_KnownCollisions(string streamId, long fromEventNumber, int maxCount,
+			long beforePosition) {
+			return _indexReader.ReadEventInfoBackward_KnownCollisions(streamId, fromEventNumber, maxCount, beforePosition);
+		}
+
+		public IndexReadEventInfoResult ReadEventInfoBackward_NoCollisions(ulong stream, Func<ulong, string> getStreamId,
+			long fromEventNumber, int maxCount, long beforePosition) {
+			return _indexReader.ReadEventInfoBackward_NoCollisions(stream, getStreamId, fromEventNumber, maxCount, beforePosition);
+		}
+
 		IndexReadStreamResult IReadIndex.ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount) {
 			return _indexReader.ReadStreamEventsBackward(streamId, fromEventNumber, maxCount);
 		}

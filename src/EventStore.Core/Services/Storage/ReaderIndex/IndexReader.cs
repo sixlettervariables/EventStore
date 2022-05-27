@@ -21,6 +21,8 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 		IndexReadStreamResult ReadStreamEventsBackward(string streamId, long fromEventNumber, int maxCount);
 		IndexReadEventInfoResult ReadEventInfoForward_KnownCollisions(string streamId, long fromEventNumber, int maxCount, long beforePosition);
 		IndexReadEventInfoResult ReadEventInfoForward_NoCollisions(ulong stream, long fromEventNumber, int maxCount, long beforePosition);
+		IndexReadEventInfoResult ReadEventInfoBackward_KnownCollisions(string streamId, long fromEventNumber, int maxCount, long beforePosition);
+		IndexReadEventInfoResult ReadEventInfoBackward_NoCollisions(ulong stream, Func<ulong, string> getStreamId, long fromEventNumber, int maxCount, long beforePosition);
 
 		/// <summary>
 		/// Doesn't filter $maxAge, $maxCount, $tb(truncate before), doesn't check stream deletion, etc.
@@ -270,39 +272,9 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			var endEventNumber = fromEventNumber > long.MaxValue - maxCount + 1 ?
 				long.MaxValue : fromEventNumber + maxCount - 1;
 
-			var entries = readIndexEntries(startEventNumber, endEventNumber);
-			var eventInfos = new List<EventInfo>();
-
-			var prevEntry = new IndexEntry(long.MaxValue, long.MaxValue, long.MaxValue);
-			var mayHaveDuplicates = false;
-			foreach (var entry in entries) {
-				if (entry.Position >= beforePosition) continue;
-
-				if (prevEntry.CompareTo(entry) <= 0)
-					mayHaveDuplicates = true;
-
-				if (prevEntry.Stream == entry.Stream &&
-				    prevEntry.Version == entry.Version)
-					mayHaveDuplicates = true;
-
-				eventInfos.Add(new EventInfo(entry.Position, entry.Version));
-				prevEntry = entry;
-			}
-
-			EventInfo[] result;
-			if (mayHaveDuplicates) {
-				// note that even if _skipIndexScanOnReads = True, we're still reordering and filtering out duplicates here.
-				result = eventInfos
-					.OrderByDescending(x => x.EventNumber)
-					.GroupBy(x => x.EventNumber)
-					.Select(x => x.Last())
-					.ToArray();
-			} else {
-				result = eventInfos.ToArray();
-			}
-
-			Array.Reverse(result);
-			return new IndexReadEventInfoResult(result);
+			var eventInfos = ReadEventInfoInternal(readIndexEntries, startEventNumber, endEventNumber, beforePosition);
+			Array.Reverse(eventInfos);
+			return new IndexReadEventInfoResult(eventInfos);
 		}
 
 		IndexReadStreamResult IIndexReader.
@@ -371,6 +343,88 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 				return new IndexReadStreamResult(endEventNumber, maxCount, records, metadata,
 					nextEventNumber, lastEventNumber, isEndOfStream);
 			}
+		}
+
+		public IndexReadEventInfoResult ReadEventInfoBackward_KnownCollisions(string streamId, long fromEventNumber, int maxCount,
+			long beforePosition) {
+			if (fromEventNumber < 0)
+				fromEventNumber = GetStreamLastEventNumber_KnownCollisions(streamId, beforePosition);
+
+			using (var reader = _backend.BorrowReader()) {
+				return ReadEventInfoBackwardInternal((startEventNumber, endEventNumber) => {
+					return _tableIndex.GetRange(streamId, startEventNumber, endEventNumber)
+						.Select(x => new { IndexEntry = x, Prepare = ReadPrepareInternal(reader, x.Position) })
+						.Where(x => x.Prepare != null && x.Prepare.EventStreamId == streamId)
+						.Select(x => x.IndexEntry);
+				}, fromEventNumber, maxCount, beforePosition);
+			}
+		}
+
+		public IndexReadEventInfoResult ReadEventInfoBackward_NoCollisions(
+			ulong stream,
+			Func<ulong,string> getStreamId,
+			long fromEventNumber,
+			int maxCount,
+			long beforePosition) {
+			if (fromEventNumber < 0)
+				fromEventNumber = GetStreamLastEventNumber_NoCollisions(stream, getStreamId, beforePosition);
+
+			return ReadEventInfoBackwardInternal((startEventNumber, endEventNumber) =>
+				_tableIndex.GetRange(stream, startEventNumber,  endEventNumber), fromEventNumber, maxCount, beforePosition);
+		}
+
+		private static IndexReadEventInfoResult ReadEventInfoBackwardInternal(
+			Func<long, long, IEnumerable<IndexEntry>> readIndexEntries,
+			long fromEventNumber,
+			int maxCount,
+			long beforePosition) {
+			Ensure.Nonnegative(fromEventNumber, nameof(fromEventNumber));
+			Ensure.Positive(maxCount, nameof(maxCount));
+
+			var startEventNumber = Math.Max(0L, fromEventNumber - maxCount + 1);
+			var endEventNumber = fromEventNumber;
+
+			var eventInfos = ReadEventInfoInternal(readIndexEntries, startEventNumber, endEventNumber, beforePosition);
+			return new IndexReadEventInfoResult(eventInfos);
+		}
+
+		private static EventInfo[] ReadEventInfoInternal( // resulting array is in descending order
+			Func<long, long, IEnumerable<IndexEntry>> readIndexEntries,
+			long startEventNumber,
+			long endEventNumber,
+			long beforePosition) {
+			var entries = readIndexEntries(startEventNumber, endEventNumber);
+			var eventInfos = new List<EventInfo>();
+
+			var prevEntry = new IndexEntry(long.MaxValue, long.MaxValue, long.MaxValue);
+			var mayHaveDuplicates = false;
+			foreach (var entry in entries) {
+				if (entry.Position >= beforePosition) continue;
+
+				if (prevEntry.CompareTo(entry) <= 0)
+					mayHaveDuplicates = true;
+
+				if (prevEntry.Stream == entry.Stream &&
+				    prevEntry.Version == entry.Version)
+					mayHaveDuplicates = true;
+
+				eventInfos.Add(new EventInfo(entry.Position, entry.Version));
+				prevEntry = entry;
+			}
+
+			EventInfo[] result;
+			if (mayHaveDuplicates) {
+				// note that even if _skipIndexScanOnReads = True, we're still reordering and filtering out duplicates here.
+				result = eventInfos
+					.OrderByDescending(x => x.EventNumber)
+					.GroupBy(x => x.EventNumber)
+					.Select(x => x.Last())
+					.ToArray();
+			} else {
+				result = eventInfos.ToArray();
+			}
+
+			return result;
 		}
 
 		public string GetEventStreamIdByTransactionId(long transactionId) {
