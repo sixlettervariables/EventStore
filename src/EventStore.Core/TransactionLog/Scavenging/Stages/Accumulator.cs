@@ -255,7 +255,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				throw new InvalidOperationException(
 					$"Found metadata in transaction in stream {record.StreamId}");
 
-			CheckMetadataOrdering(record, scavengePoint, out var isInOrder, out var replacedPosition);
+			CheckMetadataOrdering(
+				record,
+				state.GetStreamHandle(record.StreamId),
+				scavengePoint,
+				out var isInOrder,
+				out var replacedPosition);
 
 			if (replacedPosition.HasValue) {
 				var logicalChunkNumber = (int)(replacedPosition.Value / _chunkSize);
@@ -314,6 +319,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			var metastreamId = _metastreamLookup.MetaStreamOf(originalStreamId);
 			state.SetMetastreamTombstone(metastreamId);
+			state.DetectCollisions(metastreamId); // required before we grab a stream handle below
 
 			// unlike metadata, a tombstone still takes effect even it is out of order in the log
 			// (because the index will still bless it with a max event number in the indexentry)
@@ -324,6 +330,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			// the last one really is the one we want.
 			var eventInfos = _index.ReadEventInfoBackward(
 				streamId: metastreamId,
+				handle: state.GetStreamHandle(metastreamId),
 				fromEventNumber: -1, // last
 				maxCount: 1,
 				scavengePoint: scavengePoint);
@@ -336,6 +343,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private void CheckMetadataOrdering(
 			RecordForAccumulator<TStreamId>.MetadataStreamRecord record,
+			StreamHandle<TStreamId> metastreamId,
 			ScavengePoint scavengePoint,
 			out bool isInOrder,
 			out long? replacedPosition) {
@@ -359,7 +367,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				: record.EventNumber - 1;
 
 			var eventInfos = _index.ReadEventInfoForward(
-				streamId: record.StreamId,
+				handle: metastreamId,
 				fromEventNumber: fromEventNumber,
 				maxCount: 100,
 				scavengePoint: scavengePoint);
