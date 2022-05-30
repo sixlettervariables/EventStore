@@ -350,6 +350,9 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			if (fromEventNumber < 0)
 				fromEventNumber = GetStreamLastEventNumber_KnownCollisions(streamId, beforePosition);
 
+			if (fromEventNumber == ExpectedVersion.NoStream)
+				return new IndexReadEventInfoResult(new EventInfo[] { });
+
 			using (var reader = _backend.BorrowReader()) {
 				return ReadEventInfoBackwardInternal((startEventNumber, endEventNumber) => {
 					return _tableIndex.GetRange(streamId, startEventNumber, endEventNumber)
@@ -368,6 +371,9 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			long beforePosition) {
 			if (fromEventNumber < 0)
 				fromEventNumber = GetStreamLastEventNumber_NoCollisions(stream, getStreamId, beforePosition);
+
+			if (fromEventNumber == ExpectedVersion.NoStream)
+				return new IndexReadEventInfoResult(new EventInfo[] { });
 
 			return ReadEventInfoBackwardInternal((startEventNumber, endEventNumber) =>
 				_tableIndex.GetRange(stream, startEventNumber,  endEventNumber), fromEventNumber, maxCount, beforePosition);
