@@ -600,6 +600,9 @@ namespace EventStore.Core.Index {
 
 			var candidateEntry = ReadEntry(_indexEntrySize, high, workItem, _version);
 
+			if (!isForThisStream(candidateEntry))
+				throw new HashCollisionException();
+
 			if (candidateEntry.Stream == stream &&
 			    candidateEntry.Position < beforePosition) {
 				entry = candidateEntry;

@@ -520,7 +520,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var done = Assert.IsType<ScavengeCheckpoint.Done>(checkpoint);
 		}
 
-		[Fact(Skip = "the collision appears to be tripping up the index reader for calculator, so it returns the wrong last event number")]
+		[Fact]
 		public async Task can_cancel_during_chunk_execution_and_resume() {
 			var t = 0;
 			var scenario = new Scenario();
