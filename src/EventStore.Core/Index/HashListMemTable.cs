@@ -155,7 +155,9 @@ namespace EventStore.Core.Index {
 				return true;
 			} catch (SearchStoppedException) {
 				// fall back to linear search if there was a hash collision
-				int maxIdx = list.FindMax(e => e.LogPos < beforePosition);
+				int maxIdx = list.FindMax(e =>
+					e.LogPos < beforePosition &&
+					isForThisStream(new IndexEntry(hash, e.EvNum, e.LogPos)));
 
 				if (maxIdx == -1)
 					return false;
