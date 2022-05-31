@@ -35,6 +35,7 @@ namespace EventStore.Core.Tests.Services.Storage {
 		protected ICheckpoint ChaserCheckpoint;
 		protected ICheckpoint ReplicationCheckpoint;
 
+		private readonly int _chunkSize;
 		private TFChunkScavenger _scavenger;
 		private bool _scavenge;
 		private bool _completeLastChunkOnScavenge;
@@ -45,6 +46,7 @@ namespace EventStore.Core.Tests.Services.Storage {
 			long metastreamMaxCount = 1,
 			byte indexBitnessVersion = Opts.IndexBitnessVersionDefault,
 			bool performAdditionalChecks = true,
+			int chunkSize = 10_000,
 			IHasher<string> lowHasher = null,
 			IHasher<string> highHasher = null) {
 			Ensure.Positive(maxEntriesInMemTable, "maxEntriesInMemTable");
@@ -55,6 +57,7 @@ namespace EventStore.Core.Tests.Services.Storage {
 			LowHasher = lowHasher ?? new XXHashUnsafe();
 			HighHasher = highHasher ?? new Murmur3AUnsafe();
 			Hasher = new CompositeHasher<string>(LowHasher, HighHasher);
+			_chunkSize = chunkSize;
 		}
 
 		public override void TestFixtureSetUp() {
@@ -65,7 +68,7 @@ namespace EventStore.Core.Tests.Services.Storage {
 			ReplicationCheckpoint = new InMemoryCheckpoint(-1);
 
 			Db = new TFChunkDb(TFChunkHelper.CreateDbConfig(PathName, WriterCheckpoint, ChaserCheckpoint,
-				replicationCheckpoint: ReplicationCheckpoint));
+				replicationCheckpoint: ReplicationCheckpoint, chunkSize: _chunkSize));
 
 			Db.Open();
 			// create db
