@@ -1,23 +1,23 @@
-﻿using Xunit;
+﻿using NUnit.Framework;
 
-namespace EventStore.Core.XUnit.Tests.Scavenge {
+namespace EventStore.Core.Tests.Index.Hashers {
 	public class HumanReadableHasherTests {
-		[Fact]
+		[Test]
 		public void hashes_original_stream() {
 			var sut = new HumanReadableHasher();
-			Assert.Equal('a', sut.Hash("ma-1"));
+			Assert.AreEqual('a', sut.Hash("ma-1"));
 		}
 
-		[Fact]
+		[Test]
 		public void hashes_meta_stream() {
 			var sut = new HumanReadableHasher();
-			Assert.Equal('m', sut.Hash("$$ma-1"));
+			Assert.AreEqual('m', sut.Hash("$$ma-1"));
 		}
 
-		[Fact]
+		[Test]
 		public void hashes_empty_string() {
 			var sut = new HumanReadableHasher();
-			Assert.Equal(0UL, sut.Hash(""));
+			Assert.AreEqual(0UL, sut.Hash(""));
 		}
 	}
 }

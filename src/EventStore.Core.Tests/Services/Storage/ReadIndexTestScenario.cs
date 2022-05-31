@@ -1,11 +1,8 @@
 ﻿using System;
 using EventStore.Common.Utils;
-using EventStore.Core.Bus;
 using EventStore.Core.Data;
 using EventStore.Core.DataStructures;
-using EventStore.Core.Helpers;
 using EventStore.Core.Index;
-using EventStore.Core.Messaging;
 using EventStore.Core.Services;
 using EventStore.Core.Services.Storage.ReaderIndex;
 using EventStore.Core.Tests.Fakes;
@@ -28,6 +25,10 @@ namespace EventStore.Core.Tests.Services.Storage {
 		protected TableIndex TableIndex;
 		protected IReadIndex ReadIndex;
 
+		protected readonly IHasher<string> LowHasher;
+		protected readonly IHasher<string> HighHasher;
+		protected readonly ILongHasher<string> Hasher;
+
 		protected TFChunkDb Db;
 		protected TFChunkWriter Writer;
 		protected ICheckpoint WriterCheckpoint;
@@ -39,13 +40,21 @@ namespace EventStore.Core.Tests.Services.Storage {
 		private bool _completeLastChunkOnScavenge;
 		private bool _mergeChunks;
 
-		protected ReadIndexTestScenario(int maxEntriesInMemTable = 20, long metastreamMaxCount = 1,
-			byte indexBitnessVersion = Opts.IndexBitnessVersionDefault, bool performAdditionalChecks = true) {
+		protected ReadIndexTestScenario(
+			int maxEntriesInMemTable = 20,
+			long metastreamMaxCount = 1,
+			byte indexBitnessVersion = Opts.IndexBitnessVersionDefault,
+			bool performAdditionalChecks = true,
+			IHasher<string> lowHasher = null,
+			IHasher<string> highHasher = null) {
 			Ensure.Positive(maxEntriesInMemTable, "maxEntriesInMemTable");
 			MaxEntriesInMemTable = maxEntriesInMemTable;
 			MetastreamMaxCount = metastreamMaxCount;
 			IndexBitnessVersion = indexBitnessVersion;
 			PerformAdditionalCommitChecks = performAdditionalChecks;
+			LowHasher = lowHasher ?? new XXHashUnsafe();
+			HighHasher = highHasher ?? new Murmur3AUnsafe();
+			Hasher = new CompositeHasher<string>(LowHasher, HighHasher);
 		}
 
 		public override void TestFixtureSetUp() {
@@ -72,9 +81,8 @@ namespace EventStore.Core.Tests.Services.Storage {
 
 			var readers = new ObjectPool<ITransactionFileReader>("Readers", 2, 5,
 				() => new TFChunkReader(Db, Db.Config.WriterCheckpoint));
-			var lowHasher = new XXHashUnsafe();
-			var highHasher = new Murmur3AUnsafe();
-			TableIndex = new TableIndex(GetFilePathFor("index"), lowHasher, highHasher,
+
+			TableIndex = new TableIndex(GetFilePathFor("index"), (IHasher) LowHasher, (IHasher) HighHasher,
 				() => new HashListMemTable(IndexBitnessVersion, MaxEntriesInMemTable * 2),
 				() => new TFReaderLease(readers),
 				IndexBitnessVersion,
