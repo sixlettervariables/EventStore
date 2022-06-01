@@ -104,6 +104,9 @@ namespace EventStore.Core.Tests.Services.Storage {
 
 			ReadIndex.Init(ChaserCheckpoint.Read());
 
+			// wait for tables to be merged
+			TableIndex.WaitForBackgroundTasks();
+
 			// scavenge must run after readIndex is built
 			if (_scavenge) {
 				if (_completeLastChunkOnScavenge)
