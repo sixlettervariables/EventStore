@@ -24,7 +24,7 @@ namespace EventStore.Core.Tests.Services.Storage.HashCollisions {
 			maxEntriesInMemTable: maxEntriesInMemTable,
 			lowHasher: new ConstantHasher(0),
 			highHasher: new HumanReadableHasher32()) {
-			_numEvents = _random.Next(500, 1000);
+			_numEvents = _random.Next(100, 400);
 			_events = new List<EventRecord>(_numEvents);
 		}
 
