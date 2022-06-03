@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using EventStore.Core.Data;
 using EventStore.Core.Services.Storage.ReaderIndex;
 
@@ -12,7 +11,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_readIndex = readIndex;
 		}
 
-		//qq add unit tests where required from here down
 		public long GetLastEventNumber(StreamHandle<string> handle, ScavengePoint scavengePoint) {
 			switch (handle.Kind) {
 				case StreamHandle.Kind.Hash:
@@ -26,7 +24,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		//qq add unit tests where required from here down
 		public EventInfo[] ReadEventInfoForward(
 			StreamHandle<string> handle,
 			long fromEventNumber,
