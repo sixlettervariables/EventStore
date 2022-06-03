@@ -586,6 +586,24 @@ namespace EventStore.Core {
 					//qq iron this out, possibly more needs to be in the logformat, depending on what is
 					// affected by the log format ofc.
 					var longHasher = new CompositeHasher<string>(lowHasher, highHasher);
+
+					var sqlite = lazyBackend.Value;
+					var state = new ScavengeState<string>(
+						longHasher,
+						metastreamLookup,
+						sqlite.CollisionStorage,
+						sqlite.Hashes,
+						sqlite.MetaStorage,
+						sqlite.MetaCollisionStorage,
+						sqlite.OriginalStorage,
+						sqlite.OriginalCollisionStorage,
+						sqlite.CheckpointStorage,
+						sqlite.ChunkTimeStampRanges,
+						sqlite.ChunkWeights,
+						new SqliteTransactionManager(
+							sqlite.TransactionFactory,
+							sqlite.CheckpointStorage));
+
 					var accumulator = new Accumulator<string>(
 						chunkSize: TFConsts.ChunkSize,
 						metastreamLookup: metastreamLookup,
@@ -599,7 +617,7 @@ namespace EventStore.Core {
 						throttle: throttle);
 
 					var calculator = new Calculator<string>(
-						new IndexReaderForCalculator(readIndex),
+						new IndexReaderForCalculator(readIndex, state.LookupStreamIds),
 						chunkSize: TFConsts.ChunkSize,
 						cancellationCheckPeriod: cancellationCheckPeriod,
 						checkpointPeriod: 32_768, //qq sensible?
@@ -629,23 +647,6 @@ namespace EventStore.Core {
 						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
 
 					var scavengePointSource = new ScavengePointSource(ioDispatcher);
-
-					var sqlite = lazyBackend.Value;
-					var state = new ScavengeState<string>(
-						longHasher,
-						metastreamLookup,
-						sqlite.CollisionStorage,
-						sqlite.Hashes,
-						sqlite.MetaStorage,
-						sqlite.MetaCollisionStorage,
-						sqlite.OriginalStorage,
-						sqlite.OriginalCollisionStorage,
-						sqlite.CheckpointStorage,
-						sqlite.ChunkTimeStampRanges,
-						sqlite.ChunkWeights,
-						new SqliteTransactionManager(
-							sqlite.TransactionFactory,
-							sqlite.CheckpointStorage));
 
 					return new Scavenger<string>(
 						state: state,
