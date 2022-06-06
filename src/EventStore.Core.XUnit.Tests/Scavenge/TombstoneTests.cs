@@ -7,7 +7,7 @@ using static EventStore.Core.XUnit.Tests.Scavenge.StreamMetadatas;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class TombstoneTests : SqliteDbPerTest<TombstoneTests> {
-		[Fact(Skip="i think this is failing because when get info for -1 it looks up the last event number for the metadatastream but there isn't one, so it is still -1")]
+		[Fact]
 		public async Task simple_tombstone() {
 			var t = 0;
 			await new Scenario()
@@ -24,7 +24,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				});
 		}
 
-		[Fact(Skip = "i think this is failing because when get info for -1 it looks up the last event number for the metadatastream but there isn't one, so it is still -1")]
+		[Fact]
 		public async Task single_tombstone() {
 			var t = 0;
 			await new Scenario()
@@ -81,7 +81,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.RunAsync();
 
 			Assert.True(logger.Completed);
-			Assert.Equal(TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
+			Assert.Equal(EventStore.Core.TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
 			Assert.Equal("Error while scavenging DB: Found Tombstone in metadata stream $$ab-1.", logger.Error);
 		}
 
@@ -104,7 +104,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				.RunAsync();
 
 			Assert.True(logger.Completed);
-			Assert.Equal(TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
+			Assert.Equal(EventStore.Core.TransactionLog.Chunks.ScavengeResult.Failed, logger.Result);
 			Assert.Equal("Error while scavenging DB: Found Tombstone in transaction in stream ab-1.", logger.Error);
 		}
 	}

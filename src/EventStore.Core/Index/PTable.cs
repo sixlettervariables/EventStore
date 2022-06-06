@@ -459,7 +459,7 @@ namespace EventStore.Core.Index {
 
 			var workItem = GetWorkItem();
 			try {
-				var recordRange = LocateRecordRange(startKey, endKey, out var lowBoundsCheck, out var highBoundsCheck);
+				var recordRange = LocateRecordRange(endKey, startKey, out var lowBoundsCheck, out var highBoundsCheck);
 
 				try {
 					if (!TryGetLatestEntryFast(
@@ -599,6 +599,9 @@ namespace EventStore.Core.Index {
 			}
 
 			var candidateEntry = ReadEntry(_indexEntrySize, high, workItem, _version);
+
+			if (!isForThisStream(candidateEntry))
+				throw new HashCollisionException();
 
 			if (candidateEntry.Stream == stream &&
 			    candidateEntry.Position < beforePosition) {
@@ -805,18 +808,18 @@ namespace EventStore.Core.Index {
 		private Range LocateRecordRange(IndexEntryKey key, out IndexEntryKey lowKey, out IndexEntryKey highKey) =>
 			LocateRecordRange(key, key, out lowKey, out highKey);
 
-		private Range LocateRecordRange(IndexEntryKey startKey, IndexEntryKey endkey, out IndexEntryKey lowKey, out IndexEntryKey highKey) {
-			lowKey = new IndexEntryKey(ulong.MaxValue, long.MaxValue);
-			highKey = new IndexEntryKey(ulong.MinValue, long.MinValue);
+		private Range LocateRecordRange(IndexEntryKey lowKey, IndexEntryKey highKey, out IndexEntryKey lowKeyOut, out IndexEntryKey highKeyOut) {
+			lowKeyOut = new IndexEntryKey(ulong.MaxValue, long.MaxValue);
+			highKeyOut = new IndexEntryKey(ulong.MinValue, long.MinValue);
 
 			var midpoints = _midpoints;
 			if (midpoints == null)
 				return new Range(0, Count - 1);
-			long lowerMidpoint = LowerMidpointBound(midpoints, startKey);
-			long upperMidpoint = UpperMidpointBound(midpoints, endkey);
+			long lowerMidpoint = LowerMidpointBound(midpoints, lowKey);
+			long upperMidpoint = UpperMidpointBound(midpoints, highKey);
 
-			lowKey = midpoints[lowerMidpoint].Key;
-			highKey = midpoints[upperMidpoint].Key;
+			lowKeyOut = midpoints[lowerMidpoint].Key;
+			highKeyOut = midpoints[upperMidpoint].Key;
 
 			return new Range(midpoints[lowerMidpoint].ItemIndex, midpoints[upperMidpoint].ItemIndex);
 		}

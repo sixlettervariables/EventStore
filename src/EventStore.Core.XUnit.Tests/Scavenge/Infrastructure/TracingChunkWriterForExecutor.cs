@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.IO;
+using System.Linq;
 using EventStore.Core.TransactionLog.Scavenging;
 
 namespace EventStore.Core.XUnit.Tests.Scavenge {
@@ -24,7 +25,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 		public void Complete(out string newFileName, out long newFileSize) {
 			_wrapped.Complete(out newFileName, out newFileSize);
-			_tracer.Trace($"Switched in {newFileName.Split('\\').Last()}");
+			_tracer.Trace($"Switched in {Path.GetFileName(newFileName)}");
 		}
 
 		public void Abort(bool deleteImmediately) {

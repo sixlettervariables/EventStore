@@ -11,6 +11,7 @@ using EventStore.Core.LogV2;
 using EventStore.Core.Services.Storage.ReaderIndex;
 using EventStore.Core.Settings;
 using EventStore.Core.Tests.Fakes;
+using EventStore.Core.Tests.Index.Hashers;
 using EventStore.Core.Tests.TransactionLog;
 using EventStore.Core.Tests.TransactionLog.Scavenging.Helpers;
 using EventStore.Core.TransactionLog;

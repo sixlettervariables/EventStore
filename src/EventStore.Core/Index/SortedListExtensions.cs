@@ -65,6 +65,9 @@ namespace EventStore.Core.Index {
 					r = m - 1;
 			}
 
+			if (!continueSearch(list.Keys[l]))
+				throw new SearchStoppedException();
+
 			return l;
 		}
 
