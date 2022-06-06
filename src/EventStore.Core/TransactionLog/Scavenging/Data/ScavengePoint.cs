@@ -22,5 +22,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public int Threshold { get; }
 
 		public string GetName() => $"SP-{EventNumber}";
+
+		public override string ToString() =>
+			$"{GetName()}. Position: {Position:N0}, EffectiveNow: {EffectiveNow}, Threshold: {Threshold}.";
 	}
 }

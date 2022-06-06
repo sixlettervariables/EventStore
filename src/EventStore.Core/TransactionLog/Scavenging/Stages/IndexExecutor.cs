@@ -29,7 +29,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			Log.Trace("Starting new scavenge index execution phase for {scavengePoint}",
+			Log.Trace("SCAVENGING: Starting new scavenge index execution phase for {scavengePoint}",
 				scavengePoint.GetName());
 
 			var checkpoint = new ScavengeCheckpoint.ExecutingIndex(scavengePoint);
@@ -43,7 +43,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IIndexScavengerLog scavengerLogger,
 			CancellationToken cancellationToken) {
 
-			Log.Trace("Executing indexes from checkpoint: {checkpoint}", checkpoint);
+			Log.Trace("SCAVENGING: Executing indexes from checkpoint: {checkpoint}", checkpoint);
 
 			_indexScavenger.ScavengeIndex(
 				scavengePoint: checkpoint.ScavengePoint.Position,

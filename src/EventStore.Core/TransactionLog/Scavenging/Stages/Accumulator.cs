@@ -39,7 +39,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			Log.Trace("Starting new scavenge accumulation phase: {prevScavengePoint} to {scavengePoint}",
+			Log.Trace("SCAVENGING: Starting new scavenge accumulation phase: {prevScavengePoint} to {scavengePoint}",
 				prevScavengePoint?.GetName() ?? "beginning of log",
 				scavengePoint.GetName());
 
@@ -69,7 +69,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			IScavengeStateForAccumulator<TStreamId> state,
 			CancellationToken cancellationToken) {
 
-			Log.Trace("Accumulating from checkpoint: {checkpoint}", checkpoint);
+			Log.Trace("SCAVENGING: Accumulating from checkpoint: {checkpoint}", checkpoint);
 			var stopwatch = new Stopwatch();
 
 			// bounds are ok because we wont try to read past the scavenge point
@@ -145,7 +145,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					scavengePoint,
 					doneLogicalChunkNumber: logicalChunkNumber));
 
-				Log.Trace("Accumulated chunk {chunk} in {elapsed}. Chunk total: {chunkTotalElapsed}",
+				Log.Trace("SCAVENGING: Accumulated chunk {chunk} in {elapsed}. Chunk total: {chunkTotalElapsed}",
 					logicalChunkNumber, accumulationElapsed, stopwatch.Elapsed);
 
 				return ret;
@@ -174,6 +174,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			chunkMaxTimeStamp = DateTime.MinValue;
 
 			var stopBefore = scavengePoint.Position;
+
+			if ((long)logicalChunkNumber * _chunkSize >= stopBefore) {
+				// this can happen if we accumulated the chunk with the scavenge point in it
+				// then checkpointed that we have done so.
+				return false;
+			}
+
 			var cancellationCheckCounter = 0;
 			foreach (var record in _chunkReader.ReadChunk(
 				         logicalChunkNumber,
@@ -268,7 +275,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 
 			if (!isInOrder) {
-				Log.Warn("Accumulator found out of order metadata: {stream}:{eventNumber}",
+				Log.Warn("SCAVENGING: Accumulator found out of order metadata: {stream}:{eventNumber}",
 					record.StreamId,
 					record.EventNumber);
 				return;

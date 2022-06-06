@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -22,6 +23,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly ICleaner _cleaner;
 		private readonly IScavengePointSource _scavengePointSource;
 		private readonly ITFChunkScavengerLog _scavengerLogger;
+		private readonly Dictionary<string, TimeSpan> _recordedTimes =
+			new Dictionary<string, TimeSpan>();
 
 		public Scavenger(
 			IScavengeState<TStreamId> state,
@@ -74,12 +77,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				error = string.Format("Error while scavenging DB: {0}.", exc.Message);
 			} finally {
 				LogCollisions();
+				LogTimes();
 				try {
 					_scavengerLogger.ScavengeCompleted(result, error, stopwatch.Elapsed);
 				} catch (Exception ex) {
 					Log.ErrorException(
 						ex,
-						"Error whilst recording scavenge completed. " +
+						"SCAVENGING: Error whilst recording scavenge completed. " +
 						"Scavenge result: {result}, Elapsed: {elapsed}, Original error: {e}",
 						result, stopwatch.Elapsed, error);
 				}
@@ -88,10 +92,10 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		private void LogCollisions() {
 			var collisions = _state.AllCollisions().ToArray();
-			Log.Trace("{count} KNOWN COLLISIONS", collisions.Length);
+			Log.Trace("SCAVENGING: {count} KNOWN COLLISIONS", collisions.Length);
 
 			foreach (var collision in collisions) {
-				Log.Trace("KNOWN COLLISION: \"{collision}\"", collision);
+				Log.Trace("SCAVENGING: KNOWN COLLISION: \"{collision}\"", collision);
 			}
 		}
 
@@ -115,6 +119,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				// there is no checkpoint, so this is the first scavenge of this scavenge state
 				// (not necessarily the first scavenge of this database, old scavenged may have been run
 				// or new scavenges run and the scavenge state deleted)
+				Log.Trace("SCAVENGING: Starting a new scavenge with no checkpoint");
 				await StartNewAsync(
 					prevScavengePoint: null,
 					scavengerLogger,
@@ -123,50 +128,55 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			} else if (checkpoint is ScavengeCheckpoint.Done done) {
 				// start of a subsequent scavenge.
+				Log.Trace("SCAVENGING: Starting a new scavenge after checkpoint {checkpoint}", checkpoint);
 				await StartNewAsync(
 					prevScavengePoint: done.ScavengePoint,
 					scavengerLogger,
 					stopwatch,
 					cancellationToken);
 
-				// the other cases are continuing an incomplete scavenge
-			} else if (checkpoint is ScavengeCheckpoint.Accumulating accumulating) {
-				Time(stopwatch, "Accumulation", () =>
-					_accumulator.Accumulate(accumulating, _state, cancellationToken));
-				AfterAccumulation(
-					accumulating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
-
-			} else if (checkpoint is ScavengeCheckpoint.Calculating<TStreamId> calculating) {
-				Time(stopwatch, "Calculation", () =>
-					_calculator.Calculate(calculating, _state, cancellationToken));
-				AfterCalculation(
-					calculating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
-
-			} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
-				Time(stopwatch, "Chunk execution", () =>
-					_chunkExecutor.Execute(executingChunks, _state, scavengerLogger, cancellationToken));
-				AfterChunkExecution(
-					executingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
-
-			} else if (checkpoint is ScavengeCheckpoint.MergingChunks mergingChunks) {
-				Time(stopwatch, "Chunk merging", () =>
-					_chunkMerger.MergeChunks(mergingChunks, _state, scavengerLogger, cancellationToken));
-				AfterChunkMerging(
-					mergingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
-
-			} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
-				Time(stopwatch, "Index execution", () =>
-					_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken));
-				AfterIndexExecution(
-					executingIndex.ScavengePoint, stopwatch, cancellationToken);
-
-			} else if (checkpoint is ScavengeCheckpoint.Cleaning cleaning) {
-				Time(stopwatch, "Cleaning", () =>
-					_cleaner.Clean(cleaning, _state, cancellationToken));
-				AfterCleaning(cleaning.ScavengePoint);
-
 			} else {
-				throw new Exception($"Unexpected checkpoint: {checkpoint}");
+				// the other cases are continuing an incomplete scavenge
+				Log.Trace("SCAVENGING: Continuing a scavenge from {checkpoint}", checkpoint);
+
+				if (checkpoint is ScavengeCheckpoint.Accumulating accumulating) {
+					Time(stopwatch, "Accumulation", () =>
+						_accumulator.Accumulate(accumulating, _state, cancellationToken));
+					AfterAccumulation(
+						accumulating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
+
+				} else if (checkpoint is ScavengeCheckpoint.Calculating<TStreamId> calculating) {
+					Time(stopwatch, "Calculation", () =>
+						_calculator.Calculate(calculating, _state, cancellationToken));
+					AfterCalculation(
+						calculating.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
+
+				} else if (checkpoint is ScavengeCheckpoint.ExecutingChunks executingChunks) {
+					Time(stopwatch, "Chunk execution", () =>
+						_chunkExecutor.Execute(executingChunks, _state, scavengerLogger, cancellationToken));
+					AfterChunkExecution(
+						executingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
+
+				} else if (checkpoint is ScavengeCheckpoint.MergingChunks mergingChunks) {
+					Time(stopwatch, "Chunk merging", () =>
+						_chunkMerger.MergeChunks(mergingChunks, _state, scavengerLogger, cancellationToken));
+					AfterChunkMerging(
+						mergingChunks.ScavengePoint, scavengerLogger, stopwatch, cancellationToken);
+
+				} else if (checkpoint is ScavengeCheckpoint.ExecutingIndex executingIndex) {
+					Time(stopwatch, "Index execution", () =>
+						_indexExecutor.Execute(executingIndex, _state, scavengerLogger, cancellationToken));
+					AfterIndexExecution(
+						executingIndex.ScavengePoint, stopwatch, cancellationToken);
+
+				} else if (checkpoint is ScavengeCheckpoint.Cleaning cleaning) {
+					Time(stopwatch, "Cleaning", () =>
+						_cleaner.Clean(cleaning, _state, cancellationToken));
+					AfterCleaning(cleaning.ScavengePoint);
+
+				} else {
+					throw new Exception($"Unexpected checkpoint: {checkpoint}");
+				}
 			}
 		}
 
@@ -174,7 +184,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var start = stopwatch.Elapsed;
 			f();
 			var elapsed = stopwatch.Elapsed - start;
-			Log.Trace("{name} took {elapsed}", name, elapsed);
+			Log.Trace("SCAVENGING: " + name + " took {elapsed}", elapsed);
+			_recordedTimes[name] = elapsed;
+		}
+
+		private void LogTimes() {
+			foreach (var key in _recordedTimes.Keys.OrderBy(x => x)) {
+				Log.Trace("SCAVENGING: {name} took {elapsed}", key, _recordedTimes[key]);
+			}
 		}
 
 		private async Task StartNewAsync(
@@ -232,6 +249,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			Stopwatch stopwatch,
 			CancellationToken cancellationToken) {
 
+			LogCollisions();
 			Time(stopwatch, "Calculation", () =>
 				_calculator.Calculate(scavengepoint, _state, cancellationToken));
 			AfterCalculation(scavengepoint, scavengerLogger, stopwatch, cancellationToken);

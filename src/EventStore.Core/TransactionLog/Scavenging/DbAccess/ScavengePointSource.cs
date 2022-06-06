@@ -18,7 +18,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		}
 
 		public async Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
-			Log.Info("Getting latest scavenge point...");
+			Log.Info("SCAVENGING: Getting latest scavenge point...");
 
 			var readTcs = new TaskCompletionSource<ResolvedEvent[]>();
 			var endStreamPosition = -1;
@@ -48,7 +48,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var events = await readTcs.Task;
 
 			if (events.Length == 0) {
-				Log.Info("No scavenge points exist");
+				Log.Info("SCAVENGING: No scavenge points exist");
 				return default;
 			} else if (events.Length != 1) {
 				throw new Exception($"Expected 1 event but got {events.Length}");
@@ -63,13 +63,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				effectiveNow: scavengePointEvent.TimeStamp,
 				threshold: scavengePointPayload.Threshold);
 
-			Log.Info("Got latest scavenge point {scavengePoint}", scavengePoint);
+			Log.Info("SCAVENGING: Got latest scavenge point {scavengePoint}", scavengePoint);
 			return scavengePoint;
 		}
 
 		//qqq check this and test it, especially on a cluster
 		public async Task<ScavengePoint> AddScavengePointAsync(long expectedVersion, int threshold) {
-			Log.Info("Adding new scavenge point #{eventNumber} with threshold {threshold}...",
+			Log.Info("SCAVENGING: Adding new scavenge point #{eventNumber} with threshold {threshold}...",
 				expectedVersion + 1, threshold);
 
 			var payload = new ScavengePointPayload {
@@ -99,7 +99,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			await writeTcs.Task;
 
-			Log.Info("Added new scavenge point");
+			Log.Info("SCAVENGING: Added new scavenge point");
 
 			var scavengePoint = await GetLatestScavengePointOrDefaultAsync();
 

@@ -3,6 +3,7 @@ using EventStore.Core.DataStructures;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
 	// All access to the wrapped map must be via the cache.
+	// Currently this is only used to cache the hash users. See comments below.
 	public class LruCachingScavengeMap<TKey, TValue> : IScavengeMap<TKey, TValue> {
 		private readonly LRUCache<TKey, TValue> _cache;
 		private readonly IScavengeMap<TKey, TValue> _wrapped;
@@ -31,8 +32,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				return true;
 			}
 
-			//qq consider if a lrucache of keys that are known not to exist would be helpful
-			//for our use cases.
+			// Currently this is only used to cache the hash users. As such if we TryGetValue and fail to
+			// find it then we will always be adding a value for that key immediately, so it is not
+			// useful to remember keys that are known to not exist.
 			return false;
 		}
 
