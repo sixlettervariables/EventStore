@@ -17,7 +17,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_ioDispatcher = ioDispatcher;
 		}
 
-		//qq wip
 		public async Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
 			Log.Info("Getting latest scavenge point...");
 
@@ -39,7 +38,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						readTcs.TrySetException(new Exception(
 							$"Failed to get latest scavenge point: {m.Result}. {m.Error}"));
 					}
-				});
+				},
+				timeoutAction: () => {
+					readTcs.TrySetException(new Exception(
+						"Failed to get latest scavenge point: read timed out"));
+				},
+				corrId: Guid.NewGuid());
 
 			var events = await readTcs.Task;
 
@@ -72,8 +76,6 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				Threshold = threshold,
 			};
 
-			//qq do these calls automatically timeout, or might they hang? old scavenge uses them to
-			// log, but perhaps that is less critical
 			var writeTcs = new TaskCompletionSource<bool>();
 			_ioDispatcher.WriteEvent(
 				streamId: SystemStreams.ScavengePointsStream,
