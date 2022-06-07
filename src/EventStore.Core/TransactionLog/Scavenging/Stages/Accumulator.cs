@@ -294,7 +294,12 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			// Update the discard point
 			var discardPoint = DiscardPoint.DiscardBefore(record.EventNumber);
-			state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
+			if (discardPoint != DiscardPoint.KeepAll) {
+				state.SetMetastreamDiscardPoint(record.StreamId, discardPoint);
+			} else {
+				// no need to set a discard point for the first metadata record because
+				// there is nothing to discard.
+			}
 		}
 
 		// For every tombstone

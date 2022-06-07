@@ -52,7 +52,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			Assert.Equal(2, state.SumChunkWeights(4, 4));
 
 			Assert.True(state.TryGetOriginalStreamData("ab-1", out var originalStreamData));
-			Assert.True(state.TryGetMetastreamData("$$ab-1", out var metastreamData));
+			// not present because there is nothing to discard
+			Assert.False(state.TryGetMetastreamData("$$ab-1", out var metastreamData));
 			
 			Assert.Equal(DiscardPoint.KeepAll, originalStreamData.DiscardPoint);
 			Assert.Equal(DiscardPoint.KeepAll, metastreamData.DiscardPoint);
