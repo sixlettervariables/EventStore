@@ -375,7 +375,16 @@ namespace EventStore.Core.TransactionLog.Chunks.TFChunk {
 						    out var record, out var length))
 						return RawReadResult.Failure;
 
-					return new RawReadResult(true, record, length, logicalPosition + length + 2 * sizeof(int));
+					// We need to read the record's log position from the buffer so that we can correctly compute
+					// the next position. Simply adding the record's length, suffix & prefix to "logicalPosition" won't
+					// work properly with scavenged chunks since the computed position may still be before the current
+					// record's position, which would cause us to read it again.
+					const int logPositionOffset = 2;
+					var recordLogPos = BitConverter.ToInt64(record, logPositionOffset);
+					long nextLogicalPos =
+						Chunk.ChunkHeader.GetLocalLogPosition(recordLogPos + length + 2 * sizeof(int));
+
+					return new RawReadResult(true, record, length, nextLogicalPos);
 				} finally {
 					Chunk.ReturnReaderWorkItem(workItem);
 				}
