@@ -50,8 +50,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 		public string ScavengeId => _scavengerLogger.ScavengeId;
 
-		public async Task ScavengeAsync(CancellationToken cancellationToken) {
+		public Task ScavengeAsync(CancellationToken cancellationToken) {
+			return Task.Factory.StartNew(() => {
+				return TryScavengeAsync(cancellationToken);
+			});
+		}
 
+		private async Task TryScavengeAsync(CancellationToken cancellationToken) {
 			Log.Trace("SCAVENGING: started scavenging DB.");
 			LogCollisions();
 

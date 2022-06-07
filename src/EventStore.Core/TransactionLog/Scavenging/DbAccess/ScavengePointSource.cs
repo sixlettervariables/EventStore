@@ -20,7 +20,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		public async Task<ScavengePoint> GetLatestScavengePointOrDefaultAsync() {
 			Log.Info("SCAVENGING: Getting latest scavenge point...");
 
-			var readTcs = new TaskCompletionSource<ResolvedEvent[]>();
+			var readTcs = new TaskCompletionSource<ResolvedEvent[]>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 			var endStreamPosition = -1;
 
 			_ioDispatcher.ReadBackward(
@@ -76,7 +77,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				Threshold = threshold,
 			};
 
-			var writeTcs = new TaskCompletionSource<bool>();
+			var writeTcs = new TaskCompletionSource<bool>(
+				TaskCreationOptions.RunContinuationsAsynchronously);
 			_ioDispatcher.WriteEvent(
 				streamId: SystemStreams.ScavengePointsStream,
 				expectedVersion: expectedVersion,
