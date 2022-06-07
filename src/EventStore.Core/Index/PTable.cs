@@ -676,6 +676,16 @@ namespace EventStore.Core.Index {
 			return TryGetSmallestEntry(hash, 0, long.MaxValue, out entry);
 		}
 
+		public bool TryGetNextEntry(ulong stream, long afterVersion, out IndexEntry entry) {
+			ulong hash = GetHash(stream);
+			return TryGetSmallestEntry(hash, afterVersion + 1, long.MaxValue, out entry);
+		}
+
+		public bool TryGetPreviousEntry(ulong stream, long beforeVersion, out IndexEntry entry) {
+			ulong hash = GetHash(stream);
+			return TryGetLargestEntry(hash, 0, beforeVersion - 1, out entry);
+		}
+
 		private bool TryGetSmallestEntry(ulong stream, long startNumber, long endNumber, out IndexEntry entry) {
 			Ensure.Nonnegative(startNumber, "startNumber");
 			Ensure.Nonnegative(endNumber, "endNumber");
