@@ -10,7 +10,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class CollisionMapTests : SqliteDbPerTest<CollisionMapTests> {
 		[Fact]
 		public void sanity() {
-			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions_list");
+			var collisions = new SqliteCollisionScavengeMap<string>();
 			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
 			var sut = GenSut(collisions);
 
@@ -54,7 +54,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 	public class OriginalStreamCollisionMapTests : SqliteDbPerTest<OriginalStreamCollisionMapTests> {
 		[Fact]
 		public void can_enumerate() {
-			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions_list");
+			var collisions = new SqliteCollisionScavengeMap<string>();
 			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
 			var sut = GenSut(collisions);
 
