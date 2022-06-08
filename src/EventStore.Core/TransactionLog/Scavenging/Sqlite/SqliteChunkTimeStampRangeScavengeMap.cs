@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteChunkTimeStampRangeScavengeMap<TKey> : IInitializeSqliteBackend, IScavengeMap<TKey,ChunkTimeStampRange> {
+	public class SqliteChunkTimeStampRangeScavengeMap : IInitializeSqliteBackend, IScavengeMap<int, ChunkTimeStampRange> {
 		private AddCommand _add;
 		private GetCommand _get;
 		private DeleteCommand _delete;
@@ -23,7 +23,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public void Initialize(SqliteBackend sqlite) {
 			var sql = $@"
 				CREATE TABLE IF NOT EXISTS {TableName} (
-					key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY,
+					key INTEGER PRIMARY KEY,
 					min INTEGER,
 					max INTEGER)";
 		
@@ -35,19 +35,19 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_all = new AllRecordsCommand(TableName, sqlite);
 		}
 
-		public ChunkTimeStampRange this[TKey key] {
+		public ChunkTimeStampRange this[int key] {
 			set => _add.Execute(key, value);
 		}
 
-		public bool TryGetValue(TKey key, out ChunkTimeStampRange value) {
+		public bool TryGetValue(int key, out ChunkTimeStampRange value) {
 			return _get.TryExecute(key, out value);
 		}
 
-		public bool TryRemove(TKey key, out ChunkTimeStampRange value) {
+		public bool TryRemove(int key, out ChunkTimeStampRange value) {
 			return _delete.TryExecute(key, out value);
 		}
 
-		public IEnumerable<KeyValuePair<TKey, ChunkTimeStampRange>> AllRecords() {
+		public IEnumerable<KeyValuePair<int, ChunkTimeStampRange>> AllRecords() {
 			return _all.Execute();
 		}
 
@@ -62,11 +62,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				var sql = $@"
 					INSERT INTO {tableName}
 					VALUES($key, $min, $max)
-				    ON CONFLICT(key) DO UPDATE SET min=$min, max=$max";
+					ON CONFLICT(key) DO UPDATE SET min=$min, max=$max";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
-				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_keyParam = _cmd.Parameters.Add("$key", SqliteType.Integer);
 				_minParam = _cmd.Parameters.Add("$min", SqliteType.Integer);
 				_maxParam = _cmd.Parameters.Add("$max", SqliteType.Integer);
 				_cmd.Prepare();
@@ -74,7 +74,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite = sqlite;
 			}
 
-			public void Execute(TKey key, ChunkTimeStampRange value) {
+			public void Execute(int key, ChunkTimeStampRange value) {
 				_keyParam.Value = key;
 				_minParam.Value = value.Min.Ticks;
 				_maxParam.Value = value.Max.Ticks;
@@ -95,13 +95,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
-				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_keyParam = _cmd.Parameters.Add("$key", SqliteType.Integer);
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
 			}
 
-			public bool TryExecute(TKey key, out ChunkTimeStampRange value) {
+			public bool TryExecute(int key, out ChunkTimeStampRange value) {
 				_keyParam.Value = key;
 				return _sqlite.ExecuteSingleRead(_cmd, _readChunkTimeStampRange, out value);
 			}
@@ -122,7 +122,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
-				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteType.Integer);
 				_selectCmd.Prepare();
 
 				var deleteSql = $@"
@@ -131,13 +131,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
-				_deleteKeyParam = _deleteCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
+				_deleteKeyParam = _deleteCmd.Parameters.Add("$key", SqliteType.Integer);
 				_deleteCmd.Prepare();
 				
 				_sqlite = sqlite;
 			}
 
-			public bool TryExecute(TKey key, out ChunkTimeStampRange value) {
+			public bool TryExecute(int key, out ChunkTimeStampRange value) {
 				_selectKeyParam.Value = key;
 				_deleteKeyParam.Value = key;
 				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, _readChunkTimeStampRange, out value);
@@ -161,11 +161,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite = sqlite;
 			}
 
-			public IEnumerable<KeyValuePair<TKey, ChunkTimeStampRange>> Execute() {
+			public IEnumerable<KeyValuePair<int, ChunkTimeStampRange>> Execute() {
 				return _sqlite.ExecuteReader(_cmd, reader => {
 					var chunkTimeStampRange = _readChunkTimeStampRange(reader);
-					var key = reader.GetFieldValue<TKey>(2);
-					return new KeyValuePair<TKey, ChunkTimeStampRange>(key, chunkTimeStampRange);
+					var key = reader.GetFieldValue<int>(2);
+					return new KeyValuePair<int, ChunkTimeStampRange>(key, chunkTimeStampRange);
 				});
 			}
 		}
