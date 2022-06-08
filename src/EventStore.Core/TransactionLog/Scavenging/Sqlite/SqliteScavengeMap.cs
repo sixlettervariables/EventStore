@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteScavengeMap<TKey, TValue> :
-		ISqliteScavengeBackend,
+		IInitializeSqliteBackend,
 		IScavengeMap<TKey, TValue> {
 
 		private AddCommand _add;
@@ -28,11 +28,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		private void AssertTypesAreSupported() {
 			if (!IsSupportedType<TKey>()) {
-				throw new ArgumentException($"Scavenge map {TableName} has an unsupported type {typeof(TKey).Name} for key specified");
+				throw new ArgumentException(
+					$"Scavenge map {TableName} has an unsupported type {typeof(TKey).Name} for key specified");
 			}
 			
 			if (!IsSupportedType<TValue>()) {
-				throw new ArgumentException($"Scavenge map {TableName} has an unsupported type {typeof(TValue).Name} for value specified");
+				throw new ArgumentException(
+					$"Scavenge map {TableName} has an unsupported type {typeof(TValue).Name} for value specified");
 			}
 		}
 
@@ -43,8 +45,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public virtual void Initialize(SqliteBackend sqlite) {
 			var keyType = SqliteTypeMapping.GetTypeName<TKey>();
 			var valueType = SqliteTypeMapping.GetTypeName<TValue>();
-			var createSql = $"CREATE TABLE IF NOT EXISTS {TableName} (key {keyType} PRIMARY KEY, value {valueType} NOT NULL)";
-			
+			var createSql = $@"
+				CREATE TABLE IF NOT EXISTS {TableName} (
+					key {keyType} PRIMARY KEY,
+					value {valueType} NOT NULL)";
+
 			sqlite.InitializeDb(createSql);
 
 			_add = new AddCommand(TableName, sqlite);
@@ -80,7 +85,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _valueParam;
 
 			public AddCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"INSERT INTO {tableName} VALUES($key, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
+				var sql = $@"
+					INSERT INTO {tableName}
+					VALUES($key, $value)
+					ON CONFLICT(key) DO UPDATE SET value=$value";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
@@ -154,7 +163,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _cmd;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT key, value FROM {tableName}";
+				var sql = $@"
+					SELECT key, value
+					FROM {tableName}
+					ORDER BY key";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_cmd.Prepare();

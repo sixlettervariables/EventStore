@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteScavengeCheckpointMap<TStreamId>: ISqliteScavengeBackend, IScavengeMap<Unit, ScavengeCheckpoint> {
+	public class SqliteScavengeCheckpointMap<TStreamId>: IInitializeSqliteBackend, IScavengeMap<Unit, ScavengeCheckpoint> {
 		private AddCommand _add;
 		private GetCommand _get;
 		private RemoveCommand _remove;
 
 		public void Initialize(SqliteBackend sqlite) {
-			var sql = "CREATE TABLE IF NOT EXISTS ScavengeCheckpointMap (key Integer PRIMARY KEY, value Text NOT NULL)";
+			var sql = @"
+				CREATE TABLE IF NOT EXISTS ScavengeCheckpointMap (
+					key Integer PRIMARY KEY,
+					value Text NOT NULL)";
+			
 			sqlite.InitializeDb(sql);
 			
 			_add = new AddCommand(sqlite);
@@ -43,7 +47,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _valueParam;
 
 			public AddCommand(SqliteBackend sqlite) {
-				var sql = "INSERT INTO ScavengeCheckpointMap VALUES(0, $value) ON CONFLICT(key) DO UPDATE SET value=$value";
+				var sql = @"
+					INSERT INTO ScavengeCheckpointMap
+					VALUES(0, $value)
+					ON CONFLICT(key) DO UPDATE SET value=$value";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_valueParam = _cmd.Parameters.Add("$value", SqliteType.Text);
@@ -57,6 +65,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite.ExecuteNonQuery(_cmd);
 			}
 		}
+		
 		private class GetCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
@@ -78,6 +87,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				}, out value);
 			}
 		}
+		
 		private class RemoveCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _selectCmd;

@@ -272,7 +272,11 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			
 			sut.SetTombstone(33);
 
-			Assert.False(sut.TryGetChunkExecutionInfo(33, out var v));
+			Assert.True(sut.TryGetChunkExecutionInfo(33, out var v));
+			Assert.True(v.IsTombstoned);
+			Assert.Null(v.MaxAge);
+			Assert.Equal(DiscardPoint.KeepAll, v.DiscardPoint);
+			Assert.Equal(DiscardPoint.KeepAll, v.MaybeDiscardPoint);
 		}
 		
 		[Fact]

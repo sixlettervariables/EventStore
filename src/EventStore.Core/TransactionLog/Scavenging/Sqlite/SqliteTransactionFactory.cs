@@ -1,7 +1,7 @@
 ﻿using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	public class SqliteTransactionFactory : ISqliteScavengeBackend, ITransactionFactory<SqliteTransaction> {
+	public class SqliteTransactionFactory : IInitializeSqliteBackend, ITransactionFactory<SqliteTransaction> {
 		private SqliteBackend _sqliteBackend;
 
 		public void Initialize(SqliteBackend sqlite) {

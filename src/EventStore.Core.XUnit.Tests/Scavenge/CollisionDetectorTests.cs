@@ -96,7 +96,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 			var hashes = new SqliteScavengeMap<ulong, string>("hashes");
 			hashes.Initialize(new SqliteBackend(Fixture.DbConnection));
 
-			var collisions = new SqliteFixedStructScavengeMap<string, Unit>("collisions");
+			var collisions = new SqliteCollisionScavengeMap<string>();
 			collisions.Initialize(new SqliteBackend(Fixture.DbConnection));
 
 			var sut = new CollisionDetector<string>(

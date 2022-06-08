@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	
-	public class SqliteMetastreamScavengeMap<TKey> : ISqliteScavengeBackend, IMetastreamScavengeMap<TKey> {
+	public class SqliteMetastreamScavengeMap<TKey> : IInitializeSqliteBackend, IMetastreamScavengeMap<TKey> {
 		private AddCommand _add;
 		private SetTombstoneCommand _setTombstone;
 		private SetDiscardPointCommand _setDiscardPoint;
@@ -11,11 +12,23 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private DeleteCommand _delete;
 		private DeleteAllCommand _deleteAll;
 		private AllRecordsCommand _all;
+		private static Func<SqliteDataReader, MetastreamData> _readMetastreamData;
 
 		private string TableName { get; }
 
 		public SqliteMetastreamScavengeMap(string name) {
 			TableName = name;
+			
+			_readMetastreamData = reader => {
+				var isTombstoned = reader.GetBoolean(0);
+				var discardPoint = DiscardPoint.KeepAll;
+				var discardPointField = SqliteBackend.GetNullableFieldValue<long?>(1, reader);
+				if (discardPointField.HasValue) {
+					discardPoint = DiscardPoint.DiscardBefore(discardPointField.Value);
+				}
+			
+				return new MetastreamData(isTombstoned, discardPoint);
+			};
 		}
 
 		public void Initialize(SqliteBackend sqlite) {
@@ -64,17 +77,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_deleteAll.Execute();
 		}
 
-		private static MetastreamData ReadMetastreamData(SqliteDataReader reader) {
-			var isTombstoned = reader.GetBoolean(0);
-			var discardPoint = DiscardPoint.KeepAll;
-			var discardPointField = SqliteBackend.GetNullableFieldValue<long?>(1, reader);
-			if (discardPointField.HasValue) {
-				discardPoint = DiscardPoint.DiscardBefore(discardPointField.Value);
-			}
-			
-			return new MetastreamData(isTombstoned, discardPoint);
-		}
-
 		private class AddCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
@@ -83,9 +85,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _discardPointParam;
 
 			public AddCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} VALUES($key, $isTombstoned, $discardPoint)" +
-					"ON CONFLICT(key) DO UPDATE SET isTombstoned=$isTombstoned, discardPoint=$discardPoint";
+				var sql = $@"
+					INSERT INTO {tableName}
+					VALUES($key, $isTombstoned, $discardPoint)
+				    ON CONFLICT(key) DO UPDATE SET
+						isTombstoned=$isTombstoned,
+						discardPoint=$discardPoint";
 
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -111,9 +116,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _keyParam;
 
 			public SetTombstoneCommand(string tableName, SqliteBackend sqlite) {
-				var sql =
-					$"INSERT INTO {tableName} (key, isTombstoned) VALUES($key, 1) " + 
-					"ON CONFLICT(key) DO UPDATE SET isTombstoned=1";
+				var sql = $@"
+					INSERT INTO {tableName} (key, isTombstoned)
+					VALUES($key, 1) 
+					ON CONFLICT(key) DO UPDATE SET isTombstoned=1";
 				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -163,7 +169,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _keyParam;
 
 			public GetCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT isTombstoned, discardPoint FROM {tableName} WHERE key = $key";
+				var sql = $@"
+					SELECT isTombstoned, discardPoint
+					FROM {tableName}
+					WHERE key = $key";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
@@ -174,9 +184,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public bool TryExecute(TKey key, out MetastreamData value) {
 				_keyParam.Value = key;
-				//qq i think the converting of ReadMetastreamData to a func is an allocation each call
-				// can be done once in the constructor
-				return _sqlite.ExecuteSingleRead(_cmd, ReadMetastreamData, out value);
+				return _sqlite.ExecuteSingleRead(_cmd, _readMetastreamData, out value);
 			}
 		}
 
@@ -206,7 +214,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			public bool TryExecute(TKey key, out MetastreamData value) {
 				_selectKeyParam.Value = key;
 				_deleteKeyParam.Value = key;
-				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, ReadMetastreamData, out value);
+				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, _readMetastreamData, out value);
 			}
 		}
 
@@ -216,6 +224,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public DeleteAllCommand(string tableName, SqliteBackend sqlite) {
 				//qq would deleting / truncating the table be quicker
+				//>> sqlite doesn't have explicit truncation,
+				//   is done automatically with an internal optimization https://www.sqlite.org/lang_delete.html
 				var deleteSql = $"DELETE FROM {tableName}";
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
@@ -234,7 +244,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _cmd;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT isTombstoned, discardPoint, key FROM {tableName}";
+				var sql = $@"
+					SELECT isTombstoned, discardPoint, key
+					FROM {tableName}
+					ORDER BY key";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_cmd.Prepare();
@@ -244,7 +258,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 			public IEnumerable<KeyValuePair<TKey, MetastreamData>> Execute() {
 				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, MetastreamData>(
-					reader.GetFieldValue<TKey>(2), ReadMetastreamData(reader)));
+					reader.GetFieldValue<TKey>(2), _readMetastreamData(reader)));
 			}
 		}
 	}

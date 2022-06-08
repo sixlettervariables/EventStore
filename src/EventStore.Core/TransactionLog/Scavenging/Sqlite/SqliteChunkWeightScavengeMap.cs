@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteChunkWeightScavengeMap : SqliteScavengeMap<int, float>, IChunkWeightScavengeMap {
@@ -44,8 +43,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _valueParam;
 
 			public IncreaseWeightCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"INSERT INTO {tableName}(key, value) VALUES($key, $value) " +
-				          "ON CONFLICT(key) DO UPDATE SET value=value+$value";
+				var sql = $@"
+					INSERT INTO {tableName}(key, value)
+					VALUES($key, $value)
+				    ON CONFLICT(key) DO UPDATE SET value=value+$value";
 				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
@@ -96,7 +97,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _endParam;
 
 			public SumChunkWeightsCommand(string tableName, SqliteBackend sqlite) {
-				var sql = $"SELECT SUM(value) FROM {tableName} WHERE key BETWEEN $start AND $end";
+				var sql = $@"
+					SELECT SUM(value)
+					FROM {tableName}
+					WHERE key BETWEEN $start AND $end";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_startParam = _cmd.Parameters.Add("$start", SqliteType.Integer);
@@ -109,7 +114,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			public float Execute(int startLogicalChunkNumber, int endLogicalChunkNumber) {
 				_startParam.Value = startLogicalChunkNumber;
 				_endParam.Value = endLogicalChunkNumber;
-				_sqlite.ExecuteSingleRead(_cmd, reader => reader.IsDBNull(0) ? 0 : reader.GetFloat(0), out var value);
+				_sqlite.ExecuteSingleRead(_cmd, 
+					reader => reader.IsDBNull(0) ? 0 : reader.GetFloat(0), out var value);
 				return value;
 			}
 		}

@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteBackend {
 		private readonly SqliteConnection _connection;
 		private SqliteTransaction _transaction;
+		private const int SqliteDuplicateKeyError = 19;
 
 		public SqliteBackend(SqliteConnection connection) {
 			_connection = connection;
@@ -24,11 +26,6 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		public bool ExecuteReadAndDelete<TValue>(SqliteCommand selectCmd, SqliteCommand deleteCmd,
 			Func<SqliteDataReader, TValue> getValue, out TValue value) {
 			
-			//qq want some kind of transaction test to show that these are important
-			// and a test to show that a rolledback transaction undoes what was previously done in it
-			selectCmd.Transaction = _transaction;
-			deleteCmd.Transaction = _transaction;
-			
 			if (ExecuteSingleRead(selectCmd, getValue, out value)) {
 				var affectedRows = ExecuteNonQuery(deleteCmd);
 				
@@ -36,7 +33,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					return true;
 				} 
 				if (affectedRows > 1) {
-					throw new SystemException($"More values removed then expected!");
+					throw new SystemException("More values removed then expected!");
 				}
 			}
 
@@ -49,7 +46,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				cmd.Transaction = _transaction;
 				return cmd.ExecuteNonQuery();
 			}
-			catch (SqliteException e) when (e.SqliteErrorCode == 19) { // Duplicate key error
+			catch (SqliteException e) when (e.SqliteErrorCode == SqliteDuplicateKeyError) {
 				throw new ArgumentException();
 			}
 		}
@@ -86,6 +83,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			return default;
 		}
 
+		public static TimeSpan? GetTimeSpan(int ordinal, SqliteDataReader reader) {
+			if (!reader.IsDBNull(ordinal)) {
+				return TimeSpan.FromSeconds(reader.GetFieldValue<long>(ordinal));
+			}
+
+			return null;
+		}
+		
 		public SqliteTransaction BeginTransaction() {
 			_transaction = _connection.BeginTransaction();
 			return _transaction;
@@ -93,6 +98,47 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public void ClearTransaction() {
 			_transaction = null;
+		}
+		
+		public Stats GetStats() {
+			var databaseSize = int.Parse(GetPragmaValue("page_size")) * int.Parse(GetPragmaValue("page_count"));
+			var kibiBytesToKiloBytes = 1024f / 1000f;
+			var cacheSizeInKibiBytes = -1 * int.Parse(GetPragmaValue("cache_size"));
+			var cacheSizeInKiloBytes = (int)(cacheSizeInKibiBytes * kibiBytesToKiloBytes);
+			var cacheSizeInBytes = cacheSizeInKiloBytes * 1024;
+			
+			return new Stats(raw.sqlite3_memory_used(), databaseSize, cacheSizeInBytes);
+		}
+
+		public void SetPragmaValue(string name, string value) {
+			using (var cmd = _connection.CreateCommand()) {
+				cmd.CommandText = $"PRAGMA {name}={value}";
+				cmd.ExecuteNonQuery();
+			}
+		}
+		
+		public string GetPragmaValue(string name) {
+			var cmd = _connection.CreateCommand();
+			cmd.CommandText = "PRAGMA " + name;
+			var result = cmd.ExecuteScalar();
+			
+			if (result != null) {
+				return result.ToString();
+			}
+
+			throw new Exception("Unexpected pragma result!");
+		}
+		
+		public class Stats {
+			public Stats(long memoryUsage, int databaseSize, int cacheSize) {
+				MemoryUsage = memoryUsage;
+				DatabaseSize = databaseSize;
+				CacheSize = cacheSize;
+			}
+
+			public long MemoryUsage { get; }
+			public long DatabaseSize { get; }
+			public long CacheSize { get; }
 		}
 	}
 }
