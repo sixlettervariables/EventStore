@@ -25,7 +25,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 
 		public bool ExecuteReadAndDelete<TValue>(SqliteCommand selectCmd, SqliteCommand deleteCmd,
 			Func<SqliteDataReader, TValue> getValue, out TValue value) {
-			
+
 			if (ExecuteSingleRead(selectCmd, getValue, out value)) {
 				var affectedRows = ExecuteNonQuery(deleteCmd);
 				
@@ -83,7 +83,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			return default;
 		}
 
-		public static TimeSpan? GetTimeSpan(int ordinal, SqliteDataReader reader) {
+		public static TimeSpan? GetTimeSpanFromSeconds(int ordinal, SqliteDataReader reader) {
 			if (!reader.IsDBNull(ordinal)) {
 				return TimeSpan.FromSeconds(reader.GetFieldValue<long>(ordinal));
 			}

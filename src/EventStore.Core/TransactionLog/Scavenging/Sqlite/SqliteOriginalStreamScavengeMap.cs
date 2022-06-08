@@ -26,7 +26,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_readOriginalStreamData = reader => {
 				var d = new OriginalStreamData();
 				d.IsTombstoned = reader.GetBoolean(0);
-				d.MaxAge = SqliteBackend.GetTimeSpan(1, reader);
+				d.MaxAge = SqliteBackend.GetTimeSpanFromSeconds(1, reader);
 				d.MaxCount = SqliteBackend.GetNullableFieldValue<long?>(2, reader);
 				d.TruncateBefore = SqliteBackend.GetNullableFieldValue<long?>(3, reader);
 				d.Status = reader.GetFieldValue<CalculationStatus>(6);
@@ -328,7 +328,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_keyParam.Value = key;
 				return _sqlite.ExecuteSingleRead(_cmd, reader => {
 					var isTombstoned = reader.GetBoolean(0);
-					var maxAge = SqliteBackend.GetTimeSpan(1, reader);
+					var maxAge = SqliteBackend.GetTimeSpanFromSeconds(1, reader);
 					var discardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(2));
 					var maybeDiscardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(3));
 					return new ChunkExecutionInfo(isTombstoned, discardPoint, maybeDiscardPoint, maxAge);
