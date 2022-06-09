@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using EventStore.Core.Data;
 using EventStore.Core.Services.Storage.ReaderIndex;
 
 namespace EventStore.Core.TransactionLog.Scavenging {
@@ -36,7 +35,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			}
 		}
 
-		public EventInfo[] ReadEventInfoForward(
+		public IndexReadEventInfoResult ReadEventInfoForward(
 			StreamHandle<string> handle,
 			long fromEventNumber,
 			int maxCount,
@@ -45,11 +44,11 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				case StreamHandle.Kind.Hash:
 					// uses the index only
 					return _readIndex.ReadEventInfoForward_NoCollisions(handle.StreamHash, fromEventNumber, maxCount,
-						scavengePoint.Position).EventInfos;
+						scavengePoint.Position);
 				case StreamHandle.Kind.Id:
 					// uses log to check for hash collisions
 					return _readIndex.ReadEventInfoForward_KnownCollisions(handle.StreamId, fromEventNumber, maxCount,
-						scavengePoint.Position).EventInfos;
+						scavengePoint.Position);
 				default:
 					throw new ArgumentOutOfRangeException(nameof(handle), handle, null);
 			}

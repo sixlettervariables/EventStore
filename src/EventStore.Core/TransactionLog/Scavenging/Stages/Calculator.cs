@@ -200,11 +200,13 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				//qq limit the read to the scavengepoint too?
 				//qqq ReadEventInfoForward deduplicates according to skipindexscanonread
 				// (but currently only if there is a collision).
-				var slice = _index.ReadEventInfoForward(
+				var result = _index.ReadEventInfoForward(
 					originalStreamHandle,
 					fromEventNumber,
 					maxCount,
 					scavengePoint);
+
+				var slice = result.EventInfos;
 
 				foreach (var eventInfo in slice) {
 					eventCalc.SetEvent(eventInfo);
@@ -248,10 +250,7 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				}
 
 				// we haven't found an event to definitely keep
-				//qq would it be better to have IsEndOfStream returned from the index?
-				//qq we might have received fewer events than maxcount if some of the events have been
-				// scavenged? and others may still be further up the range
-				if (slice.Length < maxCount) {
+				if (result.IsEndOfStream) {
 					// we have finished reading the stream from the index,
 					// but not found any events to keep.
 					// we therefore didn't find any at all, or found some and discarded them all
@@ -273,9 +272,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 					}
 				} else {
 					// we aren't done reading slices, read the next slice.
+					fromEventNumber = result.NextEventNumber;
 				}
-
-				fromEventNumber += slice.Length;
 			}
 		}
 	}
