@@ -197,6 +197,9 @@ namespace EventStore.Core.Index {
 			ulong hash = GetHash(stream);
 			entry = TableIndex.InvalidIndexEntry;
 
+			if (afterNumber >= long.MaxValue)
+				return false;
+
 			SortedList<Entry, byte> list;
 			if (_hash.TryGetValue(hash, out list)) {
 				if (!Monitor.TryEnter(list, 10000)) throw new UnableToAcquireLockInReasonableTimeException();
@@ -222,6 +225,9 @@ namespace EventStore.Core.Index {
 
 			ulong hash = GetHash(stream);
 			entry = TableIndex.InvalidIndexEntry;
+
+			if (beforeNumber <= 0)
+				return false;
 
 			SortedList<Entry, byte> list;
 			if (_hash.TryGetValue(hash, out list)) {

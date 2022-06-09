@@ -678,11 +678,19 @@ namespace EventStore.Core.Index {
 
 		public bool TryGetNextEntry(ulong stream, long afterVersion, out IndexEntry entry) {
 			ulong hash = GetHash(stream);
+			if (afterVersion >= long.MaxValue) {
+				entry = TableIndex.InvalidIndexEntry;
+				return false;
+			}
 			return TryGetSmallestEntry(hash, afterVersion + 1, long.MaxValue, out entry);
 		}
 
 		public bool TryGetPreviousEntry(ulong stream, long beforeVersion, out IndexEntry entry) {
 			ulong hash = GetHash(stream);
+			if (beforeVersion <= 0) {
+				entry = TableIndex.InvalidIndexEntry;
+				return false;
+			}
 			return TryGetLargestEntry(hash, 0, beforeVersion - 1, out entry);
 		}
 
