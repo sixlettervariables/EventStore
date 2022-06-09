@@ -69,7 +69,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private class GetCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
-
+			private readonly Func<SqliteDataReader, ScavengeCheckpoint> _reader;
+			
 			public GetCommand(SqliteBackend sqlite) {
 				var sql = "SELECT value FROM ScavengeCheckpointMap WHERE key = 0";
 				_cmd = sqlite.CreateCommand();
@@ -77,14 +78,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => {
+					var ok = ScavengeCheckpointJsonPersistence<TStreamId>.TryDeserialize(reader.GetString(0), out var v);
+					// code executed here means a record was found, but deserialization might fail
+					// which should be handled as false (no record found), return null to indicate this.
+					return ok ? v : null;
+				};
 			}
 
 			public bool TryExecute(out ScavengeCheckpoint value) {
-				return _sqlite.ExecuteSingleRead(_cmd, reader => {
-					//qq handle false
-					ScavengeCheckpointJsonPersistence<TStreamId>.TryDeserialize(reader.GetString(0), out var v);
-					return v;
-				}, out value);
+				return _sqlite.ExecuteSingleRead(_cmd, _reader, out value) && value != null;
 			}
 		}
 		
@@ -92,9 +95,17 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _selectCmd;
 			private readonly SqliteCommand _deleteCmd;
+			private readonly Func<SqliteDataReader, ScavengeCheckpoint> _reader;
 
 			public RemoveCommand(SqliteBackend sqlite) {
 				_sqlite = sqlite;
+				_reader = reader => {
+					var ok = ScavengeCheckpointJsonPersistence<TStreamId>.TryDeserialize(reader.GetString(0), out var v);
+					// code executed here means a record was found, but deserialization might fail
+					// which should be handled as false (no record found), return null to indicate this.
+					return ok ? v : null;
+				};
+				
 				var selectSql = "SELECT value FROM ScavengeCheckpointMap WHERE key = 0";
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
@@ -107,12 +118,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			}
 
 			public bool TryExecute(out ScavengeCheckpoint value) {
-				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd,
-					reader => {
-						//qq handle false
-						ScavengeCheckpointJsonPersistence<TStreamId>.TryDeserialize(reader.GetString(0), out var v);
-						return v;
-					}, out value);
+				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, _reader, out value) && value != null;
 			}
 		}
 	}

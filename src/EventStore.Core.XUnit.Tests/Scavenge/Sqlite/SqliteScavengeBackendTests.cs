@@ -173,7 +173,7 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			Assert.Equal(3, sut.Hashes.AllRecords().Count());
 		}
 		
-		[Fact, Trait("Category", "LongRunning")]
+		[Fact(Skip = "Long running, run manually")]
 		public void test_memory_usage() {
 			const ulong streamCount = 1_000_000;
 			const int chunkCount = 100;
@@ -226,24 +226,24 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			
 			var stats = sut.GetStats();
 			_testOutputHelper.WriteLine(
-				$"SQLite Memory Usage: {stats.MemoryUsage:N0}, " +
+				$"SQLite Memory Usage: {stats.MemoryUsage:N0} " +
 				$"Db Size: {stats.DatabaseSize:N0} " +
 				$"Cache Size: {stats.CacheSize:N0} for {streamCount:N0} streams in {stopwatch.Elapsed}");
 		}
 		
-		[Fact, Trait("Category", "LongRunning")]
+		[Fact (Skip = "Long running, run manually")]
 		public void test_index_with_archived() {
-			const ulong archivedCount = 10_000_000;
+			const ulong archivedCount = 50_000_000;
 			const ulong streamCount = 1_000_000;
 			const int chunkCount = 100;
 			const int collisionStorageCount = 5;
-			const int cacheSizeInBytes = 2 * 1024 * 1024;
+			const int cacheSizeInBytes = 4 * 1024 * 1024;
 
 			var sut = new SqliteScavengeBackend<string>(cacheSizeInBytes);
 			sut.Initialize(Fixture.DbConnection);
 
-			var stopwatch = new Stopwatch();
-			stopwatch.Start();
+			var insert = new Stopwatch();
+			insert.Start();
 
 			var transaction = sut.TransactionFactory.Begin();
 			for (ulong i = 0; i < archivedCount + streamCount; i++) {
@@ -281,58 +281,21 @@ namespace EventStore.Core.XUnit.Tests.Scavenge.Sqlite {
 			}
 			
 			sut.TransactionFactory.Commit(transaction);
-			stopwatch.Stop();
+			insert.Stop();
 
 			var readStopwatch = new Stopwatch();
 			readStopwatch.Start();
 			ulong k = 0;
-			foreach (var active in sut.OriginalStorage.ActiveRecordsFromCheckpoint(10_000_000)) {
+			foreach (var active in sut.OriginalStorage.ActiveRecordsFromCheckpoint(1_000_000)) {
 				k += active.Key;
 			}
 			readStopwatch.Stop();
-			
-			_testOutputHelper.WriteLine($"Read all active records in: {readStopwatch.Elapsed} with {archivedCount} archived & {streamCount:N0} active.");
-		}
-		
-		[Fact, Trait("Category", "LongRunning")]
-		public void test_read_order() {
-			const ulong streamCount = 100_000_000;
-			const int cacheSizeInBytes = 2 * 1024 * 1024;
 
-			var sut = new SqliteScavengeBackend<string>(cacheSizeInBytes);
-			sut.Initialize(Fixture.DbConnection);
-
-			var stopwatch = new Stopwatch();
-			stopwatch.Start();
-
-			var transaction = sut.TransactionFactory.Begin();
-			for (ulong i = 0; i < streamCount; i++) {
-				sut.OriginalStorage[i] = new OriginalStreamData() {
-					Status = CalculationStatus.Active,
-					DiscardPoint = DiscardPoint.KeepAll,
-					IsTombstoned = false,
-					MaxAge = TimeSpan.FromHours(1),
-					MaxCount = 10,
-					MaybeDiscardPoint = DiscardPoint.KeepAll,
-					TruncateBefore = 15
-				};
-			}
-
-			sut.TransactionFactory.Commit(transaction);
-			stopwatch.Stop();
-
-			for (var j = 0; j < 5; j++) {
-				var readStopwatch = new Stopwatch();
-				readStopwatch.Start();
-				ulong k = 0;
-				foreach (var active in sut.OriginalStorage.AllRecords()) {
-					k += active.Key;
-				}
-				readStopwatch.Stop();
-			
-				_testOutputHelper.WriteLine(
-					$"Read all records in: {readStopwatch.Elapsed} with {streamCount:N0} active.");
-			}
+			var stats = sut.GetStats();
+			_testOutputHelper.WriteLine(
+				$"Read all active records from checkpoint in: {readStopwatch.Elapsed} " +
+				$"with {archivedCount:N0} archived & {streamCount:N0} active, inserted in {insert.Elapsed}. " +
+				$"DB Size: {stats.DatabaseSize:N0}");
 		}
 	}
 }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
@@ -106,9 +107,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _deleteCmd;
 			private readonly SqliteParameter _selectKeyParam;
 			private readonly SqliteParameter _deleteKeyParam;
+			private readonly Func<SqliteDataReader, bool> _reader;
 
 			public RemoveCommand(SqliteBackend sqlite) {
 				_sqlite = sqlite;
+				_reader = reader => true;
 				
 				var selectSql = @"
 					SELECT key
@@ -133,13 +136,14 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			public bool TryExecute(TKey key) {
 				_selectKeyParam.Value = key;
 				_deleteKeyParam.Value = key;
-				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, reader => true, out _);
+				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, _reader, out _);
 			}
 		}
 		
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
+			private readonly Func<SqliteDataReader, KeyValuePair<TKey, Unit>> _reader;
 
 			public AllRecordsCommand(SqliteBackend sqlite) {
 				var sql = @"
@@ -152,11 +156,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => new KeyValuePair<TKey, Unit>(reader.GetFieldValue<TKey>(0), Unit.Instance);
 			}
 
 			public IEnumerable<KeyValuePair<TKey, Unit>> Execute() {
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, Unit>(
-					reader.GetFieldValue<TKey>(0), Unit.Instance));
+				return _sqlite.ExecuteReader(_cmd, _reader);
 			}
 		}
 	}
