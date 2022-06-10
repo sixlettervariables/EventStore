@@ -240,7 +240,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 					dbResult.Db.Manager,
 					metastreamLookup,
 					new LogV2StreamIdConverter(),
-					dbResult.Db.Config.ReplicationCheckpoint);
+					dbResult.Db.Config.ReplicationCheckpoint,
+					dbConfig.ChunkSize);
 
 				var indexReader = new IndexReaderForAccumulator(readIndex);
 

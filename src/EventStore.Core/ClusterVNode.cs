@@ -611,7 +611,8 @@ namespace EventStore.Core {
 							db.Manager,
 							metastreamLookup,
 							streamIdConverter,
-							db.Config.ReplicationCheckpoint),
+							db.Config.ReplicationCheckpoint,
+							TFConsts.ChunkSize),
 						index: new IndexReaderForAccumulator(readIndex),
 						cancellationCheckPeriod: cancellationCheckPeriod,
 						throttle: throttle);
