@@ -12,15 +12,21 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly IIndexScavenger _indexScavenger;
 		private readonly IChunkReaderForIndexExecutor<TStreamId> _streamLookup;
 		private readonly bool _unsafeIgnoreHardDeletes;
+		private readonly int _restPeriod;
+		private readonly Throttle _throttle;
 
 		public IndexExecutor(
 			IIndexScavenger indexScavenger,
 			IChunkReaderForIndexExecutor<TStreamId> streamLookup,
-			bool unsafeIgnoreHardDeletes) {
+			bool unsafeIgnoreHardDeletes,
+			int restPeriod,
+			Throttle throttle) {
 
 			_indexScavenger = indexScavenger;
 			_streamLookup = streamLookup;
 			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
+			_restPeriod = restPeriod;
+			_throttle = throttle;
 		}
 
 		public void Execute(
@@ -47,12 +53,14 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 			_indexScavenger.ScavengeIndex(
 				scavengePoint: checkpoint.ScavengePoint.Position,
-				shouldKeep: GenShouldKeep(state),
+				shouldKeep: GenShouldKeep(state, cancellationToken),
 				log: scavengerLogger,
 				cancellationToken: cancellationToken);
 		}
 
-		private Func<IndexEntry, bool> GenShouldKeep(IScavengeStateForIndexExecutor<TStreamId> state) {
+		private Func<IndexEntry, bool> GenShouldKeep(
+			IScavengeStateForIndexExecutor<TStreamId> state,
+			CancellationToken cancellationToken) {
 			//qq cache some info between invocations of ShouldKeep since it will typically be invoked
 			// repeatedly with the same stream hash.
 			//
@@ -70,9 +78,15 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var currentIsTombstoned = false;
 			//qq this isn't always defined, consider in relationship to the invariants.
 			var currentIsDefinitelyMetastream = false;
+			var restCounter = 0;
 
 			bool ShouldKeep(IndexEntry indexEntry) {
-				//qq throttle?
+				// Rest occasionally
+				if (++restCounter == _restPeriod) {
+					restCounter = 0;
+					_throttle.Rest(cancellationToken);
+				}
+
 				//qqqq need to respect the scavenge point
 				if (currentHash != indexEntry.Stream || currentHashIsCollision) {
 					// currentHash != indexEntry.Stream || currentHashIsCollision

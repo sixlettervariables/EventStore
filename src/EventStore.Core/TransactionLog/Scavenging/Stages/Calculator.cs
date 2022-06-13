@@ -13,17 +13,20 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly int _chunkSize;
 		private readonly int _cancellationCheckPeriod;
 		private readonly int _checkpointPeriod;
+		private readonly Throttle _throttle;
 
 		public Calculator(
 			IIndexReaderForCalculator<TStreamId> index,
 			int chunkSize,
 			int cancellationCheckPeriod,
-			int checkpointPeriod) {
+			int checkpointPeriod,
+			Throttle throttle) {
 
 			_index = index;
 			_chunkSize = chunkSize;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
 			_checkpointPeriod = checkpointPeriod;
+			_throttle = throttle;
 		}
 
 		public void Calculate(
@@ -136,7 +139,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						var elapsed = stopwatch.Elapsed;
 						LogRate("period", _checkpointPeriod, elapsed - periodStart);
 						LogRate("total", totalCounter, elapsed);
-						periodStart = elapsed;
+						_throttle.Rest(cancellationToken);
+
+						periodStart = stopwatch.Elapsed;
 					}
 				}
 
@@ -147,7 +152,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 				transaction.Commit(new ScavengeCheckpoint.Calculating<TStreamId>(
 					scavengePoint,
 					streamCalc.OriginalStreamHandle));
-				LogRate("grand total", totalCounter, stopwatch.Elapsed);
+				LogRate("grand total (including rests)", totalCounter, stopwatch.Elapsed);
+				_throttle.Rest(cancellationToken);
 			} catch {
 				transaction.Rollback();
 				throw;

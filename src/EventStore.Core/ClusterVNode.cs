@@ -567,12 +567,18 @@ namespace EventStore.Core {
 					};
 					var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
 					connection.Open();
-					var sqlite = new SqliteScavengeBackend<string>();
+					var sqlite = new SqliteScavengeBackend<string>(
+						cacheSizeInBytes: vNodeSettings.ScavengeBackendCacheSize);
 					sqlite.Initialize(connection);
 					return sqlite;
 				});
 
 				scavengerFactory = new NewScavengerFactory((message, logger) => {
+					var throttle = new Throttle(
+						TimeSpan.FromMilliseconds(1000),
+						TimeSpan.FromMilliseconds(1000), //qqqqqqq
+						activePercent: vNodeSettings.ScavengeThrottlePercent);
+
 					var metastreamLookup = new LogV2SystemStreams();
 					var streamIdConverter = new LogV2StreamIdConverter();
 					var cancellationCheckPeriod = 1024; //qq sensible?
@@ -589,20 +595,23 @@ namespace EventStore.Core {
 							streamIdConverter,
 							db.Config.ReplicationCheckpoint),
 						index: new IndexReaderForAccumulator(readIndex),
-						cancellationCheckPeriod: cancellationCheckPeriod);
+						cancellationCheckPeriod: cancellationCheckPeriod,
+						throttle: throttle);
 
 					var calculator = new Calculator<string>(
 						new IndexReaderForCalculator(readIndex),
 						chunkSize: TFConsts.ChunkSize,
 						cancellationCheckPeriod: cancellationCheckPeriod,
-						checkpointPeriod: 32_768); //qq sensible?
+						checkpointPeriod: 32_768, //qq sensible?
+						throttle: throttle);
 
 					var chunkExecutor = new ChunkExecutor<string, LogRecord>(
 						metastreamLookup,
 						new ChunkManagerForExecutor(db.Manager, db.Config),
 						chunkSize: db.Config.ChunkSize,
 						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
-						cancellationCheckPeriod: cancellationCheckPeriod);
+						cancellationCheckPeriod: cancellationCheckPeriod,
+						throttle: throttle);
 
 					var chunkMerger = new ChunkMerger(
 						mergeChunks: !vNodeSettings.DisableScavengeMerging,
@@ -612,7 +621,9 @@ namespace EventStore.Core {
 					var indexExecutor = new IndexExecutor<string>(
 						new IndexScavenger(tableIndex),
 						new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
-						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
+						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes,
+						restPeriod: 32_768, //qq sensible?
+						throttle: throttle);
 
 					var cleaner = new Cleaner(
 						unsafeIgnoreHardDeletes: vNodeSettings.UnsafeIgnoreHardDeletes);
@@ -646,7 +657,8 @@ namespace EventStore.Core {
 						cleaner: cleaner,
 						scavengePointSource: scavengePointSource,
 						scavengerLogger: logger,
-						() => sqlite.GetStats().PrettyPrint());
+						getDbStats: () => sqlite.GetStats().PrettyPrint(),
+						getThrottleStats: () => throttle.PrettyPrint());
 
 				});
 

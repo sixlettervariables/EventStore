@@ -236,6 +236,7 @@ namespace EventStore.ClusterNode {
 				.WithInitializationThreads(options.InitializationThreads)
 				.WithMaxAutoMergeIndexLevel(options.MaxAutoMergeIndexLevel)
 				.WithScavengeBackendCacheSize(options.ScavengeBackendCacheSize)
+				.WithScavengeThrottlePercent(options.ScavengeThrottlePercent)
 				.WithStreamInfoCacheCapacity(options.StreamInfoCacheCapacity);
 
 			if (options.GossipSeed.Length > 0)

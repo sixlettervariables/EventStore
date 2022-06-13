@@ -11,25 +11,27 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 	}
 
 	public class Accumulator<TStreamId> : Accumulator, IAccumulator<TStreamId> {
-
 		private readonly int _chunkSize;
 		private readonly IMetastreamLookup<TStreamId> _metastreamLookup;
 		private readonly IChunkReaderForAccumulator<TStreamId> _chunkReader;
 		private readonly IIndexReaderForAccumulator<TStreamId> _index;
 		private readonly int _cancellationCheckPeriod;
+		private readonly Throttle _throttle;
 
 		public Accumulator(
 			int chunkSize,
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkReaderForAccumulator<TStreamId> chunkReader,
 			IIndexReaderForAccumulator<TStreamId> index,
-			int cancellationCheckPeriod) {
+			int cancellationCheckPeriod,
+			Throttle throttle) {
 
 			_chunkSize = chunkSize;
 			_metastreamLookup = metastreamLookup;
 			_chunkReader = chunkReader;
 			_index = index;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
+			_throttle = throttle;
 		}
 
 		// Start a new accumulation
@@ -147,6 +149,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 
 				Log.Trace("SCAVENGING: Accumulated chunk {chunk} in {elapsed}. Chunk total: {chunkTotalElapsed}",
 					logicalChunkNumber, accumulationElapsed, stopwatch.Elapsed);
+
+				_throttle.Rest(cancellationToken);
 
 				return ret;
 			} catch {

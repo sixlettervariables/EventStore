@@ -96,6 +96,7 @@ namespace EventStore.Core.Tests.Helpers {
 				false, false, "", false, TimeSpan.FromHours(1), StatsStorage.None, 0,
 				new InternalAuthenticationProviderFactory(), disableScavengeMerging: true, scavengeHistoryMaxAge: 30,
 				scavengeBackendCacheSize: Opts.ScavengeBackendCacheSizeDefault,
+				scavengeThrottlePercent: Opts.ScavengeThrottlePercentDefault,
 				adminOnPublic: true,
 				statsOnPublic: true, gossipOnPublic: true, gossipInterval: TimeSpan.FromSeconds(1),
 				gossipAllowedTimeDifference: TimeSpan.FromSeconds(1), gossipTimeout: TimeSpan.FromSeconds(1),

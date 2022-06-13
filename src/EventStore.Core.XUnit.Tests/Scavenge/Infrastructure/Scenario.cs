@@ -280,22 +280,30 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 
 				var cancellationCheckPeriod = 1;
 				var checkpointPeriod = 2;
+				var restPeriod = 5;
 
 				// add tracing
 				chunkReader = new TracingChunkReaderForAccumulator<string>(chunkReader, Tracer.Trace);
+
+				var throttle = new Throttle(
+					TimeSpan.FromMilliseconds(1000),
+					TimeSpan.FromMilliseconds(1000),
+					activePercent: 100);
 
 				IAccumulator<string> accumulator = new Accumulator<string>(
 					chunkSize: dbConfig.ChunkSize,
 					metastreamLookup: accumulatorMetastreamLookup,
 					chunkReader: chunkReader,
 					index: indexReader,
-					cancellationCheckPeriod: cancellationCheckPeriod);
+					cancellationCheckPeriod: cancellationCheckPeriod,
+					throttle: throttle);
 
 				ICalculator<string> calculator = new Calculator<string>(
 					index: calculatorIndexReader,
 					chunkSize: dbConfig.ChunkSize,
 					cancellationCheckPeriod: cancellationCheckPeriod,
-					checkpointPeriod: checkpointPeriod);
+					checkpointPeriod: checkpointPeriod,
+					throttle: throttle);
 
 				IChunkExecutor<string> chunkExecutor = new ChunkExecutor<string, LogRecord>(
 					metastreamLookup: chunkExecutorMetastreamLookup,
@@ -306,7 +314,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						Tracer),
 					chunkSize: dbConfig.ChunkSize,
 					unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
-					cancellationCheckPeriod: cancellationCheckPeriod);
+					cancellationCheckPeriod: cancellationCheckPeriod,
+					throttle: throttle);
 
 				IChunkMerger chunkMerger = new ChunkMerger(
 					mergeChunks: _mergeChunks,
@@ -315,7 +324,9 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 				IIndexExecutor<string> indexExecutor = new IndexExecutor<string>(
 					indexScavenger: cancellationWrappedIndexScavenger,
 					streamLookup: new ChunkReaderForIndexExecutor(() => new TFReaderLease(readerPool)),
-					unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
+					unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes,
+					restPeriod: restPeriod,
+					throttle: throttle);
 
 				ICleaner cleaner = new Cleaner(unsafeIgnoreHardDeletes: _unsafeIgnoreHardDeletes);
 
@@ -345,7 +356,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						EffectiveNow,
 						_newScavengePoint ?? new List<ScavengePoint>()),
 					_logger ?? new FakeTFScavengerLog(),
-					() => "dummy stats");
+					() => "dummy stats",
+					throttle.PrettyPrint);
 
 				Tracer.Reset();
 				await sut.ScavengeAsync(cancellationTokenSource.Token);

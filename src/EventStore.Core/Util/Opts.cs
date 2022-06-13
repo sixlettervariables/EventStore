@@ -435,8 +435,9 @@ namespace EventStore.Core.Util {
 		public static readonly int MaxAutoMergeIndexLevelDefault = int.MaxValue;
 		
 		public const string ScavengeBackendCacheSizeDescr = "The amount of memory to use for backend caching in bytes.";
-		public static readonly int ScavengeBackendCacheSizeDefault = 2 * 1024 * 1024; // qq check default value - 2MB
-		
+		public static readonly int ScavengeBackendCacheSizeDefault = 2 * 1024 * 1024; //qq check default value - 2MB
+		public const string ScavengeThrottlePercentDescr = ""; //qqqqqqqq use words
+		public const int ScavengeThrottlePercentDefault = 75; //qq check default value
 		public const string WriteStatsToDbDescr = "Set this option to write statistics to the database.";
 		public const bool WriteStatsToDbDefault = true;
 	}

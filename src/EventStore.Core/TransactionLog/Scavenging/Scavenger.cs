@@ -23,7 +23,9 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly ICleaner _cleaner;
 		private readonly IScavengePointSource _scavengePointSource;
 		private readonly ITFChunkScavengerLog _scavengerLogger;
-		private readonly Func<string> _getStats;
+		private readonly Func<string> _getDbStats;
+		private readonly Func<string> _getThrottleStats;
+
 		private readonly Dictionary<string, TimeSpan> _recordedTimes =
 			new Dictionary<string, TimeSpan>();
 
@@ -37,7 +39,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			ICleaner cleaner,
 			IScavengePointSource scavengePointSource,
 			ITFChunkScavengerLog scavengerLogger,
-			Func<string> getStats) {
+			Func<string> getDbStats,
+			Func<string> getThrottleStats) {
 
 			_state = state;
 			_accumulator = accumulator;
@@ -48,7 +51,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			_cleaner = cleaner;
 			_scavengePointSource = scavengePointSource;
 			_scavengerLogger = scavengerLogger;
-			_getStats = getStats;
+			_getThrottleStats = getThrottleStats;
+			_getDbStats = getDbStats;
 		}
 
 		public string ScavengeId => _scavengerLogger.ScavengeId;
@@ -192,7 +196,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 			var start = stopwatch.Elapsed;
 			f();
 			var elapsed = stopwatch.Elapsed - start;
-			Log.Trace($"SCAVENGING: {_getStats()}");
+			Log.Trace($"SCAVENGING: {_getDbStats()}");
+			Log.Trace($"SCAVENGING: {_getThrottleStats()}");
 			Log.Trace("SCAVENGING: " + name + " took {elapsed}", elapsed);
 			Log.Trace("");
 			_recordedTimes[name] = elapsed;

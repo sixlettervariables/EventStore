@@ -21,19 +21,22 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 		private readonly long _chunkSize;
 		private readonly bool _unsafeIgnoreHardDeletes;
 		private readonly int _cancellationCheckPeriod;
+		private readonly Throttle _throttle;
 
 		public ChunkExecutor(
 			IMetastreamLookup<TStreamId> metastreamLookup,
 			IChunkManagerForChunkExecutor<TStreamId, TRecord> chunkManager,
 			long chunkSize,
 			bool unsafeIgnoreHardDeletes,
-			int cancellationCheckPeriod) {
+			int cancellationCheckPeriod,
+			Throttle throttle) {
 
 			_metastreamLookup = metastreamLookup;
 			_chunkManager = chunkManager;
 			_chunkSize = chunkSize;
 			_unsafeIgnoreHardDeletes = unsafeIgnoreHardDeletes;
 			_cancellationCheckPeriod = cancellationCheckPeriod;
+			_throttle = throttle;
 		}
 
 		public void Execute(
@@ -92,6 +95,8 @@ namespace EventStore.Core.TransactionLog.Scavenging {
 						new ScavengeCheckpoint.ExecutingChunks(
 							scavengePoint,
 							physicalChunk.ChunkEndNumber));
+
+					_throttle.Rest(cancellationToken);
 				} catch {
 					transaction.Rollback();
 					throw;
