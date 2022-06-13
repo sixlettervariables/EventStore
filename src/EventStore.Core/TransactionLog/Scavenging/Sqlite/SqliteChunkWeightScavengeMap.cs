@@ -8,7 +8,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private SumChunkWeightsCommand _sumChunkWeights;
 		private ResetChunkWeightsCommand _resetChunkWeights;
 
-		private const string MapName = "ChunkWeightScavengeMap";
+		private const string MapName = "ChunkWeights";
 
 		public SqliteChunkWeightScavengeMap() : base(MapName) { }
 

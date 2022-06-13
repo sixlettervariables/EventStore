@@ -42,19 +42,19 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			var collisionStorage = new SqliteCollisionScavengeMap<TStreamId>();
 			CollisionStorage = collisionStorage;
 
-			var hashes = new SqliteScavengeMap<ulong, TStreamId>("HashesMap");
+			var hashes = new SqliteScavengeMap<ulong, TStreamId>("HashUsers");
 			Hashes = hashes;
 
-			var metaStorage = new SqliteMetastreamScavengeMap<ulong>("MetaStorageMap");
+			var metaStorage = new SqliteMetastreamScavengeMap<ulong>("MetastreamDatas");
 			MetaStorage = metaStorage;
 			
-			var metaCollisionStorage = new SqliteMetastreamScavengeMap<TStreamId>("MetaCollisionMap");
+			var metaCollisionStorage = new SqliteMetastreamScavengeMap<TStreamId>("MetastreamDataCollisions");
 			MetaCollisionStorage = metaCollisionStorage;
 			
-			var originalStorage = new SqliteOriginalStreamScavengeMap<ulong>("OriginalStreamStorageMap");
+			var originalStorage = new SqliteOriginalStreamScavengeMap<ulong>("OriginalStreamDatas");
 			OriginalStorage = originalStorage;
 			
-			var originalCollisionStorage = new SqliteOriginalStreamScavengeMap<TStreamId>("OriginalStreamCollisionStorageMap");
+			var originalCollisionStorage = new SqliteOriginalStreamScavengeMap<TStreamId>("OriginalStreamDataCollisions");
 			OriginalCollisionStorage = originalCollisionStorage;
 			
 			var checkpointStorage = new SqliteScavengeCheckpointMap<TStreamId>();
@@ -114,15 +114,17 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		private void InitializeSchemaVersion() {
+			var tableName = "SchemaVersion";
+
 			using (var cmd = _sqliteBackend.CreateCommand()) {
-				cmd.CommandText = "CREATE TABLE IF NOT EXISTS ScavengingSchemaVersion (version Integer PRIMARY KEY)";
+				cmd.CommandText = $"CREATE TABLE IF NOT EXISTS {tableName} (version Integer PRIMARY KEY)";
 				cmd.ExecuteNonQuery();
 
-				cmd.CommandText = "SELECT MAX(version) FROM ScavengingSchemaVersion";
+				cmd.CommandText = $"SELECT MAX(version) FROM {tableName}";
 				var currentVersion = cmd.ExecuteScalar();
 
 				if (currentVersion == DBNull.Value) {
-					cmd.CommandText = $"INSERT INTO ScavengingSchemaVersion VALUES({SchemaVersion})";
+					cmd.CommandText = $"INSERT INTO {tableName} VALUES({SchemaVersion})";
 					cmd.ExecuteNonQuery();
 				} else if (currentVersion != null && (long)currentVersion < SchemaVersion) {
 					// need schema update

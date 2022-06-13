@@ -10,7 +10,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private AllRecordsCommand _all;
 		private static Func<SqliteDataReader, ChunkTimeStampRange> _readChunkTimeStampRange;
 
-		private const string TableName = "ChunkTimeStampRangeScavengeMap";
+		private const string TableName = "ChunkTimeStampRanges";
 
 		public SqliteChunkTimeStampRangeScavengeMap() {
 			_readChunkTimeStampRange = reader => {

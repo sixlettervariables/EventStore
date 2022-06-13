@@ -8,9 +8,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private GetCommand _get;
 		private RemoveCommand _remove;
 
+		private const string TableName = "Checkpoint";
+
 		public void Initialize(SqliteBackend sqlite) {
-			var sql = @"
-				CREATE TABLE IF NOT EXISTS ScavengeCheckpointMap (
+			var sql = $@"
+				CREATE TABLE IF NOT EXISTS {TableName} (
 					key Integer PRIMARY KEY,
 					value Text NOT NULL)";
 			
@@ -47,8 +49,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _valueParam;
 
 			public AddCommand(SqliteBackend sqlite) {
-				var sql = @"
-					INSERT INTO ScavengeCheckpointMap
+				var sql = $@"
+					INSERT INTO {TableName}
 					VALUES(0, $value)
 					ON CONFLICT(key) DO UPDATE SET value=$value";
 				
@@ -72,7 +74,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly Func<SqliteDataReader, ScavengeCheckpoint> _reader;
 			
 			public GetCommand(SqliteBackend sqlite) {
-				var sql = "SELECT value FROM ScavengeCheckpointMap WHERE key = 0";
+				var sql = $"SELECT value FROM {TableName} WHERE key = 0";
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_cmd.Prepare();
@@ -106,12 +108,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					return ok ? v : null;
 				};
 				
-				var selectSql = "SELECT value FROM ScavengeCheckpointMap WHERE key = 0";
+				var selectSql = $"SELECT value FROM {TableName} WHERE key = 0";
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
 				_selectCmd.Prepare();
 
-				var deleteSql = "DELETE FROM ScavengeCheckpointMap WHERE key = 0";
+				var deleteSql = $"DELETE FROM {TableName} WHERE key = 0";
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
 				_deleteCmd.Prepare();

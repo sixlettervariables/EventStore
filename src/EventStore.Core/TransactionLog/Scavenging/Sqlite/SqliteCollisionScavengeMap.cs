@@ -9,9 +9,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private RemoveCommand _remove;
 		private AllRecordsCommand _all;
 
+		private const string TableName = "HashCollisions";
+
 		public void Initialize(SqliteBackend sqlite) {
 			var sql = $@"
-				CREATE TABLE IF NOT EXISTS CollisionMap (
+				CREATE TABLE IF NOT EXISTS {TableName} (
 					key {SqliteTypeMapping.GetTypeName<TKey>()} PRIMARY KEY)";
 			
 			sqlite.InitializeDb(sql);
@@ -58,8 +60,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteParameter _keyParam;
 
 			public AddCommand(SqliteBackend sqlite) {
-				var sql = @"
-					INSERT INTO CollisionMap
+				var sql = $@"
+					INSERT INTO {TableName}
 					VALUES($key)
 					ON CONFLICT(key) DO UPDATE SET key=$key";
 				
@@ -84,9 +86,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly Func<SqliteDataReader, Unit> _reader;
 
 			public GetCommand(SqliteBackend sqlite) {
-				var sql = @"
+				var sql = $@"
 					SELECT key
-					FROM CollisionMap
+					FROM {TableName}
 					WHERE key = $key";
 				
 				_cmd = sqlite.CreateCommand();
@@ -115,9 +117,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_sqlite = sqlite;
 				_reader = reader => Unit.Instance;
 				
-				var selectSql = @"
+				var selectSql = $@"
 					SELECT key
-					FROM CollisionMap
+					FROM {TableName}
 					WHERE key = $key";
 				
 				_selectCmd = sqlite.CreateCommand();
@@ -125,8 +127,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
 				_selectCmd.Prepare();
 
-				var deleteSql = @"
-					DELETE FROM CollisionMap
+				var deleteSql = $@"
+					DELETE FROM {TableName}
 					WHERE key = $key";
 				
 				_deleteCmd = sqlite.CreateCommand();
@@ -148,11 +150,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly Func<SqliteDataReader, KeyValuePair<TKey, Unit>> _reader;
 
 			public AllRecordsCommand(SqliteBackend sqlite) {
-				var sql = @"
+				var sql = $@"
 					SELECT key
-					FROM CollisionMap
+					FROM {TableName}
 					ORDER BY key";
-				
+
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = sql;
 				_cmd.Prepare();
