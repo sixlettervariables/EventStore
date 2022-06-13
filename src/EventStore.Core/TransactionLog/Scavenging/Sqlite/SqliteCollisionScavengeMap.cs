@@ -109,11 +109,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _deleteCmd;
 			private readonly SqliteParameter _selectKeyParam;
 			private readonly SqliteParameter _deleteKeyParam;
-			private readonly Func<SqliteDataReader, bool> _reader;
+			private readonly Func<SqliteDataReader, Unit> _reader;
 
 			public RemoveCommand(SqliteBackend sqlite) {
 				_sqlite = sqlite;
-				_reader = reader => true;
+				_reader = reader => Unit.Instance;
 				
 				var selectSql = @"
 					SELECT key
