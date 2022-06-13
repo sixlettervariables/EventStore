@@ -645,7 +645,8 @@ namespace EventStore.Core {
 						indexExecutor: indexExecutor,
 						cleaner: cleaner,
 						scavengePointSource: scavengePointSource,
-						scavengerLogger: logger);
+						scavengerLogger: logger,
+						() => sqlite.GetStats().PrettyPrint());
 
 				});
 

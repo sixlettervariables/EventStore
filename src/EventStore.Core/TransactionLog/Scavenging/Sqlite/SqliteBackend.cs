@@ -142,6 +142,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			public long MemoryUsage { get; }
 			public long DatabaseSize { get; }
 			public long CacheSize { get; }
+
+			public string PrettyPrint() {
+				var dbSizeMb = (float)DatabaseSize / 1_000_000;
+				var cacheSizeMb = (float)CacheSize / 1_000_000;
+				var memSizeMb = (float)MemoryUsage / 1_000_000;
+				return
+					$"ScavengeState size: {dbSizeMb:N2} MB. " +
+					$"Cache size: {cacheSizeMb:N2} MB. " +
+					$"Memory usage: {memSizeMb:N2} MB";
+			}
 		}
 	}
 }

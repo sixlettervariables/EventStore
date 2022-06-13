@@ -344,7 +344,8 @@ namespace EventStore.Core.XUnit.Tests.Scavenge {
 						dbResult,
 						EffectiveNow,
 						_newScavengePoint ?? new List<ScavengePoint>()),
-					_logger ?? new FakeTFScavengerLog());
+					_logger ?? new FakeTFScavengerLog(),
+					() => "dummy stats");
 
 				Tracer.Reset();
 				await sut.ScavengeAsync(cancellationTokenSource.Token);
