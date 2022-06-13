@@ -9,6 +9,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private SqliteTransaction _transaction;
 		private const int SqliteDuplicateKeyError = 19;
 
+		public const string CacheSize = "cache_size";
+		public const string PageCount = "page_count";
+		public const string PageSize = "page_size";
+		public const string Synchronous = "synchronous";
+		public const string JournalMode = "journal_mode";
+
 		public SqliteBackend(SqliteConnection connection) {
 			_connection = connection;
 		}
@@ -101,12 +107,9 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 		
 		public Stats GetStats() {
-			var databaseSize = int.Parse(GetPragmaValue("page_size")) * int.Parse(GetPragmaValue("page_count"));
-			var kibiBytesToKiloBytes = 1024f / 1000f;
-			var cacheSizeInKibiBytes = -1 * int.Parse(GetPragmaValue("cache_size"));
-			var cacheSizeInKiloBytes = (int)(cacheSizeInKibiBytes * kibiBytesToKiloBytes);
-			var cacheSizeInBytes = cacheSizeInKiloBytes * 1024;
-			
+			var databaseSize = int.Parse(GetPragmaValue(PageSize)) * int.Parse(GetPragmaValue(PageCount));
+			var cacheSizeInKibiBytes = -1 * int.Parse(GetPragmaValue(CacheSize));
+			var cacheSizeInBytes = cacheSizeInKibiBytes * 1024;
 			return new Stats(raw.sqlite3_memory_used(), databaseSize, cacheSizeInBytes);
 		}
 

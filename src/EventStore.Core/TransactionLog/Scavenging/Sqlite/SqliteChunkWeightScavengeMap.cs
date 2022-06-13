@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using System;
+using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 	public class SqliteChunkWeightScavengeMap : SqliteScavengeMap<int, float>, IChunkWeightScavengeMap {
@@ -68,6 +69,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private class AllWeightsAreZeroCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
+			private Func<SqliteDataReader, bool> _reader;
 
 			public AllWeightsAreZeroCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -82,10 +84,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 
 				_sqlite = sqlite;
+				_reader = reader => reader.GetBoolean(0);
 			}
 
 			public bool Execute() {
-				_sqlite.ExecuteSingleRead(_cmd, reader => reader.GetBoolean(0), out var exists);
+				_sqlite.ExecuteSingleRead(_cmd, _reader, out var exists);
 				return !exists;
 			}
 		}
@@ -95,6 +98,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _cmd;
 			private readonly SqliteParameter _startParam;
 			private readonly SqliteParameter _endParam;
+			private Func<SqliteDataReader, float> _reader;
 
 			public SumChunkWeightsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -109,13 +113,13 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => reader.IsDBNull(0) ? 0 : reader.GetFloat(0);
 			}
 
 			public float Execute(int startLogicalChunkNumber, int endLogicalChunkNumber) {
 				_startParam.Value = startLogicalChunkNumber;
 				_endParam.Value = endLogicalChunkNumber;
-				_sqlite.ExecuteSingleRead(_cmd, 
-					reader => reader.IsDBNull(0) ? 0 : reader.GetFloat(0), out var value);
+				_sqlite.ExecuteSingleRead(_cmd, _reader, out var value);
 				return value;
 			}
 		}

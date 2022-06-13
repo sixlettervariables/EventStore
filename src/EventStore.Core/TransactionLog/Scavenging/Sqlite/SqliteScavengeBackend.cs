@@ -10,9 +10,10 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		//    can be lost. the database will be in a valid state.
 		//  - this is suitable for us because scavenge will continue from the last
 		//    persisted checkpoint.
-		private const string ExpectedJournalMode = "wal";
-		private const int ExpectedSynchronousValue = 1; // Normal
+		private const string SqliteWalJournalMode = "wal";
+		private const int SqliteNormalSynchronousValue = 1;
 		private const int DefaultSqliteCacheSize = 2 * 1024 * 1024;
+		private const int SqlitePageSize = 16 * 1024;
 		private readonly int _cacheSizeInBytes;
 		private SqliteBackend _sqliteBackend;
 
@@ -79,31 +80,36 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		}
 
 		private void ConfigureFeatures() {
-			_sqliteBackend.SetPragmaValue("journal_mode", ExpectedJournalMode);
-			var journalMode = _sqliteBackend.GetPragmaValue("journal_mode");
-			if (journalMode.ToLower() != ExpectedJournalMode) {
+			_sqliteBackend.SetPragmaValue(SqliteBackend.PageSize, SqlitePageSize.ToString());
+			var pageSize = int.Parse(_sqliteBackend.GetPragmaValue(SqliteBackend.PageSize));
+			if (pageSize != SqlitePageSize) {
+				throw new Exception($"Failed to configure page size, unexpected value: {pageSize}");
+			}
+			
+			_sqliteBackend.SetPragmaValue(SqliteBackend.JournalMode, SqliteWalJournalMode);
+			var journalMode = _sqliteBackend.GetPragmaValue(SqliteBackend.JournalMode);
+			if (journalMode.ToLower() != SqliteWalJournalMode) {
 				throw new Exception($"Failed to configure journal mode, unexpected value: {journalMode}");
 			}
 			
-			_sqliteBackend.SetPragmaValue("synchronous", ExpectedSynchronousValue.ToString());
-			var synchronousMode = int.Parse(_sqliteBackend.GetPragmaValue("synchronous"));
-			if (synchronousMode != ExpectedSynchronousValue) {
+			_sqliteBackend.SetPragmaValue(SqliteBackend.Synchronous, SqliteNormalSynchronousValue.ToString());
+			var synchronousMode = int.Parse(_sqliteBackend.GetPragmaValue(SqliteBackend.Synchronous));
+			if (synchronousMode != SqliteNormalSynchronousValue) {
 				throw new Exception($"Failed to configure synchronous mode, unexpected value: {synchronousMode}");
 			}
 
 			// cache size in kibi bytes is passed as a negative value, otherwise it's amount of pages
 			var cacheSize = -1 * GetCacheSizeInKibiBytes();
-			_sqliteBackend.SetPragmaValue("cache_size", cacheSize.ToString());
-			var currentCacheSize = int.Parse(_sqliteBackend.GetPragmaValue("cache_size"));
+			_sqliteBackend.SetPragmaValue(SqliteBackend.CacheSize, cacheSize.ToString());
+			var currentCacheSize = int.Parse(_sqliteBackend.GetPragmaValue(SqliteBackend.CacheSize));
 			if (currentCacheSize != cacheSize) {
 				throw new Exception($"Failed to configure cache size, unexpected value: {currentCacheSize}");
 			}
 		}
 
 		private int GetCacheSizeInKibiBytes() {
-			var kiloBytesToKibiBytes = 1000f / 1024f;
-			var cacheSizeInKibiBytes = (int)(_cacheSizeInBytes / 1024f * kiloBytesToKibiBytes);
-			var defaultCacheSizeInKibiBytes = (int)(DefaultSqliteCacheSize / 1024f * kiloBytesToKibiBytes);
+			var cacheSizeInKibiBytes = _cacheSizeInBytes / 1024;
+			var defaultCacheSizeInKibiBytes = DefaultSqliteCacheSize / 1024;
 			return Math.Max(cacheSizeInKibiBytes, defaultCacheSizeInKibiBytes);
 		}
 

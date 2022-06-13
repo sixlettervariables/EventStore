@@ -147,6 +147,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
+			private readonly Func<SqliteDataReader, KeyValuePair<int, ChunkTimeStampRange>> _reader;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -159,14 +160,16 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
-			}
 
-			public IEnumerable<KeyValuePair<int, ChunkTimeStampRange>> Execute() {
-				return _sqlite.ExecuteReader(_cmd, reader => {
+				_reader = reader => {
 					var chunkTimeStampRange = _readChunkTimeStampRange(reader);
 					var key = reader.GetFieldValue<int>(2);
 					return new KeyValuePair<int, ChunkTimeStampRange>(key, chunkTimeStampRange);
-				});
+				};
+			}
+
+			public IEnumerable<KeyValuePair<int, ChunkTimeStampRange>> Execute() {
+				return _sqlite.ExecuteReader(_cmd, _reader);
 			}
 		}
 	}

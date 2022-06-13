@@ -242,6 +242,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
+			private readonly Func<SqliteDataReader, KeyValuePair<TKey, MetastreamData>> _reader;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -254,11 +255,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => new KeyValuePair<TKey, MetastreamData>(
+					reader.GetFieldValue<TKey>(2), _readMetastreamData(reader));
 			}
 
 			public IEnumerable<KeyValuePair<TKey, MetastreamData>> Execute() {
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, MetastreamData>(
-					reader.GetFieldValue<TKey>(2), _readMetastreamData(reader)));
+				return _sqlite.ExecuteReader(_cmd, _reader);
 			}
 		}
 	}

@@ -110,20 +110,26 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 			private readonly SqliteParameter _keyParam;
+			private readonly Func<SqliteDataReader, TValue> _reader;
 
 			public GetCommand(string tableName, SqliteBackend sqlite) {
-				var selectSql = $"SELECT value FROM {tableName} WHERE key = $key";
+				var selectSql = $@"
+					SELECT value
+					FROM {tableName}
+					WHERE key = $key";
+				
 				_cmd = sqlite.CreateCommand();
 				_cmd.CommandText = selectSql;
 				_keyParam = _cmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => reader.GetFieldValue<TValue>(0);
 			}
 
 			public bool TryExecute(TKey key, out TValue value) {
 				_keyParam.Value = key;
-				return _sqlite.ExecuteSingleRead(_cmd, reader => reader.GetFieldValue<TValue>(0), out value);
+				return _sqlite.ExecuteSingleRead(_cmd, _reader, out value);
 			}
 		}
 
@@ -133,34 +139,43 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _deleteCmd;
 			private readonly SqliteParameter _selectKeyParam;
 			private readonly SqliteParameter _deleteKeyParam;
+			private readonly Func<SqliteDataReader, TValue> _reader;
 
 			public RemoveCommand(string tableName, SqliteBackend sqlite) {
-				var selectSql = $"SELECT value FROM {tableName} WHERE key = $key";
+				var selectSql = $@"
+					SELECT value
+					FROM {tableName}
+					WHERE key = $key";
+				
 				_selectCmd = sqlite.CreateCommand();
 				_selectCmd.CommandText = selectSql;
 				_selectKeyParam = _selectCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
 				_selectCmd.Prepare();
 
-				var deleteSql = $"DELETE FROM {tableName} WHERE key = $key";
+				var deleteSql = $@"
+					DELETE FROM {tableName}
+					WHERE key = $key";
+				
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
 				_deleteKeyParam = _deleteCmd.Parameters.Add("$key", SqliteTypeMapping.Map<TKey>());
 				_deleteCmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => reader.GetFieldValue<TValue>(0);
 			}
 
 			public bool TryExecute(TKey key, out TValue value) {
 				_selectKeyParam.Value = key;
 				_deleteKeyParam.Value = key;
-				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd,
-					reader => reader.GetFieldValue<TValue>(0), out value);
+				return _sqlite.ExecuteReadAndDelete(_selectCmd, _deleteCmd, _reader, out value);
 			}
 		}
 
 		private class AllRecordsCommand {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
+			private readonly Func<SqliteDataReader, KeyValuePair<TKey, TValue>> _reader;
 
 			public AllRecordsCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -173,11 +188,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => new KeyValuePair<TKey, TValue>(
+					reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1));
 			}
 
 			public IEnumerable<KeyValuePair<TKey, TValue>> Execute() {
-				return _sqlite.ExecuteReader(_cmd, reader => new KeyValuePair<TKey, TValue>(
-					reader.GetFieldValue<TKey>(0), reader.GetFieldValue<TValue>(1)));
+				return _sqlite.ExecuteReader(_cmd, _reader);
 			}
 		}
 	}
