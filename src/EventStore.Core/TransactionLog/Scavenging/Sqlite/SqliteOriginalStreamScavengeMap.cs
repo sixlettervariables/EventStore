@@ -441,8 +441,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
-				_reader = reader => new KeyValuePair<TKey, OriginalStreamData>(
-					reader.GetFieldValue<TKey>(7), _readOriginalStreamData(reader));
+				_reader = reader => {
+					var value = _readOriginalStreamData(reader);
+					var key = reader.GetFieldValue<TKey>(7);
+					return new KeyValuePair<TKey, OriginalStreamData>(key, value);
+				};
 			}
 
 			public IEnumerable<KeyValuePair<TKey, OriginalStreamData>> Execute(TKey key) {

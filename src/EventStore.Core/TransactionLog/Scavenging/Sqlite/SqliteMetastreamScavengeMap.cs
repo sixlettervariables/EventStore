@@ -223,9 +223,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteCommand _deleteCmd;
 
 			public DeleteAllCommand(string tableName, SqliteBackend sqlite) {
-				//qq would deleting / truncating the table be quicker
-				//>> sqlite doesn't have explicit truncation,
-				//   is done automatically with an internal optimization https://www.sqlite.org/lang_delete.html
+				// sqlite treats this efficiently (as a truncate) https://www.sqlite.org/lang_delete.html
 				var deleteSql = $"DELETE FROM {tableName}";
 				_deleteCmd = sqlite.CreateCommand();
 				_deleteCmd.CommandText = deleteSql;
@@ -255,8 +253,11 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
-				_reader = reader => new KeyValuePair<TKey, MetastreamData>(
-					reader.GetFieldValue<TKey>(2), _readMetastreamData(reader));
+				_reader = reader => {
+					var value = _readMetastreamData(reader);
+					var key = reader.GetFieldValue<TKey>(2);
+					return new KeyValuePair<TKey, MetastreamData>(key, value);
+				};
 			}
 
 			public IEnumerable<KeyValuePair<TKey, MetastreamData>> Execute() {

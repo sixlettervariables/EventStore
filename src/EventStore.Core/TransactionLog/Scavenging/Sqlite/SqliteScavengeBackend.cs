@@ -2,7 +2,6 @@
 using Microsoft.Data.Sqlite;
 
 namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
-	//qq DONE i think we could do with an info table that contains the schema version (1)
 	public class SqliteScavengeBackend<TStreamId> {
 		// WAL with SYNCHRONOUS NORMAL means that
 		//  - commiting a transaction does not wait to it to flush to disk
