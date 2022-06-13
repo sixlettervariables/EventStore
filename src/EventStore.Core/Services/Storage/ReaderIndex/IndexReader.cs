@@ -626,7 +626,8 @@ namespace EventStore.Core.Services.Storage.ReaderIndex {
 			if (_tableIndex.TryGetOldestEntry(stream, out var indexEntry) &&
 			    indexEntry.Position < beforePosition) {
 				var prepare = ReadPrepareInternal(reader, indexEntry.Position);
-				return prepare.EventStreamId;
+				if (prepare != null)
+					return prepare.EventStreamId;
 			}
 
 			return getStreamId(stream);
