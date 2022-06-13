@@ -57,7 +57,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 					discardPoint      INTEGER DEFAULT 0,
 					maybeDiscardPoint INTEGER DEFAULT 0,
 					status            INTEGER DEFAULT 0);
-				CREATE INDEX IF NOT EXISTS {TableName}KeyStatus  ON {TableName}(key, status)";
+				CREATE INDEX IF NOT EXISTS {TableName}KeyStatus ON {TableName} (key, status)";
 			
 			sqlite.InitializeDb(sql);
 
@@ -311,6 +311,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 			private readonly SqliteParameter _keyParam;
+			private readonly Func<SqliteDataReader, ChunkExecutionInfo> _reader;
 
 			public GetChunkExecutionInfoCommand(string tableName, SqliteBackend sqlite) {
 				var sql = $@"
@@ -324,17 +325,18 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
-			}
-
-			public bool TryExecute(TKey key, out ChunkExecutionInfo value) {
-				_keyParam.Value = key;
-				return _sqlite.ExecuteSingleRead(_cmd, reader => {
+				_reader = reader => {
 					var isTombstoned = reader.GetBoolean(0);
 					var maxAge = SqliteBackend.GetTimeSpanFromSeconds(1, reader);
 					var discardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(2));
 					var maybeDiscardPoint = DiscardPoint.DiscardBefore(reader.GetFieldValue<long>(3));
 					return new ChunkExecutionInfo(isTombstoned, discardPoint, maybeDiscardPoint, maxAge);
-				}, out value);
+				};
+			}
+
+			public bool TryExecute(TKey key, out ChunkExecutionInfo value) {
+				_keyParam.Value = key;
+				return _sqlite.ExecuteSingleRead(_cmd, _reader, out value);
 			}
 		}
 

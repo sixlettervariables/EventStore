@@ -81,6 +81,7 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			private readonly SqliteBackend _sqlite;
 			private readonly SqliteCommand _cmd;
 			private readonly SqliteParameter _keyParam;
+			private readonly Func<SqliteDataReader, Unit> _reader;
 
 			public GetCommand(SqliteBackend sqlite) {
 				var sql = @"
@@ -94,11 +95,12 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 				_cmd.Prepare();
 				
 				_sqlite = sqlite;
+				_reader = reader => Unit.Instance;
 			}
 
 			public bool TryExecute(TKey key) {
 				_keyParam.Value = key;
-				return _sqlite.ExecuteSingleRead(_cmd, reader => true, out _);
+				return _sqlite.ExecuteSingleRead(_cmd, _reader, out _);
 			}
 		}
 		private class RemoveCommand {
