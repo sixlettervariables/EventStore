@@ -566,7 +566,7 @@ namespace EventStore.Core {
 						DataSource = Path.Combine(scavengeDirectory, "scavenging.db")
 					};
 					var connection = new SqliteConnection(connectionStringBuilder.ConnectionString);
-
+					connection.Open();
 					var sqlite = new SqliteScavengeBackend<string>();
 					sqlite.Initialize(connection);
 					return sqlite;

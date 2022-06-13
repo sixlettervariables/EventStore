@@ -82,7 +82,8 @@ namespace EventStore.Core.TransactionLog.Scavenging.Sqlite {
 			_sqliteBackend.SetPragmaValue(SqliteBackend.PageSize, SqlitePageSize.ToString());
 			var pageSize = int.Parse(_sqliteBackend.GetPragmaValue(SqliteBackend.PageSize));
 			if (pageSize != SqlitePageSize) {
-				throw new Exception($"Failed to configure page size, unexpected value: {pageSize}");
+				// note we will fail to set it if the database already exists with a different page size
+				throw new Exception($"Failed to configure page size to {SqlitePageSize}. Actually {pageSize}");
 			}
 			
 			_sqliteBackend.SetPragmaValue(SqliteBackend.JournalMode, SqliteWalJournalMode);
